@@ -1,0 +1,59 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Manrope:wght@500;600;700&display=swap');
+
+@theme {
+  --font-heading: "Helvetica Neue", "Arial", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+  --font-sans: "DM Sans", sans-serif;
+
+  --color-primary-orange: #FF6934;
+  --color-gray-900: #111827;
+  --color-gray-500: #6B7280;
+  --color-page-bg: #F9FAFB;
+}
+
+@layer base {
+  body {
+    @apply font-body bg-page-bg text-gray-500 antialiased;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  h1 {
+    @apply font-heading font-medium text-gray-900;
+    font-size: 24px;
+  }
+
+  h2 {
+    @apply font-heading font-bold text-gray-900;
+    font-size: 20px;
+  }
+
+  h3 {
+    @apply font-heading font-bold text-gray-900;
+    font-size: 15px;
+  }
+
+  h4 {
+    @apply font-heading font-bold text-gray-900;
+    font-size: 14px;
+  }
+
+  p {
+    @apply text-gray-500 font-medium leading-tight;
+    font-size: 14px;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+}
