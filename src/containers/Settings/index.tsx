@@ -40,7 +40,7 @@ export default function Settings() {
 
   return (
     <div className="bg-[#F9FAFB] min-h-screen">
-      <div className="max-w-7xl mx-auto px-2 sm:px-12 py-6">
+      <div className="max-w-full mx-auto px-2 sm:px-12 py-6">
         <div className="flex flex-col md:flex-row gap-6 items-start sm:mt-3">
           {/* Left Sidebar */}
           <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />

@@ -32,15 +32,15 @@ export default function ProfileCompletion() {
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center gap-3 bg-[#ECFDF3] border border-[#ABEFC6] p-4 rounded-[10px] shadow-sm">
+        <div className="flex items-center gap-3 bg-[#D1FADF]  p-4 rounded-[10px] shadow-sm">
           <CheckCircle2 className="text-[#12B76A] size-6" />
           <span className="text-sm font-semibold text-[#027A48]">Upload CV</span>
         </div>
-        <div className="flex items-center gap-3 bg-[#F9FAFB] border border-gray-100 p-4 rounded-[10px] hover:bg-white hover:border-gray-200 transition-all cursor-pointer shadow-sm group">
+        <div className="flex items-center gap-3 bg-[#F9FAFB]  p-4 rounded-[10px] hover:bg-white hover:border-gray-200 transition-all cursor-pointer shadow-sm group">
           <Circle className="text-gray-300 group-hover:text-[#FF6934] transition-colors size-6" />
           <span className="text-sm font-semibold text-gray-600 group-hover:text-gray-900 transition-colors">Add skills</span>
         </div>
-        <div className="flex items-center gap-3 bg-[#F9FAFB] border border-gray-100 p-4 rounded-[10px] hover:bg-white hover:border-gray-200 transition-all cursor-pointer shadow-sm group">
+        <div className="flex items-center gap-3 bg-[#F9FAFB]  p-4 rounded-[10px] hover:bg-white hover:border-gray-200 transition-all cursor-pointer shadow-sm group">
           <Circle className="text-gray-300 group-hover:text-[#FF6934] transition-colors size-6" />
           <span className="text-sm font-semibold text-gray-600 group-hover:text-gray-900 transition-colors">Add experience</span>
         </div>
