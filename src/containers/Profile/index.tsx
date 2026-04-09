@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Header from './components/Header';
 import StrengthCard from './components/StrengthCard';
 import AboutSection from './components/AboutSection';
@@ -8,13 +9,15 @@ import JobPreferences from './components/JobPreferences';
 import SidebarStats from './components/SidebarStats';
 
 export default function Profile() {
+  const [isEditing, setIsEditing] = useState(false);
+
   return (
     <div className="max-w-full mx-auto px-2 sm:px-12 py-6 space-y-6 bg-[#F9FAFB] min-h-screen">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
         {/* Main Content */}
         <div className="lg:col-span-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <Header />
+          <Header isEditing={isEditing} setIsEditing={setIsEditing} />
           <StrengthCard />
           <AboutSection />
           <ExperienceSection />

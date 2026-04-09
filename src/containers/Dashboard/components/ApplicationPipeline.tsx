@@ -18,7 +18,7 @@ export default function ApplicationPipeline({ counts }: { counts?: { applied?: n
             <span className={`text-[24px] font-bold ${stat.color}`}>{stat.count}</span>
             <span className="text-[12px] font-[500] text-gray-500 mt-1 whitespace-nowrap font-manrope">{stat.label}</span>
             <div className="w-full h-1 bg-[#EAECF0] rounded-full mt-4 overflow-hidden">
-              <div 
+              <div
                 className={`h-full rounded-full ${stat.border} transition-all duration-500`}
                 style={{ width: `${(stat.count / maxCount) * 100}%` }}
               ></div>
