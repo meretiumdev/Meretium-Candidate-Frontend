@@ -26,6 +26,7 @@ function AuthGuard({ children }: AuthGuardProps) {
 }
 
 function App() {
+  console.log("App Version: 1.0.1 - Deployment Triggered at " + new Date().toLocaleTimeString());
   return (
     <Router>
       <Routes>
