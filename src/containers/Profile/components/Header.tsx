@@ -267,14 +267,15 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                   <div className="flex items-center gap-1.5"><MapPin size={16} className="text-[#475467]" /> {location}</div>
                   <div className="flex items-center gap-1.5"><Calendar size={16} className="text-[#475467]" /> {experienceLabel}</div>
                 </div>
-
+                {isOpenToWork &&(
                 <div className="mt-5 animate-in fade-in duration-300">
                   <span className={`text-[14px] px-3 py-1.5 rounded-full flex items-center gap-1.5 w-fit font-medium transition-all duration-300 ${
                     isOpenToWork ? 'bg-[#D1FADF]/50 text-[#039855]' : 'bg-[#F2F4F7] text-[#475467]'
                   }`}>
-                    <CheckCircle2 size={16} /> {isOpenToWork ? 'Open to work' : 'Closed to opportunities'}
+                    <CheckCircle2 size={16} /> {isOpenToWork && 'Open to work'}
                   </span>
                 </div>
+                )}
 
                 <div className="mt-8 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 animate-in fade-in duration-300">
                   <button

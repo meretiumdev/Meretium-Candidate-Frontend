@@ -4,17 +4,6 @@ function getAuthApiBaseUrl(): string {
   if (!RAW_AUTH_API_BASE_URL) return '';
 
   const trimmed = RAW_AUTH_API_BASE_URL.replace(/\/$/, '');
-  const isAbsoluteHttpUrl = /^https?:\/\//i.test(trimmed);
-
-  // In Vite dev mode, use same-origin path so requests go through dev proxy and bypass browser CORS.
-  if (import.meta.env.DEV && isAbsoluteHttpUrl) {
-    try {
-      return new URL(trimmed).pathname.replace(/\/$/, '');
-    } catch {
-      return trimmed;
-    }
-  }
-
   return trimmed;
 }
 
