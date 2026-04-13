@@ -14,7 +14,7 @@ const VerifiedStep: React.FC = () => {
       </h2>
       
       <p className="text-[#475467] text-[15px] font-[400] font-body">
-        Taking you to your dashboard...
+        Redirecting to sign in...
       </p>
     </div>
   );

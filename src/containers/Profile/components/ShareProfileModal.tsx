@@ -4,6 +4,7 @@ import { X, Link2, Mail, Lock } from 'lucide-react';
 interface ShareProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
+  profileUrl?: string | null;
 }
 
 // LinkedIn SVG icon (not in lucide-react)
@@ -15,25 +16,25 @@ function LinkedInIcon() {
   );
 }
 
-export default function ShareProfileModal({ isOpen, onClose }: ShareProfileModalProps) {
+export default function ShareProfileModal({ isOpen, onClose, profileUrl }: ShareProfileModalProps) {
   const [copied, setCopied] = useState(false);
-  const profileUrl = 'https://meritium.ai/profile/sarah-johnson';
+  const shareUrl = profileUrl?.trim() || 'https://meritium.ai/profile';
 
   if (!isOpen) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(profileUrl).then(() => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
 
   const handleEmail = () => {
-    window.location.href = `mailto:?subject=Check out my Meritium profile&body=View my profile here: ${profileUrl}`;
+    window.location.href = `mailto:?subject=Check out my Meritium profile&body=View my profile here: ${shareUrl}`;
   };
 
   const handleLinkedIn = () => {
-    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(profileUrl)}`, '_blank');
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank');
   };
 
   return (
@@ -65,7 +66,7 @@ export default function ShareProfileModal({ isOpen, onClose }: ShareProfileModal
             </label>
             <div className="flex items-center gap-2 border border-gray-200 rounded-[8px] px-3.5 py-2.5">
               <Link2 size={16} className="text-[#98A2B3] shrink-0" />
-              <span className="text-[14px] text-[#475467] flex-1 truncate">{profileUrl}</span>
+              <span className="text-[14px] text-[#475467] flex-1 truncate">{shareUrl}</span>
               <button
                 onClick={handleCopy}
                 className="shrink-0 text-[14px] font-medium text-[#344054] border border-gray-200 px-3 py-1 rounded-[6px] hover:bg-gray-50 transition-colors cursor-pointer"

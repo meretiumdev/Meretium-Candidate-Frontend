@@ -4,15 +4,25 @@ interface DeleteCVModalProps {
   isOpen: boolean;
   onClose: () => void;
   cvName: string;
+  onConfirm: () => Promise<void> | void;
+  deleting?: boolean;
 }
 
-export default function DeleteCVModal({ isOpen, onClose, cvName }: DeleteCVModalProps) {
+export default function DeleteCVModal({
+  isOpen,
+  onClose,
+  cvName,
+  onConfirm,
+  deleting = false,
+}: DeleteCVModalProps) {
   if (!isOpen) return null;
 
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-all"
-      onClick={onClose}
+      onClick={() => {
+        if (!deleting) onClose();
+      }}
     >
       <div 
         className="w-full max-w-sm bg-white rounded-[16px] shadow-2xl p-6 text-center border border-gray-100" 
@@ -32,14 +42,17 @@ export default function DeleteCVModal({ isOpen, onClose, cvName }: DeleteCVModal
         <div className="flex items-center justify-center gap-3">
           <button 
             onClick={onClose}
-            className="px-6 py-2 border border-gray-300 text-[#344054] text-[14px] font-medium rounded-[8px] hover:bg-gray-50 transition-colors cursor-pointer"
+            disabled={deleting}
+            className="px-6 py-2 border border-gray-300 text-[#344054] text-[14px] font-medium rounded-[8px] hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button 
-            className="px-6 py-2 bg-[#FF6934] text-white text-[14px] font-medium rounded-[8px] hover:opacity-90 transition-opacity cursor-pointer"
+            onClick={() => { void onConfirm(); }}
+            disabled={deleting}
+            className="px-6 py-2 bg-[#FF6934] text-white text-[14px] font-medium rounded-[8px] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Delete
+            {deleting ? 'Deleting...' : 'Delete'}
           </button>
         </div>
       </div>

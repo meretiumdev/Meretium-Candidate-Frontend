@@ -1,19 +1,28 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 interface VerifyPhoneStepProps {
-  onSuccess: () => void;
+  onSuccess: (phoneNumber: string) => void;
+  countryCode: string;
+  phone: string;
+  onCountryCodeChange: (value: string) => void;
+  onPhoneChange: (value: string) => void;
+  loading?: boolean;
 }
 
-const VerifyPhoneStep: React.FC<VerifyPhoneStepProps> = ({ onSuccess }) => {
-  const [phone, setPhone] = useState('');
-  const [countryCode, setCountryCode] = useState('+1');
-
+const VerifyPhoneStep: React.FC<VerifyPhoneStepProps> = ({
+  onSuccess,
+  countryCode,
+  phone,
+  onCountryCodeChange,
+  onPhoneChange,
+  loading = false,
+}) => {
   const isFormValid = phone.trim().length >= 7;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isFormValid) {
-      onSuccess();
+      onSuccess(`${countryCode}${phone.trim()}`);
     }
   };
 
@@ -33,7 +42,7 @@ const VerifyPhoneStep: React.FC<VerifyPhoneStepProps> = ({ onSuccess }) => {
             <div className="relative">
               <select
                 value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
+                onChange={(e) => onCountryCodeChange(e.target.value)}
                 className="w-full px-3 py-3 rounded-[8px] border border-[#D1D5DB] focus:border-[#FF6934] outline-none text-[14px] appearance-none bg-white cursor-pointer font-body"
               >
                 <option value="+1">+1</option>
@@ -53,7 +62,7 @@ const VerifyPhoneStep: React.FC<VerifyPhoneStepProps> = ({ onSuccess }) => {
             <input
               type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => onPhoneChange(e.target.value.replace(/\D/g, ''))}
               placeholder="3081438793"
               className="w-full px-4 py-3 rounded-[8px] border border-[#D1D5DB] focus:border-[#FF6934] outline-none text-[14px] font-body"
             />
@@ -62,10 +71,10 @@ const VerifyPhoneStep: React.FC<VerifyPhoneStepProps> = ({ onSuccess }) => {
 
         <button
           type="submit"
-          disabled={!isFormValid}
-          className={`w-full text-white font-[600] py-3.5 rounded-[8px] transition-all text-[14px] font-[600] active:scale-[0.98] cursor-pointer ${isFormValid ? 'bg-[#FF6934] hover:bg-[#E5552B]' : 'bg-[#FFBD9D]'}`}
+          disabled={!isFormValid || loading}
+          className={`w-full text-white font-[600] py-3.5 rounded-[8px] transition-all text-[14px] font-[600] active:scale-[0.98] cursor-pointer ${isFormValid && !loading ? 'bg-[#FF6934] hover:bg-[#E5552B]' : 'bg-[#FFBD9D]'}`}
         >
-          Send code
+          {loading ? 'Please wait...' : 'Send code'}
         </button>
       </form>
     </div>
