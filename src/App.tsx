@@ -1,6 +1,7 @@
-import React from 'react';
-import { useSelector } from 'react-redux';
-import type { RootState } from './redux/store';
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { logout } from './redux/store';
+import type { AppDispatch, RootState } from './redux/store';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Onboarding from './containers/Onboarding';
@@ -19,10 +20,32 @@ interface AuthGuardProps {
   children: React.ReactNode;
 }
 
+function getIsOnboarded(user: unknown): boolean | null {
+  if (typeof user !== 'object' || user === null) return null;
+  const value = (user as { is_onboarded?: unknown }).is_onboarded;
+  return typeof value === 'boolean' ? value : null;
+}
+
 function AuthGuard({ children }: AuthGuardProps) {
-  const { accessToken } = useSelector((state: RootState) => state.auth);
-  if (!accessToken) return <Navigate to="/auth" />;
+  const dispatch = useDispatch<AppDispatch>();
+  const { accessToken, tokenExpiresAt } = useSelector((state: RootState) => state.auth);
+  const isTokenExpired = Boolean(accessToken && tokenExpiresAt && Date.now() >= tokenExpiresAt);
+
+  useEffect(() => {
+    if (!isTokenExpired) return;
+    dispatch(logout());
+  }, [dispatch, isTokenExpired]);
+
+  if (!accessToken || isTokenExpired) return <Navigate to="/auth" replace />;
   return <Layout>{children}</Layout>;
+}
+
+function OnboardingAccessGuard({ children }: AuthGuardProps) {
+  const user = useSelector((state: RootState) => state.auth.user);
+  const isOnboarded = getIsOnboarded(user);
+
+  if (isOnboarded === true) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
 }
 
 function App() {
@@ -32,8 +55,8 @@ function App() {
       <Routes>
         <Route path="/auth" element={<Auth />} />
         
-        <Route path="/" element={<AuthGuard><Onboarding /></AuthGuard>} />
-        <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
+        <Route path="/" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />
+        <Route path="/onboarding" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />
         <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
         <Route path="/explore-jobs" element={<AuthGuard><ExploreJobs /></AuthGuard>} />
         <Route path="/jobs" element={<AuthGuard><JobsPage /></AuthGuard>} />

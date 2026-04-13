@@ -1,52 +1,101 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface OtpStepProps {
-  onSuccess: () => void;
+  onSuccess: (otp: string) => void;
+  onResend: () => Promise<boolean>;
+  phoneNumber: string;
+  resendAvailableAt: number | null;
+  onResendAvailableAtChange: (nextTimestamp: number | null) => void;
+  resendCooldownSeconds?: number;
+  loading?: boolean;
 }
 
-const OtpStep: React.FC<OtpStepProps> = ({ onSuccess }) => {
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [timer, setTimer] = useState(29);
+const OTP_LENGTH = 6;
+
+function getMaskedPhoneNumber(phoneNumber: string): string {
+  if (!phoneNumber) return '';
+  if (phoneNumber.length <= 4) return phoneNumber;
+  return `${phoneNumber.slice(0, 3)}******${phoneNumber.slice(-2)}`;
+}
+
+const OtpStep: React.FC<OtpStepProps> = ({
+  onSuccess,
+  onResend,
+  phoneNumber,
+  resendAvailableAt,
+  onResendAvailableAtChange,
+  resendCooldownSeconds = 30,
+  loading = false,
+}) => {
+  const [otp, setOtp] = useState<string[]>(new Array(OTP_LENGTH).fill(''));
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const maskedPhoneNumber = getMaskedPhoneNumber(phoneNumber);
 
   useEffect(() => {
-    let interval: any;
-    if (timer > 0) {
-      interval = setInterval(() => {
-        setTimer((prev) => prev - 1);
-      }, 1000);
+    if (!resendAvailableAt) {
+      setSecondsLeft(0);
+      return undefined;
     }
+
+    const getNextSecondsLeft = () => Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
+    const initialSecondsLeft = getNextSecondsLeft();
+    setSecondsLeft(initialSecondsLeft);
+
+    if (initialSecondsLeft <= 0) {
+      onResendAvailableAtChange(null);
+      return undefined;
+    }
+
+    const interval = setInterval(() => {
+      const nextSecondsLeft = getNextSecondsLeft();
+      setSecondsLeft(nextSecondsLeft);
+      if (nextSecondsLeft <= 0) {
+        onResendAvailableAtChange(null);
+      }
+    }, 1000);
+
     return () => clearInterval(interval);
-  }, [timer]);
+  }, [onResendAvailableAtChange, resendAvailableAt]);
 
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     const newOtp = [...otp];
     newOtp[index] = value.slice(-1);
     setOtp(newOtp);
-    
-    if (value && index < 5) {
-      const nextInput = document.getElementById(`otp-${index + 1}`);
-      nextInput?.focus();
+
+    if (value && index < OTP_LENGTH - 1) {
+      document.getElementById(`otp-${index + 1}`)?.focus();
     }
   };
 
-  const isFormValid = otp.every(digit => digit !== '');
+  const isFormValid = otp.every((digit) => digit !== '');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isFormValid) {
-      onSuccess();
+      onSuccess(otp.join(''));
+    }
+  };
+
+  const handleResend = async () => {
+    if (loading || secondsLeft > 0) return;
+    const success = await onResend();
+    if (success) {
+      onResendAvailableAtChange(Date.now() + resendCooldownSeconds * 1000);
     }
   };
 
   return (
     <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm w-[480px] flex flex-col gap-8 font-manrope transition-all duration-300">
       <div>
-        <h2 className="text-[24px] font-semibold text-[#0A1124] leading-[32px] capitalize tracking-normal font-sans" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        <h2
+          className="text-[24px] font-semibold text-[#0A1124] leading-[32px] capitalize tracking-normal font-sans"
+          style={{ fontFamily: "'Manrope', sans-serif" }}
+        >
           Enter Verification Code
         </h2>
         <p className="text-[#475467] text-[14px] mt-3 font-[400] font-body">
-          Enter the 6-digit code sent to +92 • • • • • 93
+          Enter the 6-digit code sent to {maskedPhoneNumber}
         </p>
       </div>
 
@@ -59,6 +108,7 @@ const OtpStep: React.FC<OtpStepProps> = ({ onSuccess }) => {
               type="text"
               maxLength={1}
               value={digit}
+              disabled={loading}
               onChange={(e) => handleOtpChange(idx, e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Backspace' && !digit && idx > 0) {
@@ -71,17 +121,30 @@ const OtpStep: React.FC<OtpStepProps> = ({ onSuccess }) => {
         </div>
 
         <div className="text-center">
-          <p className="text-[#475467] text-[14px] font-body">
-            Resend code in <span className="font-medium">{timer}s</span>
-          </p>
+          {secondsLeft > 0 ? (
+            <p className="text-[#475467] text-[14px] font-body">
+              Resend code in <span className="font-medium">{secondsLeft}s</span>
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={loading}
+              className="text-[14px] font-semibold text-[#FF6934] hover:text-[#E5552B] cursor-pointer disabled:opacity-60"
+            >
+              {loading ? 'Please wait...' : 'Resend code'}
+            </button>
+          )}
         </div>
 
-        <button 
-          type="submit" 
-          disabled={!isFormValid}
-          className={`w-full text-white font-[600] py-3 rounded-[8px] transition-all text-[14px] font-body active:scale-[0.98] cursor-pointer ${isFormValid ? 'bg-[#FF6934] hover:bg-[#E5552B]' : 'bg-[#FFBD9D]'}`}
+       
+
+        <button
+          type="submit"
+          disabled={!isFormValid || loading}
+          className={`w-full text-white font-[600] py-3 rounded-[8px] transition-all text-[14px] font-body active:scale-[0.98] cursor-pointer ${isFormValid && !loading ? 'bg-[#FF6934] hover:bg-[#E5552B]' : 'bg-[#FFBD9D]'}`}
         >
-          Verify code
+          {loading ? 'Please wait...' : 'Verify code'}
         </button>
       </form>
     </div>

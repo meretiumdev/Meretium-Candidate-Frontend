@@ -5,15 +5,48 @@ import logo from '../assets/logo_primary.png';
 import NotificationsModal from './NotificationsModal';
 
 import { logout } from '../redux/store';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import type { RootState } from '../redux/store';
+
+function getUserEmail(user: unknown): string {
+  if (typeof user !== 'object' || user === null) return 'Email not available';
+  const email = (user as { email?: unknown }).email;
+  if (typeof email !== 'string' || !email.trim()) return 'Email not available';
+  return email.trim();
+}
+
+function getUserName(user: unknown): string {
+  if (typeof user !== 'object' || user === null) return 'User';
+
+  const fullName = (user as { full_name?: unknown }).full_name;
+  if (typeof fullName === 'string' && fullName.trim()) return fullName.trim();
+
+  const email = (user as { email?: unknown }).email;
+  if (typeof email === 'string' && email.trim()) {
+    const [prefix] = email.trim().split('@');
+    if (prefix) return prefix;
+  }
+
+  return 'User';
+}
+
+function getUserInitial(name: string): string {
+  const trimmedName = name.trim();
+  if (!trimmedName) return 'U';
+  return trimmedName.charAt(0).toUpperCase();
+}
 
 export default function Navbar() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const user = useSelector((state: RootState) => state.auth.user);
   const location = useLocation();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const userEmail = getUserEmail(user);
+  const userName = getUserName(user);
+  const userInitial = getUserInitial(userName);
 
   const handleLogout = () => {
     setIsProfileMenuOpen(false);
@@ -45,7 +78,7 @@ export default function Navbar() {
         {/* 1. Logo */}
         <div 
           className="flex items-center gap-2 cursor-pointer order-1 shrink-0"
-          onClick={() => navigate('/explore-jobs')}
+          onClick={() => navigate('/dashboard')}
         >
           <img src={logo} alt="meretium" className="h-6 md:h-7 w-auto object-contain" />
         </div>
@@ -103,14 +136,14 @@ export default function Navbar() {
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                 className="size-8 md:size-9 bg-[#FF6934] rounded-full flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:opacity-90 shadow-sm border-2 border-[#FF6934] hover:shadow-md transition-all ring-2 ring-transparent hover:ring-orange-100"
               >
-                S
+                {userInitial}
               </div>
 
               {isProfileMenuOpen && (
                 <div className="absolute right-0 top-full mt-3 w-56 bg-white cursor-pointer border border-gray-200 rounded-xl shadow-lg py-2 z-50 overflow-hidden transform origin-top-right transition-all font-manrope">
                   <div className="px-4 py-3 border-b border-gray-50 mb-1">
-                    <p className="text-sm font-bold text-gray-900">Sarah Jenkins</p>
-                    <p className="text-xs text-gray-500">sarah@example.com</p>
+                    <p className="text-sm font-bold text-gray-900">{userName}</p>
+                    <p className="text-xs text-gray-500">{userEmail}</p>
                   </div>
 
                   {/* Mobile-only menu items */}

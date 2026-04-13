@@ -5,9 +5,17 @@ interface RenameCVModalProps {
   isOpen: boolean;
   onClose: () => void;
   cvName: string;
+  onConfirm: (nextName: string) => Promise<void> | void;
+  saving?: boolean;
 }
 
-export default function RenameCVModal({ isOpen, onClose, cvName }: RenameCVModalProps) {
+export default function RenameCVModal({
+  isOpen,
+  onClose,
+  cvName,
+  onConfirm,
+  saving = false,
+}: RenameCVModalProps) {
   const [name, setName] = useState('');
 
   useEffect(() => {
@@ -17,10 +25,18 @@ export default function RenameCVModal({ isOpen, onClose, cvName }: RenameCVModal
 
   if (!isOpen) return null;
 
+  const handleRename = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || saving) return;
+    await onConfirm(trimmed);
+  };
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-all"
-      onClick={onClose}
+      onClick={() => {
+        if (!saving) onClose();
+      }}
     >
       <div 
         className="w-full max-w-md bg-white rounded-[16px] shadow-2xl overflow-hidden border border-gray-100" 
@@ -33,7 +49,11 @@ export default function RenameCVModal({ isOpen, onClose, cvName }: RenameCVModal
               </div>
               <h3 className="text-[18px] md:text-[20px] font-semibold text-[#101828]">Rename CV</h3>
            </div>
-           <button onClick={onClose} className="text-[#667085] hover:text-gray-900 transition-colors cursor-pointer">
+           <button
+             onClick={onClose}
+             disabled={saving}
+             className="text-[#667085] hover:text-gray-900 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+           >
               <X size={24} />
            </button>
         </div>
@@ -56,15 +76,17 @@ export default function RenameCVModal({ isOpen, onClose, cvName }: RenameCVModal
         <div className="flex items-center justify-end gap-3 px-6 py-5 border-t border-gray-100">
           <button 
             onClick={onClose}
-            className="text-[#475467] text-[14px] font-medium px-4 py-2 hover:bg-gray-50 rounded-[8px] transition-colors cursor-pointer"
+            disabled={saving}
+            className="text-[#475467] text-[14px] font-medium px-4 py-2 hover:bg-gray-50 rounded-[8px] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button 
-            disabled={!name.trim()}
+            onClick={() => { void handleRename(); }}
+            disabled={!name.trim() || saving}
             className="bg-[#FF6934] text-white rounded-[8px] px-5 py-2 text-[14px] font-medium transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Rename
+            {saving ? 'Renaming...' : 'Rename'}
           </button>
         </div>
       </div>
