@@ -7,7 +7,6 @@ import { uploadCandidateCv } from '../services/cvApi';
 interface UploadCVModalProps {
   isOpen: boolean;
   onClose: () => void;
-  jobTitle?: string;
   onUploadSuccess?: () => void;
 }
 
@@ -25,7 +24,6 @@ function getErrorMessage(error: unknown): string {
 export default function UploadCVModal({
   isOpen,
   onClose,
-  jobTitle = 'Senior Product Designer',
   onUploadSuccess,
 }: UploadCVModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
