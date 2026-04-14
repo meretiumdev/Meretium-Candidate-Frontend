@@ -35,6 +35,7 @@ interface JobsPageCache {
   savedJobsMap: Record<string, boolean>;
   nextSkip: number;
   hasMore: boolean;
+  totalJobs: number | null;
   scrollY: number;
   filtersSignature: string;
 }
@@ -91,6 +92,9 @@ function readJobsPageCache(): JobsPageCache | null {
       savedJobsMap,
       nextSkip: Math.max(0, Math.trunc(asFiniteNumber(parsed.nextSkip, jobs.length))),
       hasMore: parsed.hasMore !== false,
+      totalJobs: typeof parsed.totalJobs === 'number' && Number.isFinite(parsed.totalJobs)
+        ? Math.max(0, Math.trunc(parsed.totalJobs))
+        : null,
       scrollY: Math.max(0, Math.trunc(asFiniteNumber(parsed.scrollY, 0))),
       filtersSignature: typeof parsed.filtersSignature === 'string' ? parsed.filtersSignature : '',
     };
@@ -231,6 +235,7 @@ export default function JobList({ filters }: JobListProps) {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [totalJobs, setTotalJobs] = useState<number | null>(null);
 
   const nextSkipRef = useRef(0);
   const isFetchingRef = useRef(false);
@@ -279,7 +284,7 @@ export default function JobList({ filters }: JobListProps) {
     const requestSkip = reset ? 0 : nextSkipRef.current;
 
     try {
-      const responseJobs = await getCandidateJobs(accessToken, {
+      const response = await getCandidateJobs(accessToken, {
         skip: requestSkip,
         limit: PAGE_LIMIT,
         date_posted: activeFilters.datePosted,
@@ -291,11 +296,18 @@ export default function JobList({ filters }: JobListProps) {
       });
       if (requestVersion !== requestVersionRef.current) return;
 
-      const mappedJobs = responseJobs.map((job, index) => toJobListItem(job, requestSkip + index));
+      const mappedJobs = response.items.map((job, index) => toJobListItem(job, requestSkip + index));
       setJobs((prev) => (reset ? mappedJobs : [...prev, ...mappedJobs]));
+      if (typeof response.total === 'number') {
+        setTotalJobs(response.total);
+      } else {
+        setTotalJobs((prev) => Math.max(prev ?? 0, requestSkip + response.items.length));
+      }
 
-      const nextSkip = requestSkip + responseJobs.length;
-      const nextHasMore = responseJobs.length === PAGE_LIMIT;
+      const nextSkip = requestSkip + response.items.length;
+      const nextHasMore = typeof response.total === 'number'
+        ? nextSkip < response.total
+        : response.items.length === PAGE_LIMIT;
       nextSkipRef.current = nextSkip;
       hasMoreRef.current = nextHasMore;
     } catch (error: unknown) {
@@ -323,10 +335,11 @@ export default function JobList({ filters }: JobListProps) {
       savedJobsMap,
       nextSkip: nextSkipRef.current,
       hasMore: hasMoreRef.current,
+      totalJobs,
       scrollY: Math.max(0, Math.trunc(scrollY ?? (typeof window !== 'undefined' ? window.scrollY : 0))),
       filtersSignature,
     });
-  }, [filtersSignature, jobs, savedJobsMap]);
+  }, [filtersSignature, jobs, savedJobsMap, totalJobs]);
 
   useEffect(() => {
     if (isReloadNavigation() && !reloadCacheResetHandled) {
@@ -339,6 +352,7 @@ export default function JobList({ filters }: JobListProps) {
       setJobs([]);
       setSavedJobsMap({});
       setErrorMessage(null);
+      setTotalJobs(null);
       cacheReadyRef.current = true;
       void loadJobs(true, requestVersionRef.current);
       return;
@@ -352,6 +366,7 @@ export default function JobList({ filters }: JobListProps) {
       setJobs(cached.jobs);
       setSavedJobsMap(cached.savedJobsMap);
       setErrorMessage(null);
+      setTotalJobs(cached.totalJobs);
       setIsInitialLoading(false);
       cacheReadyRef.current = true;
 
@@ -371,6 +386,7 @@ export default function JobList({ filters }: JobListProps) {
     hasMoreRef.current = true;
     setJobs([]);
     setSavedJobsMap({});
+    setTotalJobs(null);
     cacheReadyRef.current = true;
     void loadJobs(true, requestVersionRef.current);
   }, [filtersSignature, loadJobs]);
@@ -431,6 +447,7 @@ export default function JobList({ filters }: JobListProps) {
     nextSkipRef.current = 0;
     hasMoreRef.current = true;
     setJobs([]);
+    setTotalJobs(null);
     void loadJobs(true, requestVersionRef.current);
   };
 
@@ -472,7 +489,7 @@ export default function JobList({ filters }: JobListProps) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-[24px] font-semibold text-gray-900">{jobs.length} jobs found</h2>
+        <h2 className="text-[24px] font-semibold text-gray-900">{totalJobs ?? jobs.length} jobs found</h2>
         <div className="flex items-center gap-2">
           <select className="border border-[#E4E7EC] rounded-[10px] px-3 py-1.5 text-sm font-medium text-gray-600 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 appearance-none">
             <option>Most relevant</option>
@@ -531,8 +548,8 @@ export default function JobList({ filters }: JobListProps) {
               )}
 
               <div className="flex flex-wrap gap-2 mt-4">
-                {job.tags.map((tag) => (
-                  <span key={tag} className="bg-[#F2F4F7] border border-gray-200 text-[#475467] text-sm font-regular px-2.5 py-1.5 rounded-[10px]">
+                {job.tags.map((tag, index) => (
+                  <span key={`${job.id}-tag-${index}`} className="bg-[#F2F4F7] border border-gray-200 text-[#475467] text-sm font-regular px-2.5 py-1.5 rounded-[10px]">
                     {tag}
                   </span>
                 ))}

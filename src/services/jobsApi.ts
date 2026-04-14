@@ -35,6 +35,11 @@ export interface CandidateJobsApiJob {
   match_percentage: number | null;
 }
 
+export interface CandidateJobsListResponse {
+  items: CandidateJobsApiJob[];
+  total: number | null;
+}
+
 export interface CandidateJobDetailResponse extends CandidateJobsApiJob {
   department: string;
   work_mode: string;
@@ -181,20 +186,28 @@ function normalizeJob(raw: unknown): CandidateJobsApiJob | null {
   };
 }
 
-function normalizeJobsResponse(payload: unknown): CandidateJobsApiJob[] {
+function normalizeJobsResponse(payload: unknown): CandidateJobsListResponse {
   let jobsRaw: unknown[] = [];
+  let total: number | null = null;
 
   if (Array.isArray(payload)) {
     jobsRaw = payload;
   } else {
     const root = asRecord(payload) || {};
-    if (Array.isArray(root.data)) jobsRaw = root.data;
+    if (Array.isArray(root.items)) jobsRaw = root.items;
+    else if (Array.isArray(root.data)) jobsRaw = root.data;
     else if (Array.isArray(root.results)) jobsRaw = root.results;
+    total = asNullableNumber(root.total);
   }
 
-  return jobsRaw
+  const items = jobsRaw
     .map((item) => normalizeJob(item))
     .filter((item): item is CandidateJobsApiJob => item !== null);
+
+  return {
+    items,
+    total: total === null ? null : Math.max(0, Math.trunc(total)),
+  };
 }
 
 function asNumber(input: unknown): number {
@@ -246,7 +259,7 @@ function normalizeJobDetailResponse(payload: unknown): CandidateJobDetailRespons
 export async function getCandidateJobs(
   accessToken: string,
   params: GetCandidateJobsParams = {}
-): Promise<CandidateJobsApiJob[]> {
+): Promise<CandidateJobsListResponse> {
   if (!CANDIDATE_API_BASE_URL) {
     throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
   }
