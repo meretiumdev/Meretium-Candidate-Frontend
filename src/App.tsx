@@ -60,8 +60,9 @@ function App() {
         <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
         <Route path="/explore-jobs" element={<AuthGuard><ExploreJobs /></AuthGuard>} />
         <Route path="/jobs" element={<AuthGuard><JobsPage /></AuthGuard>} />
+        <Route path="/jobs/:id" element={<AuthGuard><JobDetail /></AuthGuard>} />
         <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
-        <Route path="/job-detail" element={<AuthGuard><JobDetail /></AuthGuard>} />
+        <Route path="/job-detail" element={<AuthGuard><Navigate to="/jobs" replace /></AuthGuard>} />
         <Route path="/applications" element={<AuthGuard><Applications /></AuthGuard>} />
         <Route path="/saved" element={<AuthGuard><Saved /></AuthGuard>} />
         <Route path="/messages" element={<AuthGuard><Messages /></AuthGuard>} />

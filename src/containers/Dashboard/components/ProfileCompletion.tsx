@@ -44,10 +44,10 @@ export default function ProfileCompletion({
   isSkillsAdded = false,
   isExperienceAdded = false,
 }: ProfileCompletionProps) {
-  const isProfileComplete = isCvUploaded && isSkillsAdded && isExperienceAdded;
+  const strength = clampPercentage(profileStrength);
+  const isProfileComplete = strength === 100;
   const [isExpanded, setIsExpanded] = useState(!isProfileComplete);
   const isCollapsedCompleteState = isProfileComplete && !isExpanded;
-  const strength = clampPercentage(profileStrength);
   const topBand = getTopBand(strength);
   const completionDetailsId = 'dashboard-profile-completion-details';
 

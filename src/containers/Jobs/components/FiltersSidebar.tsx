@@ -1,124 +1,216 @@
-export default function FiltersSidebar() {
-  const sections: { title: string, options: { label: string, count?: string }[] }[] = [
-    {
-      title: 'Date posted',
-      options: [
-        { label: 'Last 24 hours', count: '1342' },
-        { label: 'Last 3 days', count: '876' },
-        { label: 'Last 5 days', count: '1142' },
-        { label: 'Last 7 days', count: '1284' },
-        { label: 'Last 30 days', count: '4521' },
-      ]
-    },
-    {
-      title: 'Job type',
-      options: [
-        { label: 'Full-time' },
-        { label: 'Part-time' },
-        { label: 'Contract' },
-        { label: 'Internship' },
-        { label: 'Graduate Scheme' },
-        { label: 'Apprenticeship' },
-      ]
-    },
-    {
-      title: 'Experience level',
-      options: [
-        { label: 'Entry Level' },
-        { label: 'Mid-Level' },
-        { label: 'Senior Level' },
-        { label: 'Lead / Principal' },
-      ]
-    },
-    {
-      title: 'Work mode',
-      options: [
-        { label: 'Any' },
-        { label: 'Remote' },
-        { label: 'Hybrid' },
-        { label: 'On-site' },
-      ]
+import type { CSSProperties } from 'react';
+import { Check } from 'lucide-react';
+import {
+  DATE_POSTED_OPTIONS,
+  EXPERIENCE_LEVEL_OPTIONS,
+  JOB_TYPE_OPTIONS,
+  SALARY_MAX_BOUND,
+  SALARY_MIN_BOUND,
+  SALARY_STEP,
+  WORK_MODE_OPTIONS,
+  type JobsFilters,
+} from '../types';
+
+interface FiltersSidebarProps {
+  filters: JobsFilters;
+  onChange: (nextFilters: JobsFilters) => void;
+}
+
+function FilterCheck({ checked }: { checked: boolean }) {
+  return (
+    <div className={`w-5 h-5 rounded-[6px] border flex items-center justify-center transition-colors ${checked ? 'bg-[#FF6934] border-[#FF6934]' : 'bg-white border-[#D0D5DD]'}`}>
+      {checked && <Check size={14} className="text-white" strokeWidth={3.2} />}
+    </div>
+  );
+}
+
+function formatCurrency(value: number): string {
+  if (value >= 1000) {
+    const rounded = Math.round(value / 1000);
+    return `${rounded}k`;
+  }
+
+  return `${value}`;
+}
+
+function getSliderTrackStyle(value: number): CSSProperties {
+  const clampedValue = Math.max(SALARY_MIN_BOUND, Math.min(value, SALARY_MAX_BOUND));
+  const percent = ((clampedValue - SALARY_MIN_BOUND) / (SALARY_MAX_BOUND - SALARY_MIN_BOUND)) * 100;
+
+  return {
+    background: `linear-gradient(to right, #FF6934 0%, #FF6934 ${percent}%, #D0D5DD ${percent}%, #D0D5DD 100%)`,
+  };
+}
+
+export default function FiltersSidebar({ filters, onChange }: FiltersSidebarProps) {
+  const minValue = filters.minSalary ?? SALARY_MIN_BOUND;
+  const maxValue = filters.maxSalary ?? SALARY_MIN_BOUND;
+  const normalizedMax = Math.max(minValue, maxValue);
+
+  const setFilters = (updates: Partial<JobsFilters>) => {
+    onChange({
+      ...filters,
+      ...updates,
+    });
+  };
+
+  const handleMinSalaryChange = (value: number) => {
+    const maxConstraint = filters.maxSalary === null ? SALARY_MAX_BOUND : normalizedMax;
+    const nextMin = Math.max(SALARY_MIN_BOUND, Math.min(value, maxConstraint));
+    if (filters.maxSalary !== null && filters.maxSalary < nextMin) {
+      setFilters({ minSalary: nextMin, maxSalary: nextMin });
+      return;
     }
-  ];
+    setFilters({ minSalary: nextMin });
+  };
+
+  const handleMaxSalaryChange = (value: number) => {
+    const minConstraint = filters.minSalary === null ? SALARY_MIN_BOUND : minValue;
+    const nextMax = Math.min(SALARY_MAX_BOUND, Math.max(value, minConstraint));
+    if (filters.minSalary !== null && filters.minSalary > nextMax) {
+      setFilters({ minSalary: nextMax, maxSalary: nextMax });
+      return;
+    }
+    setFilters({ maxSalary: nextMax });
+  };
+
+  const resetFilters = () => {
+    onChange({
+      datePosted: null,
+      jobType: null,
+      experienceLevel: null,
+      workMode: null,
+      minSalary: null,
+      maxSalary: null,
+    });
+  };
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col gap-8">
-      <h2 className="text-[18px] font-semibold text-[#101828]">Filters</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-[18px] font-semibold text-[#101828]">Filters</h2>
+        <button
+          type="button"
+          onClick={resetFilters}
+          className="text-[12px] font-semibold text-[#FF6934] hover:opacity-80 transition-opacity cursor-pointer"
+        >
+          Reset
+        </button>
+      </div>
 
-      {/* Date posted */}
       <div>
-        <h3 className="text-sm font-medium text-[#101828] mb-4">{sections[0].title}</h3>
+        <h3 className="text-sm font-medium text-[#101828] mb-4">Date posted</h3>
         <div className="space-y-3">
-          {sections[0].options.map((opt, idx) => (
-            <label key={idx} className="flex items-center justify-between cursor-pointer group">
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded border border-[#FF6934] flex items-center justify-center transition-colors group-hover:border-[#FF6934]">
-                </div>
-                <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{opt.label}</span>
-              </div>
-              {opt.count && <span className="text-[12px] text-[#98A2B3]">({opt.count})</span>}
+          {DATE_POSTED_OPTIONS.map((option) => (
+            <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
+              <FilterCheck checked={filters.datePosted === option.value} />
+              <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option.label}</span>
+              <input
+                type="radio"
+                className="sr-only"
+                readOnly
+                checked={filters.datePosted === option.value}
+                onClick={() => setFilters({ datePosted: filters.datePosted === option.value ? null : option.value })}
+              />
             </label>
           ))}
         </div>
       </div>
 
-      {/* Job type */}
       <div>
-        <h3 className="text-sm font-medium text-[#101828] mb-4">{sections[1].title}</h3>
+        <h3 className="text-sm font-medium text-[#101828] mb-4">Job type</h3>
         <div className="space-y-3">
-          {sections[1].options.map((opt, idx) => (
-            <label key={idx} className="flex items-center gap-3 cursor-pointer group">
-              <div className="w-4 h-4 rounded border border-[#FF6934] flex items-center justify-center transition-colors group-hover:border-[#FF6934]">
-              </div>
-              <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{opt.label}</span>
+          {JOB_TYPE_OPTIONS.map((option) => (
+            <label key={option} className="flex items-center gap-3 cursor-pointer group">
+              <FilterCheck checked={filters.jobType === option} />
+              <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
+              <input
+                type="radio"
+                className="sr-only"
+                readOnly
+                checked={filters.jobType === option}
+                onClick={() => setFilters({ jobType: filters.jobType === option ? null : option })}
+              />
             </label>
           ))}
         </div>
       </div>
 
-      {/* Experience level */}
       <div>
-        <h3 className="text-sm font-medium text-[#101828] mb-4">{sections[2].title}</h3>
+        <h3 className="text-sm font-medium text-[#101828] mb-4">Experience level</h3>
         <div className="space-y-3">
-          {sections[2].options.map((opt, idx) => (
-            <label key={idx} className="flex items-center gap-3 cursor-pointer group">
-              <div className="w-4 h-4 rounded border border-[#FF6934] flex items-center justify-center transition-colors group-hover:border-[#FF6934]">
-              </div>
-              <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{opt.label}</span>
+          {EXPERIENCE_LEVEL_OPTIONS.map((option) => (
+            <label key={option} className="flex items-center gap-3 cursor-pointer group">
+              <FilterCheck checked={filters.experienceLevel === option} />
+              <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
+              <input
+                type="radio"
+                className="sr-only"
+                readOnly
+                checked={filters.experienceLevel === option}
+                onClick={() => setFilters({ experienceLevel: filters.experienceLevel === option ? null : option })}
+              />
             </label>
           ))}
         </div>
       </div>
 
-      {/* Salary range */}
       <div>
         <h3 className="text-sm font-medium text-[#101828] mb-4">Salary range</h3>
-        <div className="flex items-center justify-between text-[14px] text-gray-500 font-regular mb-2">
-          <span>Min: £60k</span>
-          <span>Max: £120k</span>
+        <div className="flex items-center justify-between text-[14px] text-gray-500 font-regular mb-3">
+          <span>Min: {filters.minSalary === null ? 'Any' : formatCurrency(minValue)}</span>
+          <span>Max: {filters.maxSalary === null ? 'Any' : formatCurrency(normalizedMax)}</span>
         </div>
-        <div className="w-full h-2 bg-gray-100 rounded-full relative mb-3">
-          <div className="absolute left-0 right-[20%] h-full bg-[#E4E7EC] rounded-[10px]"></div>
-        </div>
-        <div className="w-full h-2 bg-gray-100 rounded-full relative">
-          <div className="absolute left-0 right-[20%] h-full bg-[#E4E7EC] rounded-[10px]"></div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[12px] text-[#667085] mb-1">Min salary</label>
+            <input
+              type="range"
+              min={SALARY_MIN_BOUND}
+              max={SALARY_MAX_BOUND}
+              step={SALARY_STEP}
+              value={minValue}
+              onChange={(event) => handleMinSalaryChange(Number(event.target.value))}
+              className="w-full h-2 rounded-full appearance-none accent-[#FF6934] cursor-pointer"
+              style={getSliderTrackStyle(minValue)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] text-[#667085] mb-1">Max salary</label>
+            <input
+              type="range"
+              min={SALARY_MIN_BOUND}
+              max={SALARY_MAX_BOUND}
+              step={SALARY_STEP}
+              value={normalizedMax}
+              onChange={(event) => handleMaxSalaryChange(Number(event.target.value))}
+              className="w-full h-2 rounded-full appearance-none accent-[#FF6934] cursor-pointer"
+              style={getSliderTrackStyle(normalizedMax)}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Work mode */}
       <div>
-        <h3 className="text-sm font-medium text-[#101828] mb-4">{sections[3].title}</h3>
+        <h3 className="text-sm font-medium text-[#101828] mb-4">Work mode</h3>
         <div className="space-y-3">
-          {sections[3].options.map((opt, idx) => (
-            <label key={idx} className="flex items-center gap-3 cursor-pointer group">
-              <div className="w-4 h-4 rounded border border-[#FF6934] flex items-center justify-center transition-colors group-hover:border-[#FF6934]">
-              </div>
-              <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{opt.label}</span>
+          {WORK_MODE_OPTIONS.map((option) => (
+            <label key={option} className="flex items-center gap-3 cursor-pointer group">
+              <FilterCheck checked={filters.workMode === option} />
+              <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
+              <input
+                type="radio"
+                className="sr-only"
+                readOnly
+                checked={filters.workMode === option}
+                onClick={() => setFilters({ workMode: filters.workMode === option ? null : option })}
+              />
             </label>
           ))}
         </div>
       </div>
-
     </div>
   );
 }
