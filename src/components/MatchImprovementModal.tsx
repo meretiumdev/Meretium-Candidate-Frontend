@@ -5,7 +5,7 @@ interface MatchImprovementModalProps {
   isOpen: boolean;
   onClose: () => void;
   role: string;
-  currentMatch: number;
+  currentMatch: number | null;
 }
 
 const missingSkills = [
@@ -28,8 +28,10 @@ export default function MatchImprovementModal({ isOpen, onClose, role, currentMa
 
   if (!isOpen) return null;
 
-  const potential = Math.min(currentMatch + 14, 99);
-  const progressWidth = (currentMatch / 100) * 100;
+  const safeMatch = typeof currentMatch === 'number' ? currentMatch : null;
+  const potential = safeMatch === null ? null : Math.min(safeMatch + 14, 99);
+  const progressWidth = safeMatch === null ? 0 : (safeMatch / 100) * 100;
+  const potentialGap = safeMatch === null || potential === null ? 0 : potential - safeMatch;
 
   return (
     <>
@@ -64,17 +66,17 @@ export default function MatchImprovementModal({ isOpen, onClose, role, currentMa
               <div className="flex items-end justify-between mb-3">
                 <div>
                   <p className="text-[12px] text-[#98A2B3] mb-0.5">Current match</p>
-                  <p className="text-[28px] font-bold text-[#101828]">{currentMatch}%</p>
+                  <p className="text-[28px] font-bold text-[#101828]">{safeMatch === null ? '' : `${safeMatch}%`}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[12px] text-[#98A2B3] mb-0.5">Potential</p>
-                  <p className="text-[28px] font-bold text-[#FF6934]">{potential}%</p>
+                  <p className="text-[28px] font-bold text-[#FF6934]">{potential === null ? '' : `${potential}%`}</p>
                 </div>
               </div>
               {/* Progress bar split: current vs potential */}
               <div className="h-[6px] w-full bg-[#E4E7EC] rounded-full overflow-hidden flex">
                 <div className="h-full bg-[#EA580C] rounded-l-full transition-all duration-700" style={{ width: `${progressWidth}%` }} />
-                <div className="h-full bg-[#FFDCCB] transition-all duration-700" style={{ width: `${potential - currentMatch}%` }} />
+                <div className="h-full bg-[#FFDCCB] transition-all duration-700" style={{ width: `${potentialGap}%` }} />
               </div>
             </div>
           </div>
@@ -108,7 +110,7 @@ export default function MatchImprovementModal({ isOpen, onClose, role, currentMa
                   <div>
                     <p className="text-[14px] font-semibold text-[#101828] mb-1">Gap Breakdown</p>
                     <p className="text-[13px] text-[#475467]">
-                      You're <span className="font-semibold text-[#101828]">{potential - currentMatch}%</span> away from your potential. Here's what's missing:
+                      You&apos;re <span className="font-semibold text-[#101828]">{safeMatch === null || potential === null ? '' : `${potentialGap}%`}</span> away from your potential. Here&apos;s what&apos;s missing:
                     </p>
                   </div>
                 </div>

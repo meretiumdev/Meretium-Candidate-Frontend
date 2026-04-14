@@ -11,6 +11,11 @@ function getCandidateApiBaseUrl(): string {
 
 const CANDIDATE_API_BASE_URL = getCandidateApiBaseUrl();
 
+export type OpenToWorkStatus =
+  | 'Open to opportunities'
+  | 'Visible to matched recruiters'
+  | 'Private';
+
 export interface CandidateProfile {
   id: string;
   user_id: string;
@@ -20,6 +25,7 @@ export interface CandidateProfile {
   about: string;
   profile_strength: number;
   is_open_to_work: boolean;
+  open_to_work_status: OpenToWorkStatus;
   total_years_experience: number;
   share_slug: string;
   is_public: boolean;
@@ -58,6 +64,7 @@ export interface UpdateProfilePayload {
   location?: string;
   total_years_experience?: number;
   is_open_to_work?: boolean;
+  open_to_work_status?: OpenToWorkStatus;
 }
 
 export interface CreateProfileSkillPayload {
@@ -127,6 +134,22 @@ function asBoolean(input: unknown): boolean {
   return input === true;
 }
 
+const OPEN_TO_WORK_STATUSES: OpenToWorkStatus[] = [
+  'Open to opportunities',
+  'Visible to matched recruiters',
+  'Private',
+];
+
+function asOpenToWorkStatus(input: unknown, fallback: OpenToWorkStatus): OpenToWorkStatus {
+  if (typeof input !== 'string') return fallback;
+  const trimmed = input.trim();
+  if (trimmed === 'Closed to opportunities') return 'Private';
+  if (OPEN_TO_WORK_STATUSES.includes(trimmed as OpenToWorkStatus)) {
+    return trimmed as OpenToWorkStatus;
+  }
+  return fallback;
+}
+
 function asRecordArray(input: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(input)) return [];
   return input.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
@@ -154,6 +177,8 @@ function normalizeJobPreferences(raw: unknown): CandidateJobPreferences | null {
 function normalizeProfileResponse(payload: unknown): CandidateProfileResponse {
   const root = asRecord(payload) || {};
   const profileRaw = asRecord(root.profile) || root;
+  const isOpenToWork = asBoolean(profileRaw.is_open_to_work);
+  const fallbackStatus: OpenToWorkStatus = isOpenToWork ? 'Open to opportunities' : 'Private';
 
   const profile: CandidateProfile = {
     id: asString(profileRaw.id),
@@ -163,7 +188,8 @@ function normalizeProfileResponse(payload: unknown): CandidateProfileResponse {
     location: asString(profileRaw.location),
     about: asString(profileRaw.about),
     profile_strength: asNumber(profileRaw.profile_strength),
-    is_open_to_work: asBoolean(profileRaw.is_open_to_work),
+    is_open_to_work: isOpenToWork,
+    open_to_work_status: asOpenToWorkStatus(profileRaw.open_to_work_status, fallbackStatus),
     total_years_experience: asNumber(profileRaw.total_years_experience),
     share_slug: asString(profileRaw.share_slug),
     is_public: asBoolean(profileRaw.is_public),

@@ -54,7 +54,7 @@ export default function Navbar() {
     navigate('/auth');
   };
 
-  const jobsActive = ['/jobs', '/job-detail', '/explore-jobs'].includes(location.pathname);
+  const jobsActive = location.pathname.startsWith('/jobs') || location.pathname === '/explore-jobs';
   const appsActive = location.pathname === '/applications';
   const savedActive = location.pathname === '/saved';
   const profileActive = location.pathname === '/profile';
