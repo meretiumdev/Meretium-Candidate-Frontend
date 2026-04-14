@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapPin, Share2, ChevronDown, Edit3, Calendar, CheckCircle2, Upload } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../redux/store';
-import { updateCandidateProfile, type CandidateProfile, type UpdateProfilePayload } from '../../../services/profileApi';
+import { updateCandidateProfile, type CandidateProfile, type OpenToWorkStatus, type UpdateProfilePayload } from '../../../services/profileApi';
 import ShareProfileModal from './ShareProfileModal';
 
 interface HeaderProps {
@@ -39,7 +39,7 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
   const [isHeadlineEditing, setIsHeadlineEditing] = useState(false);
   const [isShareOpen, setShareOpen] = useState(false);
   const [isOppsDropdownOpen, setOppsDropdownOpen] = useState(false);
-  const [opportunityStatus, setOpportunityStatus] = useState('Open to opportunities');
+  const [opportunityStatus, setOpportunityStatus] = useState<OpenToWorkStatus>('Open to opportunities');
 
   const [headline, setHeadline] = useState('');
   const [headlineDraft, setHeadlineDraft] = useState('');
@@ -61,6 +61,7 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
     setLocation(locationFromProfile);
     setExpYears(expYearsFromProfile);
     setIsOpenToWork(profile.is_open_to_work);
+    setOpportunityStatus(profile.open_to_work_status);
   }, [profile, headlineFromProfile, locationFromProfile, expYearsFromProfile]);
 
   const initial = useMemo(() => getInitial(profile.full_name), [profile.full_name]);
@@ -185,6 +186,24 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
     setIsEditing(false);
   };
 
+  const handleOpportunityStatusChange = async (nextStatus: OpenToWorkStatus) => {
+    setOppsDropdownOpen(false);
+    if (nextStatus === opportunityStatus || nextStatus === profile.open_to_work_status) {
+      setOpportunityStatus(nextStatus);
+      return;
+    }
+
+    setOpportunityStatus(nextStatus);
+    const saved = await patchProfileFields(
+      { open_to_work_status: nextStatus },
+      'Failed to update opportunity visibility.'
+    );
+
+    if (!saved) {
+      setOpportunityStatus(profile.open_to_work_status);
+    }
+  };
+
   return (
     <>
       <div className="bg-white sm:mt-3 border border-gray-200 rounded-xl p-6 md:p-8 shadow-sm font-manrope transition-all duration-300">
@@ -297,8 +316,9 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                   </button>
                   <div className="relative">
                     <button
+                      disabled={isSaving}
                       onClick={() => setOppsDropdownOpen((prev) => !prev)}
-                      className="w-full flex items-center justify-center gap-2 border border-[#E4E7EC] px-4 py-2.5 rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors bg-white cursor-pointer shadow-sm group"
+                      className="w-full flex items-center justify-center gap-2 border border-[#E4E7EC] px-4 py-2.5 rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors bg-white cursor-pointer shadow-sm group disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {opportunityStatus}
                       <ChevronDown size={18} className={`text-[#475467] transition-transform duration-300 ${isOppsDropdownOpen ? 'rotate-180' : ''}`} />
@@ -313,36 +333,42 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                         <div className="absolute left-0 top-[calc(100%+6px)] w-full bg-white border border-[#E4E7EC] rounded-xl shadow-[0_12px_32px_-4px_rgba(16,24,40,0.1)] py-1.5 z-20 animate-scale-in origin-top">
                           <button
                             onClick={() => {
-                              setOpportunityStatus('Open to opportunities');
-                              setOppsDropdownOpen(false);
+                              void handleOpportunityStatusChange('Open to opportunities');
                             }}
-                            className="w-full text-left px-2 py-2 text-[14px] font-medium text-[#FF6934] hover:bg-[#FF6934]/5 transition-colors cursor-pointer"
+                            className={`w-full text-left px-2 py-2 text-[14px] font-medium transition-colors cursor-pointer ${
+                              opportunityStatus === 'Open to opportunities' ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
+                            }`}
                           >
                             Open to opportunities
                           </button>
                           <button
                             onClick={() => {
-                              setOpportunityStatus('Visible to matched recruiters');
-                              setOppsDropdownOpen(false);
+                              void handleOpportunityStatusChange('Visible to matched recruiters');
                             }}
-                            className="w-full text-left px-2 py-2 text-[14px] font-medium text-[#344054] text-nowrap hover:bg-gray-50 transition-colors cursor-pointer"
+                            className={`w-full text-left px-2 py-2 text-[14px] font-medium text-nowrap transition-colors cursor-pointer ${
+                              opportunityStatus === 'Visible to matched recruiters' ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
+                            }`}
                           >
                             Visible to matched recruiters
                           </button>
                           <button
                             onClick={() => {
-                              setOpportunityStatus('Closed to opportunities');
-                              setOppsDropdownOpen(false);
+                              void handleOpportunityStatusChange('Private');
                             }}
-                            className="w-full text-left px-2 py-2 text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors cursor-pointer"
+                            className={`w-full text-left px-2 py-2 text-[14px] font-medium transition-colors cursor-pointer ${
+                              opportunityStatus === 'Private' ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
+                            }`}
                           >
-                            Closed to opportunities
+                            Private
                           </button>
                         </div>
                       </>
                     )}
                   </div>
                 </div>
+                {saveError && !isHeadlineEditing && (
+                  <p className="text-[13px] font-medium text-[#B42318]">{saveError}</p>
+                )}
               </>
             ) : (
               <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
