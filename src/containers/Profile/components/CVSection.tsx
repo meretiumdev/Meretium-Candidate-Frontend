@@ -247,18 +247,16 @@ export default function CVSection({ cvs, onCvUploaded }: CVSectionProps) {
                 </div>
 
                 <div className="flex items-center justify-end gap-5 sm:gap-4 shrink-0 sm:ml-4">
-                  <button
-                    onClick={() => { void handleTogglePrimary(cv); }}
-                    disabled={!cv.cvId || updatingPrimaryCvId === cv.cvId}
-                    className={`transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                      cv.isDefault
-                        ? 'text-[#FFCA28]'
-                        : 'text-[#98A2B3] hover:text-gray-600'
-                    }`}
-                    aria-label={cv.isDefault ? `Unset ${cv.name} as primary` : `Set ${cv.name} as primary`}
-                  >
-                    <Star size={18} fill={cv.isDefault ? 'currentColor' : 'none'} />
-                  </button>
+                  {!cv.isDefault && (
+                    <button
+                      onClick={() => { void handleTogglePrimary(cv); }}
+                      disabled={!cv.cvId || updatingPrimaryCvId === cv.cvId}
+                      className="text-[#98A2B3] hover:text-gray-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label={`Set ${cv.name} as primary`}
+                    >
+                      <Star size={18} />
+                    </button>
+                  )}
                   <button
                     onClick={() => setRenameTarget(cv)}
                     disabled={!cv.cvId}

@@ -318,7 +318,7 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                     <button
                       disabled={isSaving}
                       onClick={() => setOppsDropdownOpen((prev) => !prev)}
-                      className="w-full flex items-center justify-center gap-2 border border-[#E4E7EC] px-4 py-2.5 rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors bg-white cursor-pointer shadow-sm group disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="flex items-center justify-center gap-2 border border-[#E4E7EC] px-4 py-2.5 rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors bg-white cursor-pointer shadow-sm group disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {opportunityStatus}
                       <ChevronDown size={18} className={`text-[#475467] transition-transform duration-300 ${isOppsDropdownOpen ? 'rotate-180' : ''}`} />
@@ -330,12 +330,12 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                           className="fixed inset-0 z-10"
                           onClick={() => setOppsDropdownOpen(false)}
                         />
-                        <div className="absolute left-0 top-[calc(100%+6px)] w-full bg-white border border-[#E4E7EC] rounded-xl shadow-[0_12px_32px_-4px_rgba(16,24,40,0.1)] py-1.5 z-20 animate-scale-in origin-top">
+                        <div className="absolute left-0 top-[calc(100%+6px)] w-fit min-w-fit max-w-[calc(100vw-2rem)] bg-white border border-[#E4E7EC] rounded-xl shadow-[0_12px_32px_-4px_rgba(16,24,40,0.1)] py-1.5 z-20 animate-scale-in origin-top">
                           <button
                             onClick={() => {
                               void handleOpportunityStatusChange('Open to opportunities');
                             }}
-                            className={`w-full text-left px-2 py-2 text-[14px] font-medium transition-colors cursor-pointer ${
+                            className={`block text-left px-2 py-2 text-[14px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
                               opportunityStatus === 'Open to opportunities' ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
                             }`}
                           >
@@ -345,7 +345,7 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                             onClick={() => {
                               void handleOpportunityStatusChange('Visible to matched recruiters');
                             }}
-                            className={`w-full text-left px-2 py-2 text-[14px] font-medium text-nowrap transition-colors cursor-pointer ${
+                            className={`block text-left px-2 py-2 text-[14px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
                               opportunityStatus === 'Visible to matched recruiters' ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
                             }`}
                           >
@@ -355,7 +355,7 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                             onClick={() => {
                               void handleOpportunityStatusChange('Private');
                             }}
-                            className={`w-full text-left px-2 py-2 text-[14px] font-medium transition-colors cursor-pointer ${
+                            className={`block text-left px-2 py-2 text-[14px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
                               opportunityStatus === 'Private' ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
                             }`}
                           >

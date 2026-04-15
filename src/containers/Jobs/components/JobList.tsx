@@ -1,4 +1,4 @@
-import { MapPin, DollarSign, Clock, CheckCircle, Bookmark, Target, Loader2 } from 'lucide-react';
+import { MapPin, DollarSign, Clock, CheckCircle, Bookmark, Target, Loader2, ChevronDown, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useSelector } from 'react-redux';
@@ -223,12 +223,14 @@ function toJobListItem(job: CandidateJobsApiJob, absoluteIndex: number): JobList
 
 interface JobListProps {
   filters: JobsFilters;
+  onOpenFilters?: () => void;
 }
 
-export default function JobList({ filters }: JobListProps) {
+export default function JobList({ filters, onOpenFilters }: JobListProps) {
   const navigate = useNavigate();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [activeFilters, setActiveFilters] = useState<JobsFilters>(filters);
+  const [sortBy, setSortBy] = useState<'Most relevant' | 'Most recent' | 'Highest salary'>('Most relevant');
   const [selectedJob, setSelectedJob] = useState<JobListItem | null>(null);
   const [savedJobsMap, setSavedJobsMap] = useState<Record<string, boolean>>({});
   const [jobs, setJobs] = useState<JobListItem[]>([]);
@@ -488,14 +490,34 @@ export default function JobList({ filters }: JobListProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <h2 className="text-[24px] font-semibold text-gray-900">{totalJobs ?? jobs.length} jobs found</h2>
-        <div className="flex items-center gap-2">
-          <select className="border border-[#E4E7EC] rounded-[10px] px-3 py-1.5 text-sm font-medium text-gray-600 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 appearance-none">
-            <option>Most relevant</option>
-            <option>Most recent</option>
-            <option>Highest salary</option>
-          </select>
+        <div className="lg:mt-0 flex items-center justify-between lg:justify-end gap-3">
+          <div className="relative w-[160px] md:w-[200px] lg:w-full lg:max-w-[220px]">
+            <div className="h-[40px] md:h-[50px] lg:h-10 w-fit rounded-[10px] border border-[#E5E7EB] bg-white px-3 text-[14px] md:text-[16px] lg:text-[14px] font-medium text-[#475467] flex items-center gap-2 focus-within:outline-none focus-within:ring-2 focus-within:ring-[#FF6934]/20">
+              <span className="pointer-events-none text-[#475467]">{sortBy}</span>
+              <ChevronDown size={20} className="pointer-events-none text-[#475467]" />
+              <select
+                aria-label="Sort jobs"
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value as 'Most relevant' | 'Most recent' | 'Highest salary')}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              >
+                <option value="Most relevant">Most relevant</option>
+                <option value="Most recent">Most recent</option>
+                <option value="Highest salary">Highest salary</option>
+              </select>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onOpenFilters?.()}
+            className="lg:hidden h-[40px] md:h-[50px] w-[110px] md:w-[120px] rounded-[10px] border border-[#E5E7EB] bg-white text-[#344054] text-[14px] md:text-[16px] font-medium flex items-center justify-center gap-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
+          >
+            <Filter size={18} className="text-[#475467]" />
+            <span className="leading-none">Filters</span>
+          </button>
         </div>
       </div>
 

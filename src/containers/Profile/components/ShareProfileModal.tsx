@@ -18,7 +18,7 @@ function LinkedInIcon() {
 
 export default function ShareProfileModal({ isOpen, onClose, profileUrl }: ShareProfileModalProps) {
   const [copied, setCopied] = useState(false);
-  const shareUrl = profileUrl?.trim() || 'https://meritium.ai/profile';
+  const shareUrl = profileUrl?.trim() || 'https://meretium.ai/profile';
 
   if (!isOpen) return null;
 
@@ -30,7 +30,7 @@ export default function ShareProfileModal({ isOpen, onClose, profileUrl }: Share
   };
 
   const handleEmail = () => {
-    window.location.href = `mailto:?subject=Check out my Meritium profile&body=View my profile here: ${shareUrl}`;
+    window.location.href = `mailto:?subject=Check out my Meretium profile&body=View my profile here: ${shareUrl}`;
   };
 
   const handleLinkedIn = () => {

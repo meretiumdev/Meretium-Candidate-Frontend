@@ -1,10 +1,10 @@
+import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
 
 interface DeleteExperienceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => Promise<void> | void;
-  experienceLabel?: string;
   deleting?: boolean;
 }
 
@@ -12,12 +12,12 @@ export default function DeleteExperienceModal({
   isOpen,
   onClose,
   onConfirm,
-  experienceLabel,
   deleting = false,
 }: DeleteExperienceModalProps) {
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-all"
       onClick={() => {
@@ -35,9 +35,7 @@ export default function DeleteExperienceModal({
         <h3 className="text-[18px] md:text-[20px] font-semibold text-[#101828] mb-2">Delete experience?</h3>
 
         <p className="text-[#475467] text-[14px] leading-relaxed mb-8">
-          {experienceLabel
-            ? `Are you sure you want to delete "${experienceLabel}"? This action cannot be undone.`
-            : 'Are you sure you want to delete this experience? This action cannot be undone.'}
+          Are you sure you want to delete this experience? This action cannot be undone
         </p>
 
         <div className="flex items-center justify-center gap-3">
@@ -57,6 +55,7 @@ export default function DeleteExperienceModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

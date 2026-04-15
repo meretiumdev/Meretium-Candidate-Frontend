@@ -242,11 +242,11 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
           <div className="flex flex-col">
             {normalizedExperiences.map((exp, index) => (
               <div key={exp.id} className={`flex gap-4 md:gap-5 ${index !== normalizedExperiences.length - 1 ? 'border-b border-gray-200 pb-8 mb-8' : ''}`}>
-                <div className="flex flex-col items-center shrink-0">
+                <div className="flex flex-col items-center self-stretch shrink-0">
                   <div className="size-11 bg-[#FFF4EC] rounded-full flex items-center justify-center">
                     <Building2 size={20} className="text-[#FF6934]" />
                   </div>
-                  {index !== normalizedExperiences.length - 1 && <div className="w-[1px] h-[40px] bg-[#E4E7EC] mt-2"></div>}
+                  {index !== normalizedExperiences.length - 1 && <div className="w-[1px] flex-1 bg-[#E4E7EC] mt-2"></div>}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -342,7 +342,6 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
           if (!deleting) setDeleteTarget(null);
         }}
         onConfirm={handleDeleteExperience}
-        experienceLabel={deleteTarget ? `${deleteTarget.role} at ${deleteTarget.company}` : undefined}
         deleting={deleting}
       />
     </>

@@ -661,7 +661,7 @@ const Auth = () => {
               <div>
                 <div className="text-center mb-6">
                   <h2 className="text-[28px] sm:text-[32px] font-semibold text-[#0A1124] tracking-tight leading-tight font-heading">
-                    Get Started With Meritium
+                    Get Started With Meretium
                   </h2>
                   <p className="text-[#667085] text-[14px] mt-2 font-[400] font-body">Find roles that match your potential</p>
                 </div>
@@ -757,7 +757,7 @@ const Auth = () => {
 
               <div className="text-center border-t border-gray-100 pt-6">
                 <p className="text-[12px] text-[#475467] font-body leading-tight">
-                  By continuing you agree to Meritium Terms &amp; Privacy
+                  By continuing you agree to Meretium Terms &amp; Privacy
                 </p>
               </div>
             </div>

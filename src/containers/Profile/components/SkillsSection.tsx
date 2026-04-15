@@ -16,6 +16,7 @@ interface SkillItem {
   name: string;
   category: string;
   hot: boolean;
+  proficiencyLevel: number | null;
   progress: number;
 }
 
@@ -77,10 +78,18 @@ function normalizeCategoryLabel(raw: string): string {
 
 function normalizeProgress(raw: number | null): number {
   if (raw === null) return 70;
+  if (raw >= 1 && raw <= 5) return Math.round((raw / 5) * 100);
   if (raw >= 0 && raw <= 1) return Math.round(raw * 100);
   if (raw < 0) return 0;
   if (raw > 100) return 100;
   return Math.round(raw);
+}
+
+function normalizeProficiencyLevel(raw: number | null): number | null {
+  if (raw === null) return null;
+  const rounded = Math.round(raw);
+  if (rounded < 1 || rounded > 5) return null;
+  return rounded;
 }
 
 function normalizeSkills(skills: unknown[]): SkillItem[] {
@@ -92,6 +101,7 @@ function normalizeSkills(skills: unknown[]): SkillItem[] {
         name: skill.trim(),
         category: 'CORE',
         hot: false,
+        proficiencyLevel: null,
         progress: 70,
       });
       return acc;
@@ -106,7 +116,12 @@ function normalizeSkills(skills: unknown[]): SkillItem[] {
 
     const category = normalizeCategoryLabel(readString(record, ['category', 'group', 'type']) || 'CORE');
     const hot = readBoolean(record, ['hot', 'is_hot', 'featured']);
-    const progress = normalizeProgress(readNumber(record, ['progress', 'proficiency', 'score', 'level']));
+    const proficiencyLevel = normalizeProficiencyLevel(
+      readNumber(record, ['proficiency_level', 'proficiencyLevel', 'level'])
+    );
+    const progress = normalizeProgress(
+      readNumber(record, ['progress', 'proficiency', 'score']) ?? proficiencyLevel
+    );
 
     acc.push({
       id: skillId || `${category}-${name}`,
@@ -114,6 +129,7 @@ function normalizeSkills(skills: unknown[]): SkillItem[] {
       name,
       category,
       hot,
+      proficiencyLevel,
       progress,
     });
     return acc;
@@ -231,7 +247,9 @@ export default function SkillsSection({ skills, onSkillAdded }: SkillsSectionPro
                       </button>
                       <div className="flex items-center gap-2">
                         <span className="text-[14px] font-medium text-[#101828]">{skill.name}</span>
-                        {skill.hot && <Flame size={15} className="text-[#FF6934]" />}
+                        {(skill.proficiencyLevel === 5 || skill.hot) && (
+                          <Flame size={18} strokeWidth={2.5} className="text-[#FF6934] shrink-0" />
+                        )}
                       </div>
                       <div className="h-[4px] w-full bg-[#E4E7EC] rounded-full overflow-hidden">
                         <div

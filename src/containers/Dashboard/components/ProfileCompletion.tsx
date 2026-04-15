@@ -44,6 +44,8 @@ export default function ProfileCompletion({
   isSkillsAdded = false,
   isExperienceAdded = false,
 }: ProfileCompletionProps) {
+  const steps = [isCvUploaded, isSkillsAdded, isExperienceAdded];
+  const completedCount = steps.filter(Boolean).length;
   const strength = clampPercentage(profileStrength);
   const isProfileComplete = strength === 100;
   const [isExpanded, setIsExpanded] = useState(!isProfileComplete);
@@ -82,7 +84,9 @@ export default function ProfileCompletion({
               </div>
               <div>
                 <h2 className="text-base font-semibold text-[#101828]">Profile completion</h2>
-                <p className="text-sm text-[#475467] mt-1">Updated from dashboard stats</p>
+                <p className="text-sm text-[#475467] mt-1">
+                  {completedCount} of {steps.length} completed
+                </p>
               </div>
             </>
           )}

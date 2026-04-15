@@ -260,7 +260,7 @@ export default function AddExperienceModal({
                   checked={current}
                   onChange={(e) => setCurrent(e.target.checked)}
                   disabled={saving}
-                  className="w-4 h-4 rounded-[4px] border-gray-300 cursor-pointer accent-[#FF6934]"
+                  className="w-4 h-4 appearance-none rounded-[4px] border border-[#FF6934] bg-white cursor-pointer transition-colors checked:border-[#FF6934] checked:bg-[#FF6934] checked:bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2016%2016%22%20fill=%22none%22%3E%3Cpath%20d=%22M3.5%208.5L6.5%2011.5L12.5%205.5%22%20stroke=%22white%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E')] checked:bg-center checked:bg-no-repeat checked:bg-[length:12px_12px] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/30 disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <span className="text-[14px] font-medium text-[#101828]">I currently work here</span>
               </label>
