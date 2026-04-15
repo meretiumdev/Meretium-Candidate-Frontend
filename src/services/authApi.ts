@@ -52,6 +52,24 @@ interface GoogleAuthRequest {
   token: string;
 }
 
+interface ForgetPasswordRequest {
+  email: string;
+}
+
+interface VerifyForgotPasswordOtpRequest {
+  email: string;
+  otp: string;
+}
+
+interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}
+
+interface RefreshAccessTokenRequest {
+  refresh_token: string;
+}
+
 type ApiResponse<TData> = ApiResponseEnvelope<TData>;
 
 export class ApiError extends Error {
@@ -84,9 +102,19 @@ function getApiDetailMessage(payload: unknown): string | null {
   if (typeof payload !== 'object' || payload === null) return null;
 
   const detail = (payload as { detail?: unknown }).detail;
+  if (typeof detail === 'string') {
+    const trimmedDetail = detail.trim();
+    return trimmedDetail.length > 0 ? trimmedDetail : null;
+  }
+
   if (!Array.isArray(detail) || detail.length === 0) return null;
 
   const firstDetail = detail[0];
+  if (typeof firstDetail === 'string') {
+    const trimmed = firstDetail.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
   if (typeof firstDetail !== 'object' || firstDetail === null) return null;
 
   const msg = (firstDetail as { msg?: unknown }).msg;
@@ -164,6 +192,23 @@ export function getApiErrorPhoneNumber(payload: unknown): string | null {
   return getStringOrNumberValue((errors as { phone?: unknown }).phone);
 }
 
+export function getApiResetToken(payload: unknown): string | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+
+  const topLevelToken = getStringOrNumberValue((payload as { reset_token?: unknown }).reset_token);
+  if (topLevelToken) return topLevelToken;
+
+  const data = (payload as { data?: unknown }).data;
+  if (typeof data === 'object' && data !== null) {
+    const dataToken = getStringOrNumberValue((data as { reset_token?: unknown }).reset_token);
+    if (dataToken) return dataToken;
+  }
+
+  const errors = (payload as { errors?: unknown }).errors;
+  if (typeof errors !== 'object' || errors === null) return null;
+  return getStringOrNumberValue((errors as { reset_token?: unknown }).reset_token);
+}
+
 async function post<TResponse>(path: string, body: unknown): Promise<TResponse> {
   if (!AUTH_API_BASE_URL) {
     throw new Error('Missing VITE_AUTH_API_BASE_URL in environment variables.');
@@ -232,4 +277,20 @@ export async function loginUser(payload: LoginRequest): Promise<ApiResponse<unkn
 
 export async function googleAuthUser(payload: GoogleAuthRequest): Promise<ApiResponse<unknown>> {
   return post<ApiResponse<unknown>>('/google', payload);
+}
+
+export async function forgetPassword(payload: ForgetPasswordRequest): Promise<ApiResponse<unknown>> {
+  return post<ApiResponse<unknown>>('/forgot-password', payload);
+}
+
+export async function verifyForgotPasswordOtp(payload: VerifyForgotPasswordOtpRequest): Promise<ApiResponse<unknown>> {
+  return post<ApiResponse<unknown>>('/verify-otp', payload);
+}
+
+export async function resetPassword(payload: ResetPasswordRequest): Promise<ApiResponse<unknown>> {
+  return post<ApiResponse<unknown>>('/reset-password', payload);
+}
+
+export async function refreshAccessToken(payload: RefreshAccessTokenRequest): Promise<ApiResponse<unknown>> {
+  return post<ApiResponse<unknown>>('/refresh', payload);
 }

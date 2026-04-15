@@ -1,4 +1,4 @@
-import { forceReauthIfNeeded } from './authSession';
+import { executeAuthorizedRequest, forceReauthIfNeeded } from './authSession';
 
 const RAW_CANDIDATE_API_BASE_URL = import.meta.env.VITE_CANDIDATE_API_BASE_URL?.trim() || '';
 
@@ -260,12 +260,14 @@ export async function getCandidateProfile(accessToken: string): Promise<Candidat
     throw new Error('You are not authenticated. Please log in again.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-    },
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+      },
+    })
+  );
 
   const raw = await response.text();
   let payload: unknown = null;
@@ -302,14 +304,16 @@ export async function updateCandidateProfile(
     throw new Error('No changes to update.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(updates),
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    })
+  );
 
   const raw = await response.text();
   let payload: unknown = null;
@@ -346,14 +350,16 @@ export async function updateJobPreferences(
     throw new Error('No changes to update.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile/job-preferences`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(updates),
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/job-preferences`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    })
+  );
 
   const raw = await response.text();
   let payload: unknown = null;
@@ -391,14 +397,16 @@ export async function createProfileSkill(
     throw new Error('You are not authenticated. Please log in again.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile/skills`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/skills`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+  );
 
   const raw = await response.text();
   let responsePayload: unknown = null;
@@ -433,12 +441,14 @@ export async function deleteProfileSkill(accessToken: string, skillId: string): 
     throw new Error('Skill id is required.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile/skills/${encodeURIComponent(trimmedSkillId)}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-    },
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/skills/${encodeURIComponent(trimmedSkillId)}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+      },
+    })
+  );
 
   const raw = await response.text();
   let responsePayload: unknown = null;
@@ -473,14 +483,16 @@ export async function createProfileExperience(
     throw new Error('You are not authenticated. Please log in again.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile/experiences`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/experiences`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+  );
 
   const raw = await response.text();
   let responsePayload: unknown = null;
@@ -523,14 +535,16 @@ export async function updateProfileExperience(
     throw new Error('Experience id is required.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile/experiences/${encodeURIComponent(trimmedExperienceId)}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/experiences/${encodeURIComponent(trimmedExperienceId)}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+  );
 
   const raw = await response.text();
   let responsePayload: unknown = null;
@@ -569,12 +583,14 @@ export async function deleteProfileExperience(accessToken: string, experienceId:
     throw new Error('Experience id is required.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile/experiences/${encodeURIComponent(trimmedExperienceId)}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-    },
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/experiences/${encodeURIComponent(trimmedExperienceId)}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+      },
+    })
+  );
 
   const raw = await response.text();
   let responsePayload: unknown = null;

@@ -1,4 +1,4 @@
-import { forceReauthIfNeeded } from './authSession';
+import { executeAuthorizedRequest, forceReauthIfNeeded } from './authSession';
 
 const RAW_CANDIDATE_API_BASE_URL = import.meta.env.VITE_CANDIDATE_API_BASE_URL?.trim() || '';
 
@@ -66,13 +66,15 @@ export async function uploadCandidateCv({ file, accessToken }: UploadCandidateCv
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/cvs`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-    },
-    body: formData,
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/cvs`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+      },
+      body: formData,
+    })
+  );
 
   const raw = await response.text();
   let payload: unknown = null;
@@ -120,14 +122,16 @@ export async function updateCandidateCv(
     throw new Error('No CV updates provided.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/cvs/${encodeURIComponent(trimmedCvId)}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/cvs/${encodeURIComponent(trimmedCvId)}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+  );
 
   const raw = await response.text();
   let responsePayload: unknown = null;
@@ -166,12 +170,14 @@ export async function deleteCandidateCv(accessToken: string, cvId: string): Prom
     throw new Error('CV id is required.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/cvs/${encodeURIComponent(trimmedCvId)}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${trimmedAccessToken}`,
-    },
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/cvs/${encodeURIComponent(trimmedCvId)}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${nextAccessToken}`,
+      },
+    })
+  );
 
   const raw = await response.text();
   let responsePayload: unknown = null;

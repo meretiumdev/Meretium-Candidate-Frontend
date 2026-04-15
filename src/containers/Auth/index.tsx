@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { login } from '../../redux/store';
 import type { AppDispatch, RootState } from '../../redux/store';
-import logo from '../../assets/logo_primary.png';
 import {
   googleAuthUser,
   getApiErrorPhoneNumber,
@@ -19,6 +18,7 @@ import {
 import VerifyPhoneStep from './components/VerifyPhoneStep';
 import OtpStep from './components/OtpStep';
 import VerifiedStep from './components/VerifiedStep';
+import AuthLayout from './components/AuthLayout';
 
 type AuthStep = 'auth' | 'verify-phone' | 'otp' | 'verified';
 type PostVerificationAuthSource = 'credentials' | 'google';
@@ -51,6 +51,26 @@ type GoogleWindow = Window & {
     };
   };
 };
+
+interface PasswordVisibilityIconProps {
+  isVisible: boolean;
+}
+
+function PasswordVisibilityIcon({ isVisible }: PasswordVisibilityIconProps) {
+  if (isVisible) {
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M12 4.5C7 4.5 2.73 7.61 1 12C2.73 16.39 7 19.5 12 19.5C17 19.5 21.27 16.39 23 12C21.27 7.61 17 4.5 12 4.5ZM12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17ZM12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M12 7C14.76 7 17 9.24 17 12C17 12.65 16.87 13.26 16.64 13.83L19.56 16.75C21.07 15.49 22.27 13.86 23 12C21.27 7.61 17 4.5 12 4.5C10.6 4.5 9.26 4.75 8.02 5.2L10.18 7.36C10.74 7.13 11.35 7 12 7ZM2 4.27L4.28 6.55L4.74 7.01C3.08 8.3 1.78 10 1 12C2.73 16.39 7 19.5 12 19.5C13.55 19.5 15.03 19.2 16.38 18.66L16.8 19.08L20 22.3L21.27 21.03L3.27 3L2 4.27ZM7.53 10.8L9.08 12.35C9.03 12.56 9 12.78 9 13C9 14.66 10.34 16 12 16C12.22 16 12.44 15.97 12.65 15.92L14.2 17.47C13.53 17.8 12.78 18 12 18C9.24 18 7 15.76 7 13C7 12.22 7.2 11.47 7.53 10.8ZM11.84 10.02L14.99 13.17L15.01 13.01C15.01 11.35 13.67 10.01 12.01 10.01L11.84 10.02Z" />
+    </svg>
+  );
+}
 
 const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_OAUTH_SCOPE = 'openid email profile';
@@ -187,8 +207,7 @@ function getLandingRouteFromUser(user: unknown): string {
 const Auth = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
-  const { accessToken, tokenExpiresAt, user } = useSelector((state: RootState) => state.auth);
-  const isTokenExpired = Boolean(accessToken && tokenExpiresAt && Date.now() >= tokenExpiresAt);
+  const { accessToken, user } = useSelector((state: RootState) => state.auth);
   const [persistedFlow] = useState<PersistedAuthFlowState | null>(() => readPersistedAuthFlowState());
 
   const [isLogin, setIsLogin] = useState(persistedFlow?.isLogin ?? false);
@@ -211,6 +230,8 @@ const Auth = () => {
   const [googleReady, setGoogleReady] = useState(false);
 
   const [authInfoMessage, setAuthInfoMessage] = useState<string | null>(null);
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const googleTokenClientRef = useRef<GoogleTokenClient | null>(null);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || '';
@@ -235,10 +256,10 @@ const Auth = () => {
   };
 
   useEffect(() => {
-    if (!accessToken || isTokenExpired) return;
+    if (!accessToken) return;
     clearPersistedAuthFlowState();
     navigate(getLandingRouteFromUser(user), { replace: true });
-  }, [accessToken, isTokenExpired, navigate, user]);
+  }, [accessToken, navigate, user]);
 
   useEffect(() => {
     const state: PersistedAuthFlowState = {
@@ -623,7 +644,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row font-sans">
+    <AuthLayout>
       {toast && (
         <div
           key={toast.id}
@@ -633,163 +654,172 @@ const Auth = () => {
         </div>
       )}
 
-      <aside className="w-full lg:w-1/2 bg-[#FDF5E6] flex flex-col justify-center px-8 py-10 lg:py-0 lg:px-12 xl:px-24">
-        <div className="max-w-[540px] mx-auto lg:mx-0">
-          <div className="mb-4 lg:mb-1">
-            <Link to="/">
-              <img src={logo} alt="Meretium" className="h-[60px] lg:h-[100px] w-auto object-contain mx-auto lg:mx-0" />
-            </Link>
-          </div>
-          <div className="text-center lg:text-left">
-            <h1
-              className="text-[28px] lg:text-[36px] font-medium text-[#FF6934] leading-[36px] lg:leading-[48px] mb-3 capitalize tracking-normal"
-              style={{ fontFamily: "'Manrope', sans-serif" }}
+      {step === 'auth' && (
+        <div className="bg-white p-6 sm:p-8 rounded-xl border border-gray-200 shadow-sm w-full max-w-[480px] lg:w-[480px] lg:h-[682px] flex flex-col justify-between overflow-hidden font-manrope transition-all duration-300">
+          <div>
+            <div className="text-center mb-6">
+              <h2 className="text-[28px] sm:text-[32px] font-semibold text-[#0A1124] tracking-tight leading-tight font-heading">
+                Get Started With Meretium
+              </h2>
+              <p className="text-[#667085] text-[14px] mt-2 font-[400] font-body">Find roles that match your potential</p>
+            </div>
+
+            <div className="flex bg-[#F9FAFB] p-1.5 rounded-[10px] mb-6 border border-gray-100">
+              <button
+                type="button"
+                onClick={switchToSignup}
+                className={`flex-1 py-1.5 text-[14px] font-semibold rounded-[8px] transition-all font-body cursor-pointer ${!isLogin ? 'bg-[#FF6934] text-white shadow-sm' : 'text-[#344054] hover:text-[#101828]'}`}
+              >
+                Sign Up
+              </button>
+              <button
+                type="button"
+                onClick={switchToLogin}
+                className={`flex-1 py-1.5 text-[14px] font-semibold rounded-[8px] transition-all font-body cursor-pointer ${isLogin ? 'bg-[#FF6934] text-white shadow-sm' : 'text-[#344054] hover:text-[#101828]'}`}
+              >
+                Sign In
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleContinue}
+              disabled={loading || googleLoading}
+              className="w-full flex items-center justify-center gap-3 border border-[#D1D5DB] rounded-[8px] py-3 text-[14px] font-[600] text-[#344054] hover:bg-gray-50 transition-colors mb-6 cursor-pointer font-body disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Manage Your Platform With Control &amp; Clarity
-            </h1>
-            <p className="text-[14px] lg:text-[15px] xl:text-[16px] text-[#1D2939] font-medium leading-relaxed max-w-[440px] font-body mx-auto lg:mx-0">
-              Manage users, approvals, and platform health from one intelligent workspace.
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
+              {googleLoading ? 'Please wait...' : 'Continue with Google'}
+            </button>
+
+            <div className="flex items-center gap-4 mb-6">
+              <div className="flex-1 h-px bg-[#D1D5DB]"></div>
+              <span className="text-[#667085] text-[14px] font-medium font-body">or</span>
+              <div className="flex-1 h-px bg-[#D1D5DB]"></div>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              {!isLogin && (
+                <div>
+                  <label className="block text-[14px] font-regular text-[#344054] mb-1 font-body">
+                    Full name<span className="text-[#FF6934] ml-0.5">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Enter your full name"
+                    className="w-full px-4 py-3 rounded-[8px] border border-[#D1D5DB] focus:border-[#FF6934] outline-none text-[16px] sm:text-[14px] transition-all placeholder:text-gray-400 text-gray-900 font-body"
+                    required
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-[14px] font-regular text-[#344054] mb-1 font-body">
+                  Email address<span className="text-[#FF6934] ml-0.5">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className="w-full px-4 py-3 rounded-[8px] border border-[#D1D5DB] focus:border-[#FF6934] outline-none text-[16px] sm:text-[14px] transition-all placeholder:text-gray-400 text-gray-900 font-body"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[14px] font-regular text-[#344054] mb-1 font-body">
+                  Password<span className="text-[#FF6934] ml-0.5">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showAuthPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full px-4 py-3 pr-11 rounded-[8px] border border-[#D1D5DB] focus:border-[#FF6934] outline-none text-[16px] sm:text-[14px] transition-all placeholder:text-gray-400 text-gray-900 font-body"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAuthPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#98A2B3] hover:text-[#667085] cursor-pointer"
+                    aria-label={showAuthPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <PasswordVisibilityIcon isVisible={showAuthPassword} />
+                  </button>
+                </div>
+              </div>
+
+              {isLogin && (
+                <div className="flex items-center justify-between pt-0.5">
+                  <label className="inline-flex items-center gap-2 text-[12px] text-[#475467] font-body cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="peer sr-only"
+                    />
+                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border border-[#FF6934] bg-white peer-checked:bg-[#FF6934]">
+                      {rememberMe && (
+                        <svg width="9" height="7" viewBox="0 0 9 7" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                          <path d="M1 3.5L3.2 5.5L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    Remember Me
+                  </label>
+                  <Link to="/auth/forget-password" className="text-[12px] font-medium text-[#FF6934] hover:text-[#E5552B]">
+                    Forgot Password?
+                  </Link>
+                </div>
+              )}
+
+              {authInfoMessage && (
+                <p className="text-[13px] text-green-700 font-medium">{authInfoMessage}</p>
+              )}
+              <button
+                type="submit"
+                disabled={loading || (isLogin ? !isLoginValid : !isSignupValid)}
+                className="w-full bg-[#FF6934] hover:bg-[#E5552B] cursor-pointer text-white py-3 rounded-[8px] transition-all mt-2 text-[14px] font-[600] active:scale-[0.98] font-body disabled:opacity-70"
+              >
+                {loading ? 'Please wait...' : isLogin ? 'Log in' : 'Create account'}
+              </button>
+            </form>
+          </div>
+
+          <div className="text-center border-t border-gray-100 pt-6">
+            <p className="text-[12px] text-[#475467] font-body leading-tight">
+              By continuing you agree to Meretium Terms &amp; Privacy
             </p>
           </div>
         </div>
-      </aside>
+      )}
 
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-6 bg-[#FFFFFF]">
-        <div className="w-full flex justify-center py-4 sm:py-8 text-left">
-          {step === 'auth' && (
-            <div className="bg-white p-6 sm:p-8 rounded-xl border border-gray-200 shadow-sm w-full max-w-[480px] lg:w-[480px] lg:h-[682px] flex flex-col justify-between overflow-hidden font-manrope transition-all duration-300">
-              <div>
-                <div className="text-center mb-6">
-                  <h2 className="text-[28px] sm:text-[32px] font-semibold text-[#0A1124] tracking-tight leading-tight font-heading">
-                    Get Started With Meretium
-                  </h2>
-                  <p className="text-[#667085] text-[14px] mt-2 font-[400] font-body">Find roles that match your potential</p>
-                </div>
+      {step === 'verify-phone' && (
+        <VerifyPhoneStep
+          onSuccess={handlePhoneSuccess}
+          countryCode={verifyCountryCode}
+          phone={verifyPhoneInput}
+          onCountryCodeChange={setVerifyCountryCode}
+          onPhoneChange={setVerifyPhoneInput}
+          loading={loading}
+        />
+      )}
 
-                <div className="flex bg-[#F9FAFB] p-1.5 rounded-[10px] mb-6 border border-gray-100">
-                  <button
-                    type="button"
-                    onClick={switchToSignup}
-                    className={`flex-1 py-1.5 text-[14px] font-semibold rounded-[8px] transition-all font-body cursor-pointer ${!isLogin ? 'bg-[#FF6934] text-white shadow-sm' : 'text-[#344054] hover:text-[#101828]'}`}
-                  >
-                    Sign Up
-                  </button>
-                  <button
-                    type="button"
-                    onClick={switchToLogin}
-                    className={`flex-1 py-1.5 text-[14px] font-semibold rounded-[8px] transition-all font-body cursor-pointer ${isLogin ? 'bg-[#FF6934] text-white shadow-sm' : 'text-[#344054] hover:text-[#101828]'}`}
-                  >
-                    Sign In
-                  </button>
-                </div>
+      {step === 'otp' && (
+        <OtpStep
+          onSuccess={handleOtpSuccess}
+          onResend={handleResendOtp}
+          phoneNumber={phoneNumber}
+          resendAvailableAt={otpResendAvailableAt}
+          onResendAvailableAtChange={setOtpResendAvailableAt}
+          resendCooldownSeconds={OTP_RESEND_COOLDOWN_SECONDS}
+          loading={loading}
+        />
+      )}
 
-                <button
-                  type="button"
-                  onClick={handleGoogleContinue}
-                  disabled={loading || googleLoading}
-                  className="w-full flex items-center justify-center gap-3 border border-[#D1D5DB] rounded-[8px] py-3 text-[14px] font-[600] text-[#344054] hover:bg-gray-50 transition-colors mb-6 cursor-pointer font-body disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
-                  {googleLoading ? 'Please wait...' : 'Continue with Google'}
-                </button>
-
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="flex-1 h-px bg-[#D1D5DB]"></div>
-                  <span className="text-[#667085] text-[14px] font-medium font-body">or</span>
-                  <div className="flex-1 h-px bg-[#D1D5DB]"></div>
-                </div>
-
-                <form onSubmit={handleAuthSubmit} className="space-y-4">
-                  {!isLogin && (
-                    <div>
-                      <label className="block text-[14px] font-regular text-[#344054] mb-1 font-body">
-                        Full name<span className="text-[#FF6934] ml-0.5">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Enter your full name"
-                        className="w-full px-4 py-3 rounded-[8px] border border-[#D1D5DB] focus:border-[#FF6934] outline-none text-[16px] sm:text-[14px] transition-all placeholder:text-gray-400 text-gray-900 font-body"
-                        required
-                      />
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-[14px] font-regular text-[#344054] mb-1 font-body">
-                      Email address<span className="text-[#FF6934] ml-0.5">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your email"
-                      className="w-full px-4 py-3 rounded-[8px] border border-[#D1D5DB] focus:border-[#FF6934] outline-none text-[16px] sm:text-[14px] transition-all placeholder:text-gray-400 text-gray-900 font-body"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[14px] font-regular text-[#344054] mb-1 font-body">
-                      Password<span className="text-[#FF6934] ml-0.5">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      className="w-full px-4 py-3 rounded-[8px] border border-[#D1D5DB] focus:border-[#FF6934] outline-none text-[16px] sm:text-[14px] transition-all placeholder:text-gray-400 text-gray-900 font-body"
-                      required
-                    />
-                  </div>
-
-                  {authInfoMessage && (
-                    <p className="text-[13px] text-green-700 font-medium">{authInfoMessage}</p>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={loading || (isLogin ? !isLoginValid : !isSignupValid)}
-                    className="w-full bg-[#FF6934] hover:bg-[#E5552B] cursor-pointer text-white py-3 rounded-[8px] transition-all mt-2 text-[14px] font-[600] active:scale-[0.98] font-body disabled:opacity-70"
-                  >
-                    {loading ? 'Please wait...' : isLogin ? 'Log in' : 'Create account'}
-                  </button>
-                </form>
-              </div>
-
-              <div className="text-center border-t border-gray-100 pt-6">
-                <p className="text-[12px] text-[#475467] font-body leading-tight">
-                  By continuing you agree to Meretium Terms &amp; Privacy
-                </p>
-              </div>
-            </div>
-          )}
-
-          {step === 'verify-phone' && (
-            <VerifyPhoneStep
-              onSuccess={handlePhoneSuccess}
-              countryCode={verifyCountryCode}
-              phone={verifyPhoneInput}
-              onCountryCodeChange={setVerifyCountryCode}
-              onPhoneChange={setVerifyPhoneInput}
-              loading={loading}
-            />
-          )}
-
-          {step === 'otp' && (
-            <OtpStep
-              onSuccess={handleOtpSuccess}
-              onResend={handleResendOtp}
-              phoneNumber={phoneNumber}
-              resendAvailableAt={otpResendAvailableAt}
-              onResendAvailableAtChange={setOtpResendAvailableAt}
-              resendCooldownSeconds={OTP_RESEND_COOLDOWN_SECONDS}
-              loading={loading}
-            />
-          )}
-
-          {step === 'verified' && <VerifiedStep />}
-        </div>
-      </div>
-    </div>
+      {step === 'verified' && <VerifiedStep />}
+    </AuthLayout>
   );
 };
 

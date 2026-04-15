@@ -220,6 +220,40 @@ const authSlice = createSlice({
         localStorage.removeItem('tokenExpiresAt');
       }
     },
+    refreshTokens: (state, action: PayloadAction<unknown>) => {
+      const { accessToken, refreshToken, tokenType, expiresIn } = extractLoginData(action.payload);
+      const nextAccessToken = getStringValue(accessToken);
+      if (!nextAccessToken) return;
+
+      const nextRefreshToken = getStringValue(refreshToken) || state.refreshToken;
+      const nextTokenType = getStringValue(tokenType) || state.tokenType;
+      const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : null;
+
+      state.accessToken = nextAccessToken;
+      state.refreshToken = nextRefreshToken;
+      state.tokenType = nextTokenType;
+      state.tokenExpiresAt = expiresAt;
+
+      localStorage.setItem('accessToken', nextAccessToken);
+
+      if (nextRefreshToken) {
+        localStorage.setItem('refreshToken', nextRefreshToken);
+      } else {
+        localStorage.removeItem('refreshToken');
+      }
+
+      if (nextTokenType) {
+        localStorage.setItem('tokenType', nextTokenType);
+      } else {
+        localStorage.removeItem('tokenType');
+      }
+
+      if (expiresAt) {
+        localStorage.setItem('tokenExpiresAt', String(expiresAt));
+      } else {
+        localStorage.removeItem('tokenExpiresAt');
+      }
+    },
     logout: (state) => {
       state.user = null;
       state.accessToken = null;
@@ -236,7 +270,7 @@ const authSlice = createSlice({
   },
 });
 
-export const { login, logout } = authSlice.actions;
+export const { login, refreshTokens, logout } = authSlice.actions;
 
 export const store = configureStore({
   reducer: {

@@ -1,4 +1,4 @@
-import { forceReauthIfNeeded } from './authSession';
+import { executeAuthorizedRequest, forceReauthIfNeeded } from './authSession';
 
 const RAW_CANDIDATE_API_BASE_URL = import.meta.env.VITE_CANDIDATE_API_BASE_URL?.trim() || '';
 
@@ -153,10 +153,12 @@ export async function getCandidateDashboard(accessToken: string): Promise<Candid
     throw new Error('You are not authenticated. Please log in again.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/dashboard/`, {
-    method: 'GET',
-    headers: getCandidateRequestHeaders(trimmedAccessToken),
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/dashboard/`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
 
   const raw = await response.text();
   let payload: unknown = null;
