@@ -238,15 +238,15 @@ export default function FiltersSidebar({
           <h3 className="text-sm font-medium text-[#101828] mb-4">Work mode</h3>
           <div className="space-y-3">
             {WORK_MODE_OPTIONS.map((option) => (
-              <label key={option} className="flex items-center gap-3 cursor-pointer group">
-                <FilterCheck checked={filters.workMode === option} />
-                <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
+              <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
+                <FilterCheck checked={filters.workMode === option.value} />
+                <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option.label}</span>
                 <input
                   type="radio"
                   className="sr-only"
                   readOnly
-                  checked={filters.workMode === option}
-                  onClick={() => setFilters({ workMode: filters.workMode === option ? null : option })}
+                  checked={filters.workMode === option.value}
+                  onClick={() => setFilters({ workMode: filters.workMode === option.value ? null : option.value })}
                 />
               </label>
             ))}

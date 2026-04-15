@@ -21,17 +21,17 @@ interface ToastState {
   type: 'success' | 'error';
 }
 
-const WORK_MODE_OPTIONS = ['Remote', 'Hybrid', 'On-site', 'Any'] as const;
+const WORK_MODE_OPTIONS = ['REMOTE', 'HYBRID', 'ON_SITE', 'WORK_FROM_ANYWHERE'] as const;
 const JOB_TYPE_OPTIONS = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Graduate Scheme', 'Apprenticeship'] as const;
 
 function normalizeWorkMode(value: string): (typeof WORK_MODE_OPTIONS)[number] {
   const normalized = value.trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '');
 
-  if (normalized === 'remote') return 'Remote';
-  if (normalized === 'hybrid') return 'Hybrid';
-  if (normalized === 'on-site' || normalized === 'onsite') return 'On-site';
-  if (normalized === 'any') return 'Any';
-  return 'Any';
+  if (normalized === 'remote') return 'REMOTE';
+  if (normalized === 'hybrid') return 'HYBRID';
+  if (normalized === 'on-site' || normalized === 'onsite') return 'ON_SITE';
+  if (normalized === 'any') return 'WORK_FROM_ANYWHERE';
+  return 'WORK_FROM_ANYWHERE';
 }
 
 function normalizeJobType(value: string): (typeof JOB_TYPE_OPTIONS)[number] {

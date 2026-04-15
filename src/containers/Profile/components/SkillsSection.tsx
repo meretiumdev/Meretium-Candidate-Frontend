@@ -239,7 +239,7 @@ export default function SkillsSection({ skills, onSkillAdded }: SkillsSectionPro
                         type="button"
                         onClick={() => { void handleDeleteSkill(skill); }}
                         disabled={!skill.skillId || deletingSkillId === skill.skillId}
-                        className="absolute top-2 right-2 size-6 rounded-full border border-[#FECACA] bg-white text-[#F04438] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="absolute top-2 right-2 size-6 rounded-full border border-[#F9E2B7] bg-[#F9E2B7] text-[#FF6934] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         aria-label={`Delete ${skill.name}`}
                         title={!skill.skillId ? 'Skill cannot be deleted (missing id)' : 'Delete skill'}
                       >
