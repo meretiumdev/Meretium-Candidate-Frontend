@@ -1,4 +1,4 @@
-import { forceReauthIfNeeded } from './authSession';
+import { executeAuthorizedRequest, forceReauthIfNeeded } from './authSession';
 
 const RAW_CANDIDATE_API_BASE_URL = import.meta.env.VITE_CANDIDATE_API_BASE_URL?.trim() || '';
 
@@ -304,10 +304,12 @@ export async function getCandidateJobs(
     queryParams.set('max_salary', String(Math.max(0, Math.trunc(maxSalary))));
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/jobs?${queryParams.toString()}`, {
-    method: 'GET',
-    headers: getCandidateRequestHeaders(trimmedAccessToken),
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/jobs?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
 
   const raw = await response.text();
   let payload: unknown = null;
@@ -345,10 +347,12 @@ export async function getCandidateJobDetail(
     throw new Error('Job id is required.');
   }
 
-  const response = await fetch(`${CANDIDATE_API_BASE_URL}/jobs/${encodeURIComponent(trimmedJobId)}`, {
-    method: 'GET',
-    headers: getCandidateRequestHeaders(trimmedAccessToken),
-  });
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/jobs/${encodeURIComponent(trimmedJobId)}`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
 
   const raw = await response.text();
   let payload: unknown = null;

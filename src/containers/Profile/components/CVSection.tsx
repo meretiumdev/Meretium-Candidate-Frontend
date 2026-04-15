@@ -268,7 +268,7 @@ export default function CVSection({ cvs, onCvUploaded }: CVSectionProps) {
                   <button
                     onClick={() => setDeleteTarget(cv)}
                     disabled={!cv.cvId}
-                    className="text-[#FF5B5B] hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-[#F04438] hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label={`Delete ${cv.name}`}
                   >
                     <Trash2 size={18} />

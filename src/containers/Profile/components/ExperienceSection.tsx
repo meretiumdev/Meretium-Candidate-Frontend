@@ -76,18 +76,60 @@ function toInputDate(value: string): string {
   return `${year}-${month}-${day}`;
 }
 
+function parseExperienceDate(value: string): Date | null {
+  const normalized = toInputDate(value);
+  if (!normalized) return null;
+
+  const date = new Date(`${normalized}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function getExperienceYearsLabel(start: string, end: string, isCurrent: boolean): string | null {
+  const startDate = parseExperienceDate(start);
+  if (!startDate) return null;
+
+  const endDate = isCurrent
+    ? new Date()
+    : parseExperienceDate(end);
+
+  if (!endDate || endDate.getTime() < startDate.getTime()) return null;
+
+  let monthsDiff = (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12;
+  monthsDiff += endDate.getUTCMonth() - startDate.getUTCMonth();
+  if (endDate.getUTCDate() < startDate.getUTCDate()) {
+    monthsDiff -= 1;
+  }
+
+  if (monthsDiff < 0) return null;
+
+  const years = Math.floor(monthsDiff / 12);
+  if (years <= 0) {
+    if (monthsDiff <= 0) return 'Less than 1 month';
+    return `${monthsDiff} month${monthsDiff === 1 ? '' : 's'}`;
+  }
+  return `${years} year${years === 1 ? '' : 's'}`;
+}
+
 function getDuration(record: Record<string, unknown>): string {
   const explicitDuration = readString(record, ['duration']);
-  if (explicitDuration) return explicitDuration;
-
   const start = readString(record, ['start_date', 'startDate', 'from']);
   const end = readString(record, ['end_date', 'endDate', 'to']);
   const current = readBoolean(record, ['is_current', 'isCurrent', 'currently_working']);
+  const yearsLabel = getExperienceYearsLabel(start, end, current);
+
+  const withYears = (text: string): string => {
+    if (!yearsLabel) return text;
+    if (/\b(year|years|month|months)\b/i.test(text)) return text;
+    return `${text} \u2022 ${yearsLabel}`;
+  };
+
+  if (explicitDuration) return withYears(explicitDuration);
 
   if (!start && !end) return 'Duration not provided';
-  if (start && !end && current) return `${toMonthYear(start)} - Present`;
-  if (start && end) return `${toMonthYear(start)} - ${toMonthYear(end)}`;
-  if (start) return toMonthYear(start);
+  if (start && !end && current) return withYears(`${toMonthYear(start)} - Present`);
+  if (start && end) return withYears(`${toMonthYear(start)} - ${toMonthYear(end)}`);
+  if (start) return withYears(toMonthYear(start));
   return toMonthYear(end);
 }
 
@@ -272,14 +314,14 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
                       </button>
                       <button
                         onClick={() => setActiveAIId(activeAIId === exp.id ? null : exp.id)}
-                        className={`transition-colors cursor-pointer ${activeAIId === exp.id ? 'text-[#FF6934]' : 'text-[#98A2B3] hover:text-[#FF6934]'}`}
+                        className={`transition-colors cursor-pointer ${activeAIId === exp.id ? 'text-[#FF6934]' : 'text-[#FF6934] hover:text-[#f96029]'}`}
                         aria-label={`AI improve ${exp.role}`}
                       >
                         <Sparkles size={18} />
                       </button>
                       <button
                         onClick={() => setDeleteTarget(exp)}
-                        className="text-[#FF5B5B] hover:opacity-80 transition-opacity cursor-pointer"
+                        className="text-[#F04438] hover:opacity-80 transition-opacity cursor-pointer"
                         aria-label={`Delete ${exp.role}`}
                       >
                         <Trash2 size={18} />

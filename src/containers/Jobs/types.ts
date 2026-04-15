@@ -23,15 +23,16 @@ export const EXPERIENCE_LEVEL_OPTIONS = [
 ] as const;
 
 export const WORK_MODE_OPTIONS = [
-  'Remote',
-  'Hybrid',
-  'On-site',
+  { label: 'Remote', value: 'REMOTE' },
+  { label: 'Hybrid', value: 'HYBRID' },
+  { label: 'On-site', value: 'ON_SITE' },
+  { label: 'Any', value: 'ANY' },
 ] as const;
 
 export type DatePostedFilter = (typeof DATE_POSTED_OPTIONS)[number]['value'];
 export type JobTypeFilter = (typeof JOB_TYPE_OPTIONS)[number];
 export type ExperienceLevelFilter = (typeof EXPERIENCE_LEVEL_OPTIONS)[number];
-export type WorkModeFilter = (typeof WORK_MODE_OPTIONS)[number];
+export type WorkModeFilter = (typeof WORK_MODE_OPTIONS)[number]['value'];
 
 export interface JobsFilters {
   datePosted: DatePostedFilter | null;

@@ -1,5 +1,6 @@
 import { Sparkles, Target, MapPin, DollarSign, Clock, CheckCircle, Bookmark, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 
 interface RecommendedJobsProps {
   onQuickApply?: (job: any) => void;
@@ -7,11 +8,16 @@ interface RecommendedJobsProps {
 
 export default function RecommendedJobs({ onQuickApply }: RecommendedJobsProps) {
   const navigate = useNavigate();
+  const [savedJobsMap, setSavedJobsMap] = useState<Record<string, boolean>>({});
 
   const handleApplyClick = (title: string, company: string) => {
     if (onQuickApply) {
       onQuickApply({ title, company });
     }
+  };
+
+  const toggleSave = (jobId: string) => {
+    setSavedJobsMap((prev) => ({ ...prev, [jobId]: !prev[jobId] }));
   };
 
   return (
@@ -62,8 +68,13 @@ export default function RecommendedJobs({ onQuickApply }: RecommendedJobsProps) 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0 mt-6">
                 <span className="text-[14px] text-[#667085]">Posted 1 week ago</span>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <button className="text-[#667085] hover:text-[#344054] transition-colors cursor-pointer p-1">
-                    <Bookmark size={20} />
+                  <button
+                    type="button"
+                    onClick={() => toggleSave('figma-lead-ux-designer')}
+                    className={`transition-colors cursor-pointer p-1 ${savedJobsMap['figma-lead-ux-designer'] ? 'text-[#FF6934]' : 'text-[#667085] hover:text-[#344054]'}`}
+                    aria-label={savedJobsMap['figma-lead-ux-designer'] ? 'Remove saved job' : 'Save job'}
+                  >
+                    <Bookmark size={20} className={savedJobsMap['figma-lead-ux-designer'] ? 'fill-[#FF6934]' : ''} />
                   </button>
                   <button 
                     onClick={() => navigate('/job-detail')}
@@ -132,8 +143,13 @@ export default function RecommendedJobs({ onQuickApply }: RecommendedJobsProps) 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0 mt-6">
                 <span className="text-[14px] text-[#667085]">Posted 1 week ago</span>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <button className="text-[#667085] hover:text-[#344054] transition-colors cursor-pointer p-1">
-                    <Bookmark size={20} />
+                  <button
+                    type="button"
+                    onClick={() => toggleSave('airbnb-product-design-manager')}
+                    className={`transition-colors cursor-pointer p-1 ${savedJobsMap['airbnb-product-design-manager'] ? 'text-[#FF6934]' : 'text-[#667085] hover:text-[#344054]'}`}
+                    aria-label={savedJobsMap['airbnb-product-design-manager'] ? 'Remove saved job' : 'Save job'}
+                  >
+                    <Bookmark size={20} className={savedJobsMap['airbnb-product-design-manager'] ? 'fill-[#FF6934]' : ''} />
                   </button>
                   <button 
                     onClick={() => navigate('/job-detail')}

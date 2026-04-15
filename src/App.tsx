@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { logout } from './redux/store';
-import type { AppDispatch, RootState } from './redux/store';
+import React from 'react';
+import { useSelector } from 'react-redux';
+import type { RootState } from './redux/store';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Onboarding from './containers/Onboarding';
@@ -15,6 +14,7 @@ import Saved from './containers/Saved';
 import Messages from './containers/Messages';
 import Auth from './containers/Auth';
 import Settings from './containers/Settings';
+import ForgotPassword from './containers/Auth/ForgotPassword';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -27,16 +27,8 @@ function getIsOnboarded(user: unknown): boolean | null {
 }
 
 function AuthGuard({ children }: AuthGuardProps) {
-  const dispatch = useDispatch<AppDispatch>();
-  const { accessToken, tokenExpiresAt } = useSelector((state: RootState) => state.auth);
-  const isTokenExpired = Boolean(accessToken && tokenExpiresAt && Date.now() >= tokenExpiresAt);
-
-  useEffect(() => {
-    if (!isTokenExpired) return;
-    dispatch(logout());
-  }, [dispatch, isTokenExpired]);
-
-  if (!accessToken || isTokenExpired) return <Navigate to="/auth" replace />;
+  const { accessToken } = useSelector((state: RootState) => state.auth);
+  if (!accessToken) return <Navigate to="/auth" replace />;
   return <Layout>{children}</Layout>;
 }
 
@@ -54,6 +46,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/auth" element={<Auth />} />
+        <Route path="/auth/forget-password" element={<ForgotPassword />} />
         
         <Route path="/" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />
         <Route path="/onboarding" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />
