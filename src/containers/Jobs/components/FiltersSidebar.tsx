@@ -1,9 +1,10 @@
 import type { CSSProperties } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, ChevronDown, X } from 'lucide-react';
 import {
   DATE_POSTED_OPTIONS,
   EXPERIENCE_LEVEL_OPTIONS,
   JOB_TYPE_OPTIONS,
+  SALARY_CURRENCY_OPTIONS,
   SALARY_MAX_BOUND,
   SALARY_MIN_BOUND,
   SALARY_STEP,
@@ -89,6 +90,7 @@ export default function FiltersSidebar({
       jobType: null,
       experienceLevel: null,
       workMode: null,
+      salaryCurrency: null,
       minSalary: null,
       maxSalary: null,
     });
@@ -103,7 +105,7 @@ export default function FiltersSidebar({
 
   return (
     <div className={isDrawer ? 'bg-white h-full w-full overflow-y-auto' : 'bg-white border border-gray-200 rounded-xl p-6 shadow-sm'}>
-      <div className={isDrawer ? 'p-5 flex flex-col gap-7 min-h-full' : 'flex flex-col gap-8'}>
+      <div className={isDrawer ? 'p-5 flex flex-col min-h-full' : 'flex flex-col'}>
         {isDrawer ? (
           <div className="flex items-center justify-between pb-4 border-b border-[#EAECF0]">
             <h2 className="text-[20px] font-semibold text-[#101828]">Filters</h2>
@@ -129,127 +131,152 @@ export default function FiltersSidebar({
           </div>
         )}
 
-        <div>
-          <h3 className="text-sm font-medium text-[#101828] mb-4">Date posted</h3>
-          <div className="space-y-3">
-            {DATE_POSTED_OPTIONS.map((option) => (
-              <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
-                <FilterCheck checked={filters.datePosted === option.value} />
-                <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option.label}</span>
-                <input
-                  type="radio"
-                  className="sr-only"
-                  readOnly
-                  checked={filters.datePosted === option.value}
-                  onClick={() => setFilters({ datePosted: filters.datePosted === option.value ? null : option.value })}
-                />
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-sm font-medium text-[#101828] mb-4">Job type</h3>
-          <div className="space-y-3">
-            {JOB_TYPE_OPTIONS.map((option) => (
-              <label key={option} className="flex items-center gap-3 cursor-pointer group">
-                <FilterCheck checked={filters.jobType === option} />
-                <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
-                <input
-                  type="radio"
-                  className="sr-only"
-                  readOnly
-                  checked={filters.jobType === option}
-                  onClick={() => setFilters({ jobType: filters.jobType === option ? null : option })}
-                />
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-sm font-medium text-[#101828] mb-4">Experience level</h3>
-          <div className="space-y-3">
-            {EXPERIENCE_LEVEL_OPTIONS.map((option) => (
-              <label key={option} className="flex items-center gap-3 cursor-pointer group">
-                <FilterCheck checked={filters.experienceLevel === option} />
-                <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
-                <input
-                  type="radio"
-                  className="sr-only"
-                  readOnly
-                  checked={filters.experienceLevel === option}
-                  onClick={() => setFilters({ experienceLevel: filters.experienceLevel === option ? null : option })}
-                />
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-[#101828]">Salary range</h3>
-            <button
-              type="button"
-              onClick={resetSalaryFilters}
-              disabled={!hasSalaryFilters}
-              className="text-[12px] font-semibold text-[#FF6934] hover:opacity-80 transition-opacity cursor-pointer disabled:text-[#98A2B3] disabled:cursor-not-allowed disabled:hover:opacity-100"
-            >
-              Reset
-            </button>
-          </div>
-          <div className="flex items-center justify-between text-[14px] text-gray-500 font-regular mb-3">
-            <span>Min: {filters.minSalary === null ? 'Any' : formatCurrency(minValue)}</span>
-            <span>Max: {filters.maxSalary === null ? 'Any' : formatCurrency(normalizedMax)}</span>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <label className="block text-[12px] text-[#667085] mb-1">Min salary</label>
-              <input
-                type="range"
-                min={SALARY_MIN_BOUND}
-                max={SALARY_MAX_BOUND}
-                step={SALARY_STEP}
-                value={minValue}
-                onChange={(event) => handleMinSalaryChange(Number(event.target.value))}
-                className="w-full h-2 rounded-full appearance-none accent-[#FF6934] cursor-pointer"
-                style={getSliderTrackStyle(minValue)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-[12px] text-[#667085] mb-1">Max salary</label>
-              <input
-                type="range"
-                min={SALARY_MIN_BOUND}
-                max={SALARY_MAX_BOUND}
-                step={SALARY_STEP}
-                value={normalizedMax}
-                onChange={(event) => handleMaxSalaryChange(Number(event.target.value))}
-                className="w-full h-2 rounded-full appearance-none accent-[#FF6934] cursor-pointer"
-                style={getSliderTrackStyle(normalizedMax)}
-              />
+        <div className={`${isDrawer ? 'mt-6' : 'mt-8'} divide-y divide-[#EAECF0]`}>
+          <div className="pb-6">
+            <h3 className="text-sm font-medium text-[#101828] mb-4">Date posted</h3>
+            <div className="space-y-3">
+              {DATE_POSTED_OPTIONS.map((option) => (
+                <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
+                  <FilterCheck checked={filters.datePosted === option.value} />
+                  <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option.label}</span>
+                  <input
+                    type="radio"
+                    className="sr-only"
+                    readOnly
+                    checked={filters.datePosted === option.value}
+                    onClick={() => setFilters({ datePosted: filters.datePosted === option.value ? null : option.value })}
+                  />
+                </label>
+              ))}
             </div>
           </div>
-        </div>
 
-        <div>
-          <h3 className="text-sm font-medium text-[#101828] mb-4">Work mode</h3>
-          <div className="space-y-3">
-            {WORK_MODE_OPTIONS.map((option) => (
-              <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
-                <FilterCheck checked={filters.workMode === option.value} />
-                <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option.label}</span>
+          <div className="py-6">
+            <h3 className="text-sm font-medium text-[#101828] mb-4">Job type</h3>
+            <div className="space-y-3">
+              {JOB_TYPE_OPTIONS.map((option) => (
+                <label key={option} className="flex items-center gap-3 cursor-pointer group">
+                  <FilterCheck checked={filters.jobType === option} />
+                  <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
+                  <input
+                    type="radio"
+                    className="sr-only"
+                    readOnly
+                    checked={filters.jobType === option}
+                    onClick={() => setFilters({ jobType: filters.jobType === option ? null : option })}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="py-6">
+            <h3 className="text-sm font-medium text-[#101828] mb-4">Experience level</h3>
+            <div className="space-y-3">
+              {EXPERIENCE_LEVEL_OPTIONS.map((option) => (
+                <label key={option} className="flex items-center gap-3 cursor-pointer group">
+                  <FilterCheck checked={filters.experienceLevel === option} />
+                  <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
+                  <input
+                    type="radio"
+                    className="sr-only"
+                    readOnly
+                    checked={filters.experienceLevel === option}
+                    onClick={() => setFilters({ experienceLevel: filters.experienceLevel === option ? null : option })}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="py-6">
+            <h3 className="text-sm font-medium text-[#101828] mb-4">Currency</h3>
+            <div className="relative">
+              <select
+                aria-label="Salary currency"
+                value={filters.salaryCurrency ?? ''}
+                onChange={(event) => {
+                  const selectedCurrency = SALARY_CURRENCY_OPTIONS.find((option) => option.value === event.target.value)?.value ?? null;
+                  setFilters({ salaryCurrency: selectedCurrency });
+                }}
+                className="w-full h-[44px] rounded-[10px] border border-[#D0D5DD] bg-white px-3 pr-9 text-[14px] text-[#475467] font-normal appearance-none focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 focus:border-[#FF6934]"
+              >
+                <option value="">Any currency</option>
+                {SALARY_CURRENCY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#667085]" />
+            </div>
+          </div>
+
+          <div className="py-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-[#101828]">Salary range</h3>
+              <button
+                type="button"
+                onClick={resetSalaryFilters}
+                disabled={!hasSalaryFilters}
+                className="text-[12px] font-semibold text-[#FF6934] hover:opacity-80 transition-opacity cursor-pointer disabled:text-[#98A2B3] disabled:cursor-not-allowed disabled:hover:opacity-100"
+              >
+                Reset
+              </button>
+            </div>
+            <div className="flex items-center justify-between text-[14px] text-gray-500 font-regular mb-3">
+              <span>Min: {filters.minSalary === null ? 'Any' : formatCurrency(minValue)}</span>
+              <span>Max: {filters.maxSalary === null ? 'Any' : formatCurrency(normalizedMax)}</span>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[12px] text-[#667085] mb-1">Min salary</label>
                 <input
-                  type="radio"
-                  className="sr-only"
-                  readOnly
-                  checked={filters.workMode === option.value}
-                  onClick={() => setFilters({ workMode: filters.workMode === option.value ? null : option.value })}
+                  type="range"
+                  min={SALARY_MIN_BOUND}
+                  max={SALARY_MAX_BOUND}
+                  step={SALARY_STEP}
+                  value={minValue}
+                  onChange={(event) => handleMinSalaryChange(Number(event.target.value))}
+                  className="w-full h-2 rounded-full appearance-none accent-[#FF6934] cursor-pointer"
+                  style={getSliderTrackStyle(minValue)}
                 />
-              </label>
-            ))}
+              </div>
+
+              <div>
+                <label className="block text-[12px] text-[#667085] mb-1">Max salary</label>
+                <input
+                  type="range"
+                  min={SALARY_MIN_BOUND}
+                  max={SALARY_MAX_BOUND}
+                  step={SALARY_STEP}
+                  value={normalizedMax}
+                  onChange={(event) => handleMaxSalaryChange(Number(event.target.value))}
+                  className="w-full h-2 rounded-full appearance-none accent-[#FF6934] cursor-pointer"
+                  style={getSliderTrackStyle(normalizedMax)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6">
+            <h3 className="text-sm font-medium text-[#101828] mb-4">Work mode</h3>
+            <div className="space-y-3">
+              {WORK_MODE_OPTIONS.map((option) => (
+                <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
+                  <FilterCheck checked={filters.workMode === option.value} />
+                  <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option.label}</span>
+                  <input
+                    type="radio"
+                    className="sr-only"
+                    readOnly
+                    checked={filters.workMode === option.value}
+                    onClick={() => setFilters({ workMode: filters.workMode === option.value ? null : option.value })}
+                  />
+                </label>
+              ))}
+            </div>
           </div>
         </div>
 

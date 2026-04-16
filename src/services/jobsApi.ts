@@ -63,6 +63,7 @@ export interface GetCandidateJobsParams {
   job_type?: string | null;
   experience_level?: string | null;
   work_mode?: string | null;
+  salary_currency?: string | null;
   min_salary?: number | null;
   max_salary?: number | null;
 }
@@ -294,6 +295,10 @@ export async function getCandidateJobs(
 
   if (typeof params.work_mode === 'string' && params.work_mode.trim()) {
     queryParams.set('work_mode', params.work_mode.trim());
+  }
+
+  if (typeof params.salary_currency === 'string' && params.salary_currency.trim()) {
+    queryParams.set('salary_currency', params.salary_currency.trim());
   }
 
   if (minSalary !== null) {

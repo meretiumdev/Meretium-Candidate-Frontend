@@ -10,6 +10,7 @@ export default function JobsPage() {
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<JobsFilters>(DEFAULT_JOBS_FILTERS);
+  const [allJobsCount, setAllJobsCount] = useState(0);
 
   useEffect(() => {
     if (!isMobileFiltersOpen) return undefined;
@@ -43,7 +44,7 @@ export default function JobsPage() {
   return (
     <div className="max-w-full mx-auto px-2 sm:px-12 py-6 space-y-6 bg-[#F9FAFB] min-h-screen">
       <Header onCreateAlert={() => setIsAlertModalOpen(true)} />
-      <Tabs />
+      <Tabs allJobsCount={allJobsCount} />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         {/* Left Column: Filters (Hidden on small screens by default but we can leave it blocks for now, or just hide it) */}
@@ -53,7 +54,11 @@ export default function JobsPage() {
 
         {/* Right Column: Jobs */}
         <div className="lg:col-span-3">
-          <JobList filters={filters} onOpenFilters={() => setIsMobileFiltersOpen(true)} />
+          <JobList
+            filters={filters}
+            onOpenFilters={() => setIsMobileFiltersOpen(true)}
+            onJobsCountChange={setAllJobsCount}
+          />
         </div>
       </div>
 

@@ -29,16 +29,27 @@ export const WORK_MODE_OPTIONS = [
   { label: 'Any', value: 'ANY' },
 ] as const;
 
+export const SALARY_CURRENCY_OPTIONS = [
+  { label: 'USD-US Dollar', value: 'USD' },
+  { label: 'GBP-UK Pound', value: 'GBP' },
+  { label: 'EUR-Euro', value: 'EUR' },
+  { label: 'AED-UAE Dirham', value: 'AED' },
+  { label: 'SAR-Saudi Riyal', value: 'SAR' },
+  { label: 'PKR-Pakistani Rupee', value: 'PKR' },
+] as const;
+
 export type DatePostedFilter = (typeof DATE_POSTED_OPTIONS)[number]['value'];
 export type JobTypeFilter = (typeof JOB_TYPE_OPTIONS)[number];
 export type ExperienceLevelFilter = (typeof EXPERIENCE_LEVEL_OPTIONS)[number];
 export type WorkModeFilter = (typeof WORK_MODE_OPTIONS)[number]['value'];
+export type SalaryCurrencyFilter = (typeof SALARY_CURRENCY_OPTIONS)[number]['value'];
 
 export interface JobsFilters {
   datePosted: DatePostedFilter | null;
   jobType: JobTypeFilter | null;
   experienceLevel: ExperienceLevelFilter | null;
   workMode: WorkModeFilter | null;
+  salaryCurrency: SalaryCurrencyFilter | null;
   minSalary: number | null;
   maxSalary: number | null;
 }
@@ -52,6 +63,7 @@ export const DEFAULT_JOBS_FILTERS: JobsFilters = {
   jobType: null,
   experienceLevel: null,
   workMode: null,
+  salaryCurrency: null,
   minSalary: null,
   maxSalary: null,
 };
