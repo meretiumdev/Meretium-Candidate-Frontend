@@ -239,6 +239,7 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [totalJobs, setTotalJobs] = useState<number | null>(null);
+  const [applyToast, setApplyToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
 
   const nextSkipRef = useRef(0);
   const isFetchingRef = useRef(false);
@@ -444,6 +445,18 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
     };
   }, [isInitialLoading, loadJobs, jobs.length]);
 
+  useEffect(() => {
+    if (!applyToast) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setApplyToast(null);
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [applyToast]);
+
   const handleRetry = () => {
     clearJobsPageCache();
     requestVersionRef.current += 1;
@@ -498,6 +511,16 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
 
   return (
     <div className="flex flex-col gap-6">
+      {applyToast && (
+        <div className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+          applyToast.type === 'error'
+            ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+            : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+        }`}>
+          {applyToast.message}
+        </div>
+      )}
+
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <h2 className="text-[24px] font-semibold text-gray-900">{displayedJobsCount} jobs found</h2>
         <div className="lg:mt-0 flex items-center justify-between lg:justify-end gap-3">
@@ -628,6 +651,8 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
         isOpen={!!selectedJob}
         onClose={() => setSelectedJob(null)}
         job={selectedJob}
+        onApplySuccess={() => setApplyToast({ id: Date.now(), message: 'Applied successfully.', type: 'success' })}
+        onApplyError={(message) => setApplyToast({ id: Date.now(), message, type: 'error' })}
       />
     </div>
   );

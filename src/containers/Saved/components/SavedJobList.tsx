@@ -1,5 +1,5 @@
 import { Building2, MapPin, DollarSign, Calendar, Star } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QuickApplyModal from '../../../components/QuickApplyModal';
 import RemoveSavedModal from '../../../components/RemoveSavedModal';
@@ -8,6 +8,7 @@ export default function SavedJobList() {
   const navigate = useNavigate();
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [applyToast, setApplyToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
   const savedJobs = [
     {
       id: 1,
@@ -50,8 +51,30 @@ export default function SavedJobList() {
     isClosed: true,
   };
 
+  useEffect(() => {
+    if (!applyToast) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setApplyToast(null);
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [applyToast]);
+
   return (
     <div className="flex flex-col gap-6 font-manrope transition-all duration-300">
+      {applyToast && (
+        <div className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+          applyToast.type === 'error'
+            ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+            : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+        }`}>
+          {applyToast.message}
+        </div>
+      )}
+
       {/* Active & Applied Section */}
       <div className="flex flex-col gap-4">
         {savedJobs.map((job) => (
@@ -179,6 +202,8 @@ export default function SavedJobList() {
         isOpen={!!selectedJob}
         onClose={() => setSelectedJob(null)}
         job={selectedJob}
+        onApplySuccess={() => setApplyToast({ id: Date.now(), message: 'Applied successfully.', type: 'success' })}
+        onApplyError={(message) => setApplyToast({ id: Date.now(), message, type: 'error' })}
       />
 
       <RemoveSavedModal

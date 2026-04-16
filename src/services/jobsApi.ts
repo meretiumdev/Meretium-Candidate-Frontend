@@ -54,6 +54,15 @@ export interface CandidateJobDetailResponse extends CandidateJobsApiJob {
   must_have_requirements: string[];
   nice_to_have_requirements: string[];
   applicant_count: number;
+  questions: CandidateJobScreeningQuestion[];
+}
+
+export interface CandidateJobScreeningQuestion {
+  id: string;
+  text: string;
+  type: string;
+  required: boolean;
+  options: string[] | null;
 }
 
 export interface GetCandidateJobsParams {
@@ -108,6 +117,45 @@ function asStringArray(input: unknown): string[] {
     .filter((item): item is string => typeof item === 'string')
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function asOptionsArray(input: unknown): string[] | null {
+  if (!Array.isArray(input)) return null;
+
+  const options = input
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (typeof item === 'number' && Number.isFinite(item)) return String(item);
+      return '';
+    })
+    .filter((item) => item.length > 0);
+
+  return options.length > 0 ? options : null;
+}
+
+function normalizeScreeningQuestion(raw: unknown): CandidateJobScreeningQuestion | null {
+  const root = asRecord(raw);
+  if (!root) return null;
+
+  const id = asString(root.id);
+  const text = asString(root.text);
+
+  if (!id || !text) return null;
+
+  return {
+    id,
+    text,
+    type: asString(root.type) || 'short_text',
+    required: asBoolean(root.required),
+    options: asOptionsArray(root.options),
+  };
+}
+
+function asScreeningQuestionsArray(input: unknown): CandidateJobScreeningQuestion[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => normalizeScreeningQuestion(item))
+    .filter((item): item is CandidateJobScreeningQuestion => item !== null);
 }
 
 function getApiMessage(payload: unknown): string | null {
@@ -254,6 +302,7 @@ function normalizeJobDetailResponse(payload: unknown): CandidateJobDetailRespons
     must_have_requirements: asStringArray(root.must_have_requirements),
     nice_to_have_requirements: asStringArray(root.nice_to_have_requirements),
     applicant_count: asNumber(root.applicant_count),
+    questions: asScreeningQuestionsArray(root.screening_questions ?? root.questions),
   };
 }
 

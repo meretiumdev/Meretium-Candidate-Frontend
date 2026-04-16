@@ -2,6 +2,11 @@ import { executeAuthorizedRequest, forceReauthIfNeeded } from './authSession';
 
 const RAW_CANDIDATE_API_BASE_URL = import.meta.env.VITE_CANDIDATE_API_BASE_URL?.trim() || '';
 
+function isNgrokHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized.endsWith('.ngrok-free.app') || normalized.endsWith('.ngrok.app');
+}
+
 function getCandidateApiBaseUrl(): string {
   if (!RAW_CANDIDATE_API_BASE_URL) return '';
 
@@ -10,6 +15,29 @@ function getCandidateApiBaseUrl(): string {
 }
 
 const CANDIDATE_API_BASE_URL = getCandidateApiBaseUrl();
+
+function getCandidateRequestHeaders(accessToken: string, includeJsonContentType = false): HeadersInit {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+  };
+
+  if (includeJsonContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  try {
+    if (/^https?:\/\//i.test(RAW_CANDIDATE_API_BASE_URL)) {
+      const parsed = new URL(RAW_CANDIDATE_API_BASE_URL);
+      if (isNgrokHost(parsed.hostname)) {
+        headers['ngrok-skip-browser-warning'] = 'true';
+      }
+    }
+  } catch {
+    // Ignore malformed URL
+  }
+
+  return headers;
+}
 
 export type OpenToWorkStatus =
   | 'Open to opportunities'
@@ -263,9 +291,7 @@ export async function getCandidateProfile(accessToken: string): Promise<Candidat
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/profile`, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken),
     })
   );
 
@@ -307,10 +333,7 @@ export async function updateCandidateProfile(
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/profile`, {
       method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
       body: JSON.stringify(updates),
     })
   );
@@ -353,10 +376,7 @@ export async function updateJobPreferences(
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/profile/job-preferences`, {
       method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
       body: JSON.stringify(updates),
     })
   );
@@ -400,10 +420,7 @@ export async function createProfileSkill(
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/profile/skills`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
       body: JSON.stringify(payload),
     })
   );
@@ -444,9 +461,7 @@ export async function deleteProfileSkill(accessToken: string, skillId: string): 
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/profile/skills/${encodeURIComponent(trimmedSkillId)}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken),
     })
   );
 
@@ -486,10 +501,7 @@ export async function createProfileExperience(
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/profile/experiences`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
       body: JSON.stringify(payload),
     })
   );
@@ -538,10 +550,7 @@ export async function updateProfileExperience(
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/profile/experiences/${encodeURIComponent(trimmedExperienceId)}`, {
       method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
       body: JSON.stringify(payload),
     })
   );
@@ -586,9 +595,7 @@ export async function deleteProfileExperience(accessToken: string, experienceId:
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/profile/experiences/${encodeURIComponent(trimmedExperienceId)}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken),
     })
   );
 

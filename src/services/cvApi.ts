@@ -2,6 +2,11 @@ import { executeAuthorizedRequest, forceReauthIfNeeded } from './authSession';
 
 const RAW_CANDIDATE_API_BASE_URL = import.meta.env.VITE_CANDIDATE_API_BASE_URL?.trim() || '';
 
+function isNgrokHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized.endsWith('.ngrok-free.app') || normalized.endsWith('.ngrok.app');
+}
+
 function getCandidateApiBaseUrl(): string {
   if (!RAW_CANDIDATE_API_BASE_URL) return '';
 
@@ -10,6 +15,29 @@ function getCandidateApiBaseUrl(): string {
 }
 
 const CANDIDATE_API_BASE_URL = getCandidateApiBaseUrl();
+
+function getCandidateRequestHeaders(accessToken: string, includeJsonContentType = false): HeadersInit {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+  };
+
+  if (includeJsonContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  try {
+    if (/^https?:\/\//i.test(RAW_CANDIDATE_API_BASE_URL)) {
+      const parsed = new URL(RAW_CANDIDATE_API_BASE_URL);
+      if (isNgrokHost(parsed.hostname)) {
+        headers['ngrok-skip-browser-warning'] = 'true';
+      }
+    }
+  } catch {
+    // Ignore malformed URL
+  }
+
+  return headers;
+}
 
 function getApiMessage(payload: unknown): string | null {
   if (typeof payload !== 'object' || payload === null) return null;
@@ -48,9 +76,114 @@ interface UploadCandidateCvParams {
   accessToken: string;
 }
 
+export interface CandidateCvItem {
+  id: string;
+  name: string;
+  uploaded_at: string;
+  is_primary: boolean;
+}
+
 export interface UpdateCandidateCvPayload {
   is_primary?: boolean;
   file_name?: string;
+}
+
+function asRecord(input: unknown): Record<string, unknown> | null {
+  if (typeof input !== 'object' || input === null) return null;
+  return input as Record<string, unknown>;
+}
+
+function asString(input: unknown): string {
+  if (typeof input !== 'string') return '';
+  return input.trim();
+}
+
+function asBoolean(input: unknown): boolean {
+  if (typeof input === 'boolean') return input;
+  if (typeof input === 'number') return input === 1;
+  if (typeof input === 'string') {
+    const normalized = input.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1';
+  }
+  return false;
+}
+
+function readString(record: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = asString(record[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function normalizeCv(raw: unknown, index: number): CandidateCvItem | null {
+  const root = asRecord(raw);
+  if (!root) return null;
+
+  const id = readString(root, ['id', 'cv_id']);
+  if (!id) return null;
+
+  return {
+    id,
+    name: readString(root, ['name', 'file_name', 'filename', 'title']) || `CV ${index + 1}`,
+    uploaded_at: readString(root, ['uploaded_at', 'updated_at', 'created_at', 'date']),
+    is_primary: asBoolean(root.is_primary) || asBoolean(root.is_default) || asBoolean(root.default),
+  };
+}
+
+function normalizeCvsResponse(payload: unknown): CandidateCvItem[] {
+  let cvsRaw: unknown[] = [];
+
+  if (Array.isArray(payload)) {
+    cvsRaw = payload;
+  } else {
+    const root = asRecord(payload) || {};
+    if (Array.isArray(root.items)) cvsRaw = root.items;
+    else if (Array.isArray(root.data)) cvsRaw = root.data;
+    else if (Array.isArray(root.results)) cvsRaw = root.results;
+    else if (asRecord(root.cvs) && Array.isArray((root.cvs as { items?: unknown }).items)) {
+      cvsRaw = (root.cvs as { items: unknown[] }).items;
+    }
+  }
+
+  return cvsRaw
+    .map((item, index) => normalizeCv(item, index))
+    .filter((item): item is CandidateCvItem => item !== null);
+}
+
+export async function getCandidateCvs(accessToken: string): Promise<CandidateCvItem[]> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/cvs`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `CV list fetch failed with status ${response.status}`);
+  }
+
+  return normalizeCvsResponse(payload);
 }
 
 export async function uploadCandidateCv({ file, accessToken }: UploadCandidateCvParams): Promise<unknown> {
@@ -69,9 +202,7 @@ export async function uploadCandidateCv({ file, accessToken }: UploadCandidateCv
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/cvs`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken),
       body: formData,
     })
   );
@@ -125,10 +256,7 @@ export async function updateCandidateCv(
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/cvs/${encodeURIComponent(trimmedCvId)}`, {
       method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
       body: JSON.stringify(requestBody),
     })
   );
@@ -173,9 +301,7 @@ export async function deleteCandidateCv(accessToken: string, cvId: string): Prom
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/cvs/${encodeURIComponent(trimmedCvId)}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${nextAccessToken}`,
-      },
+      headers: getCandidateRequestHeaders(nextAccessToken),
     })
   );
 
