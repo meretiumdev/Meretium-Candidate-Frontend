@@ -71,10 +71,252 @@ export interface CandidateApplicationScreeningAnswer {
   answer: string;
 }
 
+export type CandidateApplicationStatus =
+  | 'APPLIED'
+  | 'IN_REVIEW'
+  | 'INTERVIEW'
+  | 'OFFERED'
+  | 'HIRED'
+  | 'REJECTED';
+
+export interface CandidateApplicationScreeningAnswerRead {
+  question_id: string;
+  question_text: string;
+  answer: string | number | boolean | null;
+}
+
+export interface CandidateApplicationStatusHistoryItem {
+  status: string;
+  changed_at: string;
+}
+
+export interface CandidateApplicationItem {
+  id: string;
+  job_id: string;
+  candidate_id: string;
+  job_title_snapshot: string;
+  company_name_snapshot: string;
+  location_snapshot: string;
+  cv_id: string;
+  cover_letter: string;
+  screening_answers: CandidateApplicationScreeningAnswerRead[];
+  status: string;
+  applied_at: string;
+  interview_details: unknown | null;
+  status_history: CandidateApplicationStatusHistoryItem[];
+}
+
+export interface CandidateApplicationsStats {
+  total: number;
+  applied: number;
+  in_review: number;
+  interview: number;
+  offered: number;
+  hired: number;
+  rejected: number;
+}
+
+export interface CandidateApplicationsListResponse {
+  stats: CandidateApplicationsStats;
+  applications: CandidateApplicationItem[];
+  total: number;
+}
+
+export interface GetCandidateApplicationsParams {
+  skip?: number;
+  limit?: number;
+  status?: CandidateApplicationStatus | null;
+}
+
 export interface CandidateApplyJobPayload {
   cv_id: string;
   cover_letter: string;
   screening_answers: CandidateApplicationScreeningAnswer[];
+}
+
+function asRecord(input: unknown): Record<string, unknown> | null {
+  if (typeof input !== 'object' || input === null) return null;
+  return input as Record<string, unknown>;
+}
+
+function asString(input: unknown): string {
+  if (typeof input !== 'string') return '';
+  return input.trim();
+}
+
+function asNullableNumber(input: unknown): number | null {
+  if (input === null || input === undefined || input === '') return null;
+  if (typeof input === 'number' && Number.isFinite(input)) return input;
+  if (typeof input === 'string') {
+    const parsed = Number(input);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function asNonNegativeInt(input: unknown, fallback = 0): number {
+  const value = asNullableNumber(input);
+  if (value === null) return fallback;
+  return Math.max(0, Math.trunc(value));
+}
+
+function asAnswerValue(input: unknown): string | number | boolean | null {
+  if (typeof input === 'string') return input;
+  if (typeof input === 'number' && Number.isFinite(input)) return input;
+  if (typeof input === 'boolean') return input;
+  return null;
+}
+
+function normalizeScreeningAnswers(input: unknown): CandidateApplicationScreeningAnswerRead[] {
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .map((item) => {
+      const record = asRecord(item);
+      if (!record) return null;
+
+      return {
+        question_id: asString(record.question_id),
+        question_text: asString(record.question_text),
+        answer: asAnswerValue(record.answer),
+      };
+    })
+    .filter((item): item is CandidateApplicationScreeningAnswerRead => item !== null);
+}
+
+function normalizeStatusHistory(input: unknown): CandidateApplicationStatusHistoryItem[] {
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .map((item) => {
+      const record = asRecord(item);
+      if (!record) return null;
+
+      return {
+        status: asString(record.status),
+        changed_at: asString(record.changed_at),
+      };
+    })
+    .filter((item): item is CandidateApplicationStatusHistoryItem => item !== null);
+}
+
+function normalizeApplicationItem(raw: unknown): CandidateApplicationItem | null {
+  const record = asRecord(raw);
+  if (!record) return null;
+
+  const id = asString(record.id);
+  if (!id) return null;
+
+  return {
+    id,
+    job_id: asString(record.job_id),
+    candidate_id: asString(record.candidate_id),
+    job_title_snapshot: asString(record.job_title_snapshot),
+    company_name_snapshot: asString(record.company_name_snapshot),
+    location_snapshot: asString(record.location_snapshot),
+    cv_id: asString(record.cv_id),
+    cover_letter: asString(record.cover_letter),
+    screening_answers: normalizeScreeningAnswers(record.screening_answers),
+    status: asString(record.status),
+    applied_at: asString(record.applied_at),
+    interview_details: record.interview_details ?? null,
+    status_history: normalizeStatusHistory(record.status_history),
+  };
+}
+
+function normalizeApplicationsResponse(payload: unknown): CandidateApplicationsListResponse {
+  const root = asRecord(payload) || {};
+  const statsRecord = asRecord(root.stats) || {};
+  const applicationsRaw = Array.isArray(root.applications) ? root.applications : [];
+
+  const applications = applicationsRaw
+    .map((item) => normalizeApplicationItem(item))
+    .filter((item): item is CandidateApplicationItem => item !== null);
+
+  const responseTotal = asNullableNumber(root.total);
+  const statsTotal = asNullableNumber(statsRecord.total);
+
+  const total = Math.max(
+    0,
+    Math.trunc(responseTotal ?? statsTotal ?? applications.length)
+  );
+
+  const inReview = asNonNegativeInt(statsRecord.in_review);
+  const interview = asNonNegativeInt(statsRecord.interview);
+  const offered = asNonNegativeInt(statsRecord.offered);
+  const hired = asNonNegativeInt(statsRecord.hired);
+  const rejected = asNonNegativeInt(statsRecord.rejected);
+  const computedApplied = Math.max(0, total - inReview - interview - offered - hired - rejected);
+  const applied = asNonNegativeInt(statsRecord.applied, computedApplied);
+
+  return {
+    stats: {
+      total,
+      applied,
+      in_review: inReview,
+      interview,
+      offered,
+      hired,
+      rejected,
+    },
+    applications,
+    total,
+  };
+}
+
+export async function getCandidateApplications(
+  accessToken: string,
+  params: GetCandidateApplicationsParams = {}
+): Promise<CandidateApplicationsListResponse> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const rawSkip = Number(params.skip);
+  const rawLimit = Number(params.limit);
+  const skip = Number.isFinite(rawSkip) ? Math.max(0, Math.trunc(rawSkip)) : 0;
+  const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.trunc(rawLimit)) : 10;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('skip', String(skip));
+  queryParams.set('limit', String(limit));
+
+  if (typeof params.status === 'string' && params.status.trim()) {
+    queryParams.set('status', params.status.trim());
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/applications?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Applications fetch failed with status ${response.status}`
+    );
+  }
+
+  return normalizeApplicationsResponse(payload);
 }
 
 export async function applyToCandidateJob(
