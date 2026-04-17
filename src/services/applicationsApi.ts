@@ -176,6 +176,16 @@ export interface CandidateApplyJobPayload {
   screening_answers: CandidateApplicationScreeningAnswer[];
 }
 
+export type CandidateOfferAction = 'accept' | 'decline';
+export type CandidateInterviewAction = 'accept' | 'reschedule';
+
+export interface CandidateInterviewResponsePayload {
+  action: CandidateInterviewAction;
+  preferred_date?: string;
+  preferred_time?: string;
+  note?: string;
+}
+
 function asRecord(input: unknown): Record<string, unknown> | null {
   if (typeof input !== 'object' || input === null) return null;
   return input as Record<string, unknown>;
@@ -406,6 +416,35 @@ function normalizeApplicationDetail(raw: unknown): CandidateApplicationDetail | 
   };
 }
 
+function extractApplicationDetailFromActionPayload(payload: unknown): CandidateApplicationDetail | null {
+  const direct = normalizeApplicationDetail(payload);
+  if (direct) return direct;
+
+  const root = asRecord(payload);
+  if (!root) return null;
+
+  const nestedCandidates: unknown[] = [
+    root.application,
+    root.application_detail,
+    root.detail,
+    root.data,
+    root.result,
+  ];
+
+  for (const candidate of nestedCandidates) {
+    const normalized = normalizeApplicationDetail(candidate);
+    if (normalized) return normalized;
+
+    const candidateRecord = asRecord(candidate);
+    if (!candidateRecord) continue;
+
+    const nestedNormalized = normalizeApplicationDetail(candidateRecord.application);
+    if (nestedNormalized) return nestedNormalized;
+  }
+
+  return null;
+}
+
 function normalizeApplicationsResponse(payload: unknown): CandidateApplicationsListResponse {
   const root = asRecord(payload) || {};
   const statsRecord = asRecord(root.stats) || {};
@@ -621,4 +660,133 @@ export async function applyToCandidateJob(
   }
 
   return responsePayload;
+}
+
+export async function respondToCandidateOffer(
+  accessToken: string,
+  applicationId: string,
+  action: CandidateOfferAction
+): Promise<CandidateApplicationDetail | null> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedApplicationId = applicationId.trim();
+  if (!trimmedApplicationId) {
+    throw new Error('Application id is required.');
+  }
+
+  const normalizedAction = action.trim().toLowerCase();
+  if (normalizedAction !== 'accept' && normalizedAction !== 'decline') {
+    throw new Error('Only accept and decline actions are allowed.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/applications/${encodeURIComponent(trimmedApplicationId)}/offer`, {
+      method: 'POST',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+      body: JSON.stringify({ action: normalizedAction }),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Offer response failed with status ${response.status}`
+    );
+  }
+
+  return extractApplicationDetailFromActionPayload(payload);
+}
+
+export async function respondToCandidateInterview(
+  accessToken: string,
+  applicationId: string,
+  payload: CandidateInterviewResponsePayload
+): Promise<CandidateApplicationDetail | null> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedApplicationId = applicationId.trim();
+  if (!trimmedApplicationId) {
+    throw new Error('Application id is required.');
+  }
+
+  const normalizedAction = payload.action.trim().toLowerCase();
+  if (normalizedAction !== 'accept' && normalizedAction !== 'reschedule') {
+    throw new Error('Only accept and reschedule actions are allowed.');
+  }
+
+  const preferredDate = payload.preferred_date?.trim() || '';
+  const preferredTime = payload.preferred_time?.trim() || '';
+  const note = payload.note?.trim() || '';
+
+  const requestBody: Record<string, string> = {
+    action: normalizedAction,
+  };
+
+  if (normalizedAction !== 'accept') {
+    if (!preferredDate) {
+      throw new Error('Preferred date is required for reschedule.');
+    }
+    if (!preferredTime) {
+      throw new Error('Preferred time is required for reschedule.');
+    }
+
+    requestBody.preferred_date = preferredDate;
+    requestBody.preferred_time = preferredTime;
+    requestBody.note = note;
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/applications/${encodeURIComponent(trimmedApplicationId)}/interview`, {
+      method: 'POST',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+      body: JSON.stringify(requestBody),
+    })
+  );
+
+  const raw = await response.text();
+  let responsePayload: unknown = null;
+  if (raw) {
+    try {
+      responsePayload = JSON.parse(raw);
+    } catch {
+      responsePayload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, responsePayload);
+    throw new Error(
+      getApiDetailMessage(responsePayload)
+      || getApiMessage(responsePayload)
+      || `Interview response failed with status ${response.status}`
+    );
+  }
+
+  return extractApplicationDetailFromActionPayload(responsePayload);
 }
