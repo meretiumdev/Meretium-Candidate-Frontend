@@ -185,7 +185,7 @@ export default function Applications() {
       const response = await getCandidateApplications(accessToken, {
         skip,
         limit: PAGE_LIMIT,
-        status: activeStatus === 'ALL' ? null : activeStatus,
+        application_status: activeStatus === 'ALL' ? null : activeStatus,
       });
 
       setApplications(response.applications.map(mapApplicationItem));

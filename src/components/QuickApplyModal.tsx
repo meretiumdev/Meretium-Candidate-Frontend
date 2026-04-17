@@ -5,6 +5,7 @@ import type { RootState } from '../redux/store';
 import { getCandidateJobDetail, type CandidateJobScreeningQuestion } from '../services/jobsApi';
 import { getCandidateCvs, uploadCandidateCv, type CandidateCvItem } from '../services/cvApi';
 import { applyToCandidateJob } from '../services/applicationsApi';
+import { formatJobTypeLabel } from '../utils/formatJobTypeLabel';
 
 export interface QuickApplyModalJob {
   id?: string | number;
@@ -36,13 +37,6 @@ Throughout my career, I have focused on delivering high-quality work and collabo
 Thank you for considering my application. I look forward to the opportunity to discuss how I can contribute.
 
 Best regards`;
-
-const FALLBACK_RESPONSIBILITIES = [
-  'Design and ship high-quality product features',
-  'Collaborate with cross-functional teams',
-  'Maintain and evolve design systems',
-  'Conduct user research and usability testing',
-];
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) return error.message;
@@ -111,6 +105,9 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
   const [stepError, setStepError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const shouldSkipScreeningStep = !isLoadingQuestions && !questionsError && screeningQuestions.length === 0;
+  const totalSteps = shouldSkipScreeningStep ? 3 : 4;
+  const visibleStep = shouldSkipScreeningStep && currentStep > 2 ? currentStep - 1 : currentStep;
 
   const selectedCvName = useMemo(() => {
     const selected = cvs.find((cv) => cv.id === selectedCV);
@@ -163,8 +160,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       const response = await getCandidateJobDetail(accessToken, jobId);
       if (requestId !== jobDetailRequestRef.current) return;
       setScreeningQuestions(response.questions || []);
-      setJobResponsibilities(response.key_responsibilities || []);
-      setJobTypeLabel(response.job_type || '');
+      setJobTypeLabel(formatJobTypeLabel(response.job_type, ''));
     } catch (error: unknown) {
       if (requestId !== jobDetailRequestRef.current) return;
       setScreeningQuestions([]);
@@ -192,7 +188,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     setQuestionErrors({});
     setScreeningQuestions(Array.isArray(job.questions) ? job.questions : []);
     setJobResponsibilities(Array.isArray(job.key_responsibilities) ? job.key_responsibilities : []);
-    setJobTypeLabel(job.job_type || job.type || '');
+    setJobTypeLabel(formatJobTypeLabel(job.job_type || job.type || '', ''));
     setCvs([]);
     setCvsError(null);
     setQuestionsError(null);
@@ -218,6 +214,11 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     const fallbackCv = cvs[0];
     setSelectedCV(primaryCv?.id || fallbackCv?.id || '');
   }, [cvs, selectedCV]);
+
+  useEffect(() => {
+    if (currentStep !== 2 || !shouldSkipScreeningStep) return;
+    setCurrentStep(3);
+  }, [currentStep, shouldSkipScreeningStep]);
 
   const handleUploadClick = () => {
     if (isUploadingCv) return;
@@ -373,6 +374,10 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
 
     if (currentStep === 1) {
       if (!validateStepOne()) return;
+      if (shouldSkipScreeningStep) {
+        setCurrentStep(3);
+        return;
+      }
       setCurrentStep(2);
       return;
     }
@@ -405,6 +410,10 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
         setIsGenerating(false);
         return;
       }
+    }
+    if (currentStep === 3 && shouldSkipScreeningStep) {
+      setCurrentStep(1);
+      return;
     }
     if (currentStep > 1) {
       setCurrentStep((prev) => (prev - 1) as Step);
@@ -501,21 +510,23 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
                   <MapPin size={17} className="opacity-60" /> {job?.location || 'Location not provided'}
                 </div>
                 <div className="flex items-center gap-3 text-[14px] text-[#475467] font-regular font-body">
-                  <Briefcase size={17} className="opacity-60" /> {jobTypeLabel || 'Full-time'}
+                  <Briefcase size={17} className="opacity-60" /> {jobTypeLabel || 'Full time'}
                 </div>
               </div>
 
-              <div>
-                <h4 className="text-[14px] font-regular text-[#101828] font-heading mb-4">Key responsibilities:</h4>
-                <ul className="space-y-3">
-                  {(jobResponsibilities.length > 0 ? jobResponsibilities : FALLBACK_RESPONSIBILITIES).slice(0, 5).map((item, idx) => (
-                    <li key={`${item}-${idx}`} className="flex items-start gap-3 text-[14px] text-[#4B5563] font-medium font-body leading-relaxed">
-                      <span className="size-1.5 bg-[#FF6934] rounded-full mt-2 shrink-0"></span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {jobResponsibilities.length > 0 && (
+                <div>
+                  <h4 className="text-[14px] font-regular text-[#101828] font-heading mb-4">Key responsibilities:</h4>
+                  <ul className="space-y-3">
+                    {jobResponsibilities.slice(0, 5).map((item, idx) => (
+                      <li key={`${item}-${idx}`} className="flex items-start gap-3 text-[14px] text-[#4B5563] font-medium font-body leading-relaxed">
+                        <span className="size-1.5 bg-[#FF6934] rounded-full mt-2 shrink-0"></span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div>
@@ -560,7 +571,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
                       <div className={`mt-0.5 size-5 rounded-[3px] border-1 flex items-center justify-center transition-colors ${
                         selectedCV === cv.id ? 'bg-[#FF6934] border-[#FF6934]' : 'border-[#FF6934]'
                       }`}>
-                        {selectedCV === cv.id && <div className="size-2 bg-white rounded-sm"></div>}
+                        {selectedCV === cv.id && <Check size={14} className="text-white stroke-[3.5]" />}
                       </div>
 
                       <div>
@@ -613,10 +624,6 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
                 >
                   Retry
                 </button>
-              </div>
-            ) : screeningQuestions.length === 0 ? (
-              <div className="bg-[#F9FAFB] border border-gray-200 rounded-xl p-5 text-[14px] text-[#475467]">
-                No screening questions are required for this job.
               </div>
             ) : (
               screeningQuestions.map((question) => (
@@ -782,11 +789,11 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
             </button>
           </div>
           <div className="flex flex-col gap-2">
-            <span className="text-[14px] font-regular text-gray-500 font-body">Step {currentStep} of 4</span>
+            <span className="text-[14px] font-regular text-gray-500 font-body">Step {visibleStep} of {totalSteps}</span>
             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-[#FF6934] rounded-full transition-all duration-300"
-                style={{ width: `${(currentStep / 4) * 100}%` }}
+                style={{ width: `${(visibleStep / totalSteps) * 100}%` }}
               ></div>
             </div>
           </div>

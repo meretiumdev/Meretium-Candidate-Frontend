@@ -32,6 +32,7 @@ export interface CandidateJobsApiJob {
   required_skills: string[];
   posted_at: string;
   description: string;
+  key_responsibilities: string[];
   match_percentage: number | null;
 }
 
@@ -231,6 +232,7 @@ function normalizeJob(raw: unknown): CandidateJobsApiJob | null {
     required_skills: asStringArray(root.required_skills),
     posted_at: asString(root.posted_at),
     description: asString(root.description),
+    key_responsibilities: asStringArray(root.key_responsibilities),
     match_percentage: asNullableNumber(root.match_percentage),
   };
 }

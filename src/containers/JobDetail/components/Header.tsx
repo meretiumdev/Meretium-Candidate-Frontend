@@ -1,5 +1,6 @@
 import { CheckCircle, MapPin, Briefcase, Clock, Building2 } from 'lucide-react';
 import type { CandidateJobDetailResponse } from '../../../services/jobsApi';
+import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
 
 interface HeaderProps {
   job?: CandidateJobDetailResponse | null;
@@ -33,7 +34,7 @@ export default function Header({ job }: HeaderProps) {
   const companyName = job?.company.name || '';
   const isVerified = job?.company.is_verified === true;
   const location = job?.location || '';
-  const jobType = job?.job_type || '';
+  const jobType = formatJobTypeLabel(job?.job_type || '', '');
   const workMode = job?.work_mode || '';
   const salary = formatSalary(job?.min_salary ?? null, job?.max_salary ?? null, job?.currency || '');
 

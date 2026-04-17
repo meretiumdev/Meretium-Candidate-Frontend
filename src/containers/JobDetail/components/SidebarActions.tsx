@@ -2,6 +2,7 @@ import { Star, Users, Target } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { CandidateJobDetailResponse } from '../../../services/jobsApi';
 import QuickApplyModal from '../../../components/QuickApplyModal';
+import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
 
 interface SidebarActionsProps {
   job?: CandidateJobDetailResponse | null;
@@ -33,7 +34,7 @@ export default function SidebarActions({ job }: SidebarActionsProps) {
   const [applyToast, setApplyToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
   const posted = formatPostedLabel(job?.posted_at || '');
   const applicants = typeof job?.applicant_count === 'number' ? String(job.applicant_count) : '';
-  const jobType = job?.job_type || '';
+  const jobType = formatJobTypeLabel(job?.job_type || '', '');
   const workMode = job?.work_mode || '';
   const match = '80%';
 

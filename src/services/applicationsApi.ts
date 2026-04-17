@@ -125,7 +125,7 @@ export interface CandidateApplicationsListResponse {
 export interface GetCandidateApplicationsParams {
   skip?: number;
   limit?: number;
-  status?: CandidateApplicationStatus | null;
+  application_status?: CandidateApplicationStatus | null;
 }
 
 export interface CandidateApplyJobPayload {
@@ -236,22 +236,22 @@ function normalizeApplicationsResponse(payload: unknown): CandidateApplicationsL
   const responseTotal = asNullableNumber(root.total);
   const statsTotal = asNullableNumber(statsRecord.total);
 
-  const total = Math.max(
-    0,
-    Math.trunc(responseTotal ?? statsTotal ?? applications.length)
-  );
+  // `total` can represent filtered list count while `stats.total` can represent
+  // overall application count for tabs/cards. Keep them independent.
+  const total = Math.max(0, Math.trunc(responseTotal ?? applications.length));
+  const statsTotalValue = Math.max(0, Math.trunc(statsTotal ?? total));
 
   const inReview = asNonNegativeInt(statsRecord.in_review);
   const interview = asNonNegativeInt(statsRecord.interview);
   const offered = asNonNegativeInt(statsRecord.offered);
   const hired = asNonNegativeInt(statsRecord.hired);
   const rejected = asNonNegativeInt(statsRecord.rejected);
-  const computedApplied = Math.max(0, total - inReview - interview - offered - hired - rejected);
+  const computedApplied = Math.max(0, statsTotalValue - inReview - interview - offered - hired - rejected);
   const applied = asNonNegativeInt(statsRecord.applied, computedApplied);
 
   return {
     stats: {
-      total,
+      total: statsTotalValue,
       applied,
       in_review: inReview,
       interview,
@@ -286,8 +286,8 @@ export async function getCandidateApplications(
   queryParams.set('skip', String(skip));
   queryParams.set('limit', String(limit));
 
-  if (typeof params.status === 'string' && params.status.trim()) {
-    queryParams.set('status', params.status.trim());
+  if (typeof params.application_status === 'string' && params.application_status.trim()) {
+    queryParams.set('application_status', params.application_status.trim());
   }
 
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>

@@ -6,6 +6,7 @@ import QuickApplyModal from '../../../components/QuickApplyModal';
 import { getCandidateJobs, type CandidateJobsApiJob } from '../../../services/jobsApi';
 import type { RootState } from '../../../redux/store';
 import type { JobsFilters } from '../types';
+import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
 
 interface JobListItem {
   id: string;
@@ -15,6 +16,7 @@ interface JobListItem {
   location: string;
   salary: string;
   type: string;
+  key_responsibilities: string[];
   verified: boolean;
   tags: string[];
   match: number;
@@ -211,7 +213,8 @@ function toJobListItem(job: CandidateJobsApiJob, absoluteIndex: number): JobList
     company: companyName,
     location: job.location || 'Remote',
     salary: formatSalary(job.min_salary, job.max_salary, job.currency),
-    type: job.job_type || 'Full-time',
+    type: formatJobTypeLabel(job.job_type),
+    key_responsibilities: job.key_responsibilities,
     verified: job.company.is_verified,
     tags,
     match,
