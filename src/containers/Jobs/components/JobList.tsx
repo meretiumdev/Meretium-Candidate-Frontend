@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useSelector } from 'react-redux';
 import QuickApplyModal from '../../../components/QuickApplyModal';
-import { getCandidateJobs, type CandidateJobsApiJob } from '../../../services/jobsApi';
+import {
+  deleteCandidateSavedJob,
+  getCandidateJobs,
+  saveCandidateJob,
+  type CandidateJobsApiJob,
+} from '../../../services/jobsApi';
 import type { RootState } from '../../../redux/store';
 import type { JobsFilters } from '../types';
 import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
@@ -237,6 +242,7 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
   const [sortBy, setSortBy] = useState<'Most relevant' | 'Most recent' | 'Highest salary'>('Most relevant');
   const [selectedJob, setSelectedJob] = useState<JobListItem | null>(null);
   const [savedJobsMap, setSavedJobsMap] = useState<Record<string, boolean>>({});
+  const [savingJobsMap, setSavingJobsMap] = useState<Record<string, boolean>>({});
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -263,9 +269,43 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
     };
   }, [filters]);
 
-  const toggleSave = (e: MouseEvent, id: string) => {
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error && error.message.trim()) return error.message;
+    return 'Unable to update saved job right now.';
+  };
+
+  const handleSaveJob = async (e: MouseEvent, id: string) => {
     e.stopPropagation();
-    setSavedJobsMap((prev) => ({ ...prev, [id]: !prev[id] }));
+
+    if (!accessToken?.trim()) {
+      setApplyToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.', type: 'error' });
+      return;
+    }
+
+    setSavingJobsMap((prev) => ({ ...prev, [id]: true }));
+
+    try {
+      const isCurrentlySaved = !!savedJobsMap[id];
+      if (isCurrentlySaved) {
+        await deleteCandidateSavedJob(accessToken, id);
+        setSavedJobsMap((prev) => ({ ...prev, [id]: false }));
+        setApplyToast({ id: Date.now(), message: 'Job removed from saved.', type: 'success' });
+      } else {
+        await saveCandidateJob(accessToken, id);
+        setSavedJobsMap((prev) => ({ ...prev, [id]: true }));
+        setApplyToast({ id: Date.now(), message: 'Job saved successfully.', type: 'success' });
+      }
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      if (message.toLowerCase().includes('already')) {
+        setSavedJobsMap((prev) => ({ ...prev, [id]: true }));
+        setApplyToast({ id: Date.now(), message: 'Job already saved.', type: 'success' });
+      } else {
+        setApplyToast({ id: Date.now(), message, type: 'error' });
+      }
+    } finally {
+      setSavingJobsMap((prev) => ({ ...prev, [id]: false }));
+    }
   };
 
   const loadJobs = useCallback(async (reset: boolean, requestVersion = requestVersionRef.current) => {
@@ -305,7 +345,20 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
       if (requestVersion !== requestVersionRef.current) return;
 
       const mappedJobs = response.items.map((job, index) => toJobListItem(job, requestSkip + index));
+      const apiSavedFlags: Record<string, boolean> = {};
+      mappedJobs.forEach((mappedJob, index) => {
+        apiSavedFlags[mappedJob.id] = response.items[index]?.is_saved ?? false;
+      });
+
       setJobs((prev) => (reset ? mappedJobs : [...prev, ...mappedJobs]));
+      setSavedJobsMap((prev) => {
+        const next = reset ? {} : { ...prev };
+        Object.keys(apiSavedFlags).forEach((jobId) => {
+          // Keep optimistic local "saved" state if already true.
+          next[jobId] = next[jobId] === true ? true : apiSavedFlags[jobId];
+        });
+        return next;
+      });
       if (typeof response.total === 'number') {
         setTotalJobs(response.total);
       } else {
@@ -584,10 +637,13 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
                   </div>
                 </div>
                 <button
-                  onClick={(e) => toggleSave(e, job.id)}
-                  className={`transition-colors cursor-pointer ${savedJobsMap[job.id] ? 'text-[#FF6934]' : 'text-[#475467] hover:text-gray-600'}`}
+                  onClick={(e) => { void handleSaveJob(e, job.id); }}
+                  disabled={!!savingJobsMap[job.id]}
+                  className={`transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${savedJobsMap[job.id] ? 'text-[#FF6934]' : 'text-[#475467] hover:text-gray-600'}`}
                 >
-                  <Bookmark size={20} className={savedJobsMap[job.id] ? 'fill-[#FF6934]' : ''} />
+                  {savingJobsMap[job.id]
+                    ? <Loader2 size={20} className="animate-spin" />
+                    : <Bookmark size={20} className={savedJobsMap[job.id] ? 'fill-[#FF6934]' : ''} />}
                 </button>
               </div>
 

@@ -241,6 +241,7 @@ export default function Applications() {
       <StatusTabs activeStatus={activeStatus} stats={stats} onChange={handleStatusChange} />
       <ApplicationsList
         applications={applications}
+        accessToken={accessToken}
         isLoading={isLoading}
         errorMessage={errorMessage}
         currentPage={currentPage}

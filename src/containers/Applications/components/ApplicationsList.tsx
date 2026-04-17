@@ -5,6 +5,7 @@ import type { ApplicationListItem } from '../types';
 
 interface ApplicationsListProps {
   applications: ApplicationListItem[];
+  accessToken: string | null;
   isLoading: boolean;
   errorMessage: string | null;
   currentPage: number;
@@ -56,6 +57,7 @@ function ApplicationProgress({
 
 export default function ApplicationsList({
   applications,
+  accessToken,
   isLoading,
   errorMessage,
   currentPage,
@@ -192,6 +194,7 @@ export default function ApplicationsList({
         isOpen={!!selectedApp}
         onClose={() => setSelectedApp(null)}
         app={selectedApp}
+        accessToken={accessToken}
       />
     </div>
   );

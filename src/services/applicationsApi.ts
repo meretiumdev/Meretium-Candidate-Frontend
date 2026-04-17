@@ -88,6 +88,8 @@ export interface CandidateApplicationScreeningAnswerRead {
 export interface CandidateApplicationStatusHistoryItem {
   status: string;
   changed_at: string;
+  note?: string;
+  phase_metadata?: Record<string, unknown> | null;
 }
 
 export interface CandidateApplicationItem {
@@ -103,6 +105,46 @@ export interface CandidateApplicationItem {
   status: string;
   applied_at: string;
   interview_details: unknown | null;
+  status_history: CandidateApplicationStatusHistoryItem[];
+}
+
+export interface CandidateApplicationCvItem {
+  id: string;
+  file_name: string;
+  file_url: string;
+}
+
+export interface CandidateApplicationInterviewDetails {
+  date: string;
+  time: string;
+  location: string;
+  link: string;
+  status: string;
+  candidate_response: string;
+}
+
+export interface CandidateApplicationOfferDetails {
+  salary: string;
+  benefits: string[];
+  start_date: string;
+  offer_extended_at: string;
+  offer_expires_at: string;
+  candidate_response: string;
+  responded_at: string;
+}
+
+export interface CandidateApplicationDetail {
+  id: string;
+  status: string;
+  job_title_snapshot: string;
+  company_name_snapshot: string;
+  location_snapshot: string;
+  cv_id: string;
+  cv: CandidateApplicationCvItem | null;
+  cover_letter: string;
+  screening_answers: CandidateApplicationScreeningAnswerRead[];
+  interview_details: CandidateApplicationInterviewDetails | null;
+  offer_details: CandidateApplicationOfferDetails | null;
   status_history: CandidateApplicationStatusHistoryItem[];
 }
 
@@ -154,6 +196,14 @@ function asNullableNumber(input: unknown): number | null {
   return null;
 }
 
+function readStringFromRecord(record: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = asString(record[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
 function asNonNegativeInt(input: unknown, fallback = 0): number {
   const value = asNullableNumber(input);
   if (value === null) return fallback;
@@ -187,17 +237,123 @@ function normalizeScreeningAnswers(input: unknown): CandidateApplicationScreenin
 function normalizeStatusHistory(input: unknown): CandidateApplicationStatusHistoryItem[] {
   if (!Array.isArray(input)) return [];
 
+  const normalized: CandidateApplicationStatusHistoryItem[] = [];
+
+  for (const item of input) {
+    const record = asRecord(item);
+    if (!record) continue;
+
+    const historyItem: CandidateApplicationStatusHistoryItem = {
+      status: asString(record.status),
+      changed_at: asString(record.changed_at),
+      phase_metadata: asRecord(record.phase_metadata),
+    };
+
+    const note = asString(record.note);
+    if (note) {
+      historyItem.note = note;
+    }
+
+    normalized.push(historyItem);
+  }
+
+  return normalized;
+}
+
+function normalizeApplicationCv(input: unknown): CandidateApplicationCvItem | null {
+  const record = asRecord(input);
+  if (!record) return null;
+
+  const id = asString(record.id);
+  const fileUrl = readStringFromRecord(record, ['file_url', 'url']);
+  if (!id && !fileUrl) return null;
+
+  return {
+    id,
+    file_name: readStringFromRecord(record, ['file_name', 'name', 'filename']),
+    file_url: fileUrl,
+  };
+}
+
+function readAnswerValue(record: Record<string, unknown>): string | number | boolean | null {
+  const direct = asAnswerValue(record.answer);
+  if (direct !== null) return direct;
+
+  const response = asAnswerValue(record.response);
+  if (response !== null) return response;
+
+  const value = asAnswerValue(record.value);
+  if (value !== null) return value;
+
+  for (const [key, candidate] of Object.entries(record)) {
+    if (
+      key === 'question_id'
+      || key === 'id'
+      || key === 'questionId'
+      || key === 'question_text'
+      || key === 'question'
+      || key === 'label'
+      || key === 'prompt'
+    ) {
+      continue;
+    }
+
+    const fallback = asAnswerValue(candidate);
+    if (fallback !== null) return fallback;
+  }
+
+  return null;
+}
+
+function normalizeDetailScreeningAnswers(input: unknown): CandidateApplicationScreeningAnswerRead[] {
+  if (!Array.isArray(input)) return [];
+
   return input
-    .map((item) => {
+    .map((item, index) => {
       const record = asRecord(item);
       if (!record) return null;
 
+      const questionId = readStringFromRecord(record, ['question_id', 'id', 'questionId']);
+      const questionText = readStringFromRecord(record, ['question_text', 'question', 'label', 'prompt']);
+
       return {
-        status: asString(record.status),
-        changed_at: asString(record.changed_at),
+        question_id: questionId || `question-${index + 1}`,
+        question_text: questionText || `Question ${index + 1}`,
+        answer: readAnswerValue(record),
       };
     })
-    .filter((item): item is CandidateApplicationStatusHistoryItem => item !== null);
+    .filter((item): item is CandidateApplicationScreeningAnswerRead => item !== null);
+}
+
+function normalizeInterviewDetails(input: unknown): CandidateApplicationInterviewDetails | null {
+  const record = asRecord(input);
+  if (!record) return null;
+
+  return {
+    date: asString(record.date),
+    time: asString(record.time),
+    location: asString(record.location),
+    link: asString(record.link),
+    status: asString(record.status),
+    candidate_response: asString(record.candidate_response),
+  };
+}
+
+function normalizeOfferDetails(input: unknown): CandidateApplicationOfferDetails | null {
+  const record = asRecord(input);
+  if (!record) return null;
+
+  return {
+    salary: asString(record.salary),
+    benefits: Array.isArray(record.benefits)
+      ? record.benefits.map((item) => asString(item)).filter((item) => item.length > 0)
+      : [],
+    start_date: asString(record.start_date),
+    offer_extended_at: asString(record.offer_extended_at),
+    offer_expires_at: asString(record.offer_expires_at),
+    candidate_response: asString(record.candidate_response),
+    responded_at: asString(record.responded_at),
+  };
 }
 
 function normalizeApplicationItem(raw: unknown): CandidateApplicationItem | null {
@@ -220,6 +376,32 @@ function normalizeApplicationItem(raw: unknown): CandidateApplicationItem | null
     status: asString(record.status),
     applied_at: asString(record.applied_at),
     interview_details: record.interview_details ?? null,
+    status_history: normalizeStatusHistory(record.status_history),
+  };
+}
+
+function normalizeApplicationDetail(raw: unknown): CandidateApplicationDetail | null {
+  const record = asRecord(raw);
+  if (!record) return null;
+
+  const id = asString(record.id);
+  if (!id) return null;
+
+  const cv = normalizeApplicationCv(record.cv);
+  const cvId = asString(record.cv_id) || cv?.id || '';
+
+  return {
+    id,
+    status: asString(record.status),
+    job_title_snapshot: asString(record.job_title_snapshot),
+    company_name_snapshot: asString(record.company_name_snapshot),
+    location_snapshot: asString(record.location_snapshot),
+    cv_id: cvId,
+    cv,
+    cover_letter: asString(record.cover_letter),
+    screening_answers: normalizeDetailScreeningAnswers(record.screening_answers),
+    interview_details: normalizeInterviewDetails(record.interview_details),
+    offer_details: normalizeOfferDetails(record.offer_details),
     status_history: normalizeStatusHistory(record.status_history),
   };
 }
@@ -317,6 +499,58 @@ export async function getCandidateApplications(
   }
 
   return normalizeApplicationsResponse(payload);
+}
+
+export async function getCandidateApplicationDetail(
+  accessToken: string,
+  applicationId: string
+): Promise<CandidateApplicationDetail> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedApplicationId = applicationId.trim();
+  if (!trimmedApplicationId) {
+    throw new Error('Application id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/applications/${encodeURIComponent(trimmedApplicationId)}`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Application detail fetch failed with status ${response.status}`
+    );
+  }
+
+  const normalized = normalizeApplicationDetail(payload);
+  if (!normalized) {
+    throw new Error('Received invalid application detail response.');
+  }
+
+  return normalized;
 }
 
 export async function applyToCandidateJob(

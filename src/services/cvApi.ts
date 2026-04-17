@@ -116,6 +116,24 @@ function readString(record: Record<string, unknown>, keys: string[]): string {
   return '';
 }
 
+function readDownloadUrl(payload: unknown): string {
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  }
+
+  const root = asRecord(payload);
+  if (!root) return '';
+
+  const direct = readString(root, ['url', 'download_url', 'file_url', 'cv_url']);
+  if (direct) return direct;
+
+  const data = asRecord(root.data);
+  if (!data) return '';
+
+  return readString(data, ['url', 'download_url', 'file_url', 'cv_url']);
+}
+
 function normalizeCv(raw: unknown, index: number): CandidateCvItem | null {
   const root = asRecord(raw);
   if (!root) return null;
@@ -323,4 +341,55 @@ export async function deleteCandidateCv(accessToken: string, cvId: string): Prom
       || `CV delete failed with status ${response.status}`
     );
   }
+}
+
+export async function getCandidateCvDownloadUrl(accessToken: string, cvId: string): Promise<string> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedCvId = cvId.trim();
+  if (!trimmedCvId) {
+    throw new Error('CV id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/cvs/${encodeURIComponent(trimmedCvId)}/download`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `CV download URL fetch failed with status ${response.status}`
+    );
+  }
+
+  const downloadUrl = readDownloadUrl(payload);
+  if (downloadUrl) return downloadUrl;
+
+  if (response.redirected && response.url) {
+    return response.url;
+  }
+
+  throw new Error('CV download URL is missing from response.');
 }
