@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, CheckCircle, AlertTriangle, TrendingUp, Eye, Search } from 'lucide-react';
+import { Sparkles, CheckCircle, AlertTriangle, TrendingUp, Eye, Search, Target, Award, Calendar } from 'lucide-react';
 import MatchImprovementModal from '../../../components/MatchImprovementModal';
 
 interface RoleMatch {
@@ -179,6 +179,61 @@ export default function SidebarStats() {
               <span className="text-[14px] md:text-[15px] font-medium">+14% improvement</span>
             </div>
           </div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+           <h3 className="text-[20px] font-bold text-[#101828] font-heading mb-6">
+             Performance Insights
+           </h3>
+
+           {/* Stats Grid */}
+           <div className="grid grid-cols-2 gap-4 mb-8">
+              {[
+                { label: 'Application response', value: '68%', change: '+12%', icon: Target, bgColor: 'bg-orange-50', iconColor: 'text-[#FF6934]' },
+                { label: 'Interview conversion', value: '45%', change: '+8%', icon: Award, bgColor: 'bg-orange-50', iconColor: 'text-[#FF6934]' },
+                { label: 'Avg. time to hear back', value: '3.2 days', change: '+15%', icon: Calendar, bgColor: 'bg-orange-50', iconColor: 'text-[#FF6934]' },
+                { label: 'Profile views (30 days)', value: '127', change: '+34%', icon: Eye, bgColor: 'bg-orange-50', iconColor: 'text-[#FF6934]' },
+              ].map((stat, idx) => (
+                <div key={idx} className="bg-[#F9FAFB] rounded-xl p-4 border border-gray-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`size-10 ${stat.bgColor} rounded-xl flex items-center justify-center ${stat.iconColor}`}>
+                      <stat.icon size={20} />
+                    </div>
+                    <div className="flex items-center gap-1 text-[#039855] text-[12px] font-bold">
+                       <TrendingUp size={14} /> {stat.change}
+                    </div>
+                  </div>
+                  <div className="text-[22px] font-bold text-[#101828] mb-1">{stat.value}</div>
+                  <div className="text-[12px] font-medium text-[#475467] leading-tight">{stat.label}</div>
+                </div>
+              ))}
+           </div>
+
+           {/* You Vs Similar Candidates */}
+           <div className="border-t border-gray-100 pt-6 mb-8">
+              <div className="flex items-center justify-between mb-4">
+                 <span className="text-[14px] font-semibold text-[#667085]">You Vs. Similar Candidates</span>
+                 <span className="text-[14px] font-bold text-[#039855]">Top 15%</span>
+              </div>
+              <div className="relative h-2 w-full bg-gray-100 rounded-full overflow-visible">
+                 <div className="absolute left-0 top-0 h-full bg-[#FF6934] rounded-full w-[85%]"></div>
+                 <div className="absolute left-[85%] top-1/2 -translate-y-1/2 size-4 bg-white border-[3px] border-[#FF6934] rounded-full shadow-sm ring-4 ring-orange-50"></div>
+              </div>
+           </div>
+
+           {/* Momentum Tips */}
+           <div className="bg-[#FFF4F0] border border-[#FFE4D9] rounded-xl p-5">
+              <div className="flex gap-4">
+                 <div className="size-10 bg-[#FF6934] rounded-full flex items-center justify-center text-white shrink-0 shadow-sm">
+                    <TrendingUp size={20} />
+                 </div>
+                 <div>
+                    <h4 className="text-[15px] font-bold text-[#101828] mb-2 leading-tight">Keep the momentum going!</h4>
+                    <p className="text-[13px] text-[#475467] leading-relaxed font-body">
+                       Your response rate is <span className="">23% higher</span> than last month. Adding 2-3 more skills could increase your match score by 15%.
+                    </p>
+                 </div>
+              </div>
+           </div>
         </div>
       </div>
 

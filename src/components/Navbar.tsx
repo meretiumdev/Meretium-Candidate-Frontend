@@ -72,19 +72,19 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="w-full bg-[#FDF7E9]  h-[76px] sticky top-0 z-50  sm:px-4">
-      <div className="flex items-center justify-between max-w-7xl mx-auto px-4 md:px-2 w-full h-full md:gap-8">
+    <nav className="w-full bg-[#FDF7E9] h-[76px] sticky top-0 z-50 px-4 md:px-10">
+      <div className="flex items-center justify-between w-full h-full md:gap-8">
         
         {/* 1. Logo */}
         <div 
-          className="flex items-center gap-2 cursor-pointer order-1 shrink-0"
-          onClick={() => navigate('/dashboard')}
+          className="flex items-center gap-2 cursor-pointer order-1 shrink-0 min-w-fit"
+          onClick={() => navigate('/explore-jobs')}
         >
           <img src={logo} alt="meretium" className="h-6 md:h-7 w-auto object-contain" />
         </div>
 
         {/* 2. Actions (Links, Notifications, Avatar) */}
-        <div className="flex items-center gap-4 md:gap-7 bg-transparent order-2 md:order-3 ml-auto z-50">
+        <div className="flex items-center gap-4 md:gap-7 bg-transparent order-2 md:order-3 ml-auto z-50 shrink-0 min-w-fit">
           
           {/* Desktop Only Mid-Links */}
           <div className="hidden lg:flex items-center gap-4 font-semibold text-[15px]">
@@ -207,7 +207,7 @@ export default function Navbar() {
         </div>
 
         {/* 3. Search Bar - hidden on mobile, visible on desktop */}
-        <div className="hidden md:flex flex-1 w-full max-w-xl relative order-2 z-10 md:w-auto">
+        <div className="hidden md:flex flex-1 w-full max-w-xl relative order-2 z-10 md:w-auto min-w-[200px]">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 md:size-5 text-gray-400" />
           <input 
             type="text" 
