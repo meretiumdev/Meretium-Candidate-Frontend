@@ -32,12 +32,45 @@ export interface CandidateJobsApiJob {
   required_skills: string[];
   posted_at: string;
   description: string;
+  key_responsibilities: string[];
   match_percentage: number | null;
+  is_saved: boolean;
 }
 
 export interface CandidateJobsListResponse {
   items: CandidateJobsApiJob[];
   total: number | null;
+}
+
+export type CandidateSavedJobStatus = 'ACTIVE' | 'APPLIED' | 'CLOSED';
+
+export interface CandidateSavedJobItem {
+  id: string;
+  job_id: string;
+  job_title_snapshot: string;
+  company_name_snapshot: string;
+  location_snapshot: string;
+  salary_min_snapshot: number | null;
+  salary_max_snapshot: number | null;
+  currency_snapshot: string;
+  job_status_snapshot: string;
+  saved_at: string;
+  is_applied: boolean;
+}
+
+export interface CandidateSavedJobsStats {
+  total: number;
+  active: number;
+  applied: number;
+  closed: number;
+}
+
+export interface CandidateSavedJobsResponse {
+  stats: CandidateSavedJobsStats;
+  jobs: CandidateSavedJobItem[];
+  total: number;
+  page: number;
+  page_size: number;
 }
 
 export interface CandidateJobDetailResponse extends CandidateJobsApiJob {
@@ -54,6 +87,15 @@ export interface CandidateJobDetailResponse extends CandidateJobsApiJob {
   must_have_requirements: string[];
   nice_to_have_requirements: string[];
   applicant_count: number;
+  questions: CandidateJobScreeningQuestion[];
+}
+
+export interface CandidateJobScreeningQuestion {
+  id: string;
+  text: string;
+  type: string;
+  required: boolean;
+  options: string[] | null;
 }
 
 export interface GetCandidateJobsParams {
@@ -66,6 +108,13 @@ export interface GetCandidateJobsParams {
   salary_currency?: string | null;
   min_salary?: number | null;
   max_salary?: number | null;
+}
+
+export interface GetCandidateSavedJobsParams {
+  page?: number;
+  page_size?: number;
+  sort_by?: string | null;
+  status?: CandidateSavedJobStatus | null;
 }
 
 function asRecord(input: unknown): Record<string, unknown> | null {
@@ -102,12 +151,57 @@ function asNullableNumber(input: unknown): number | null {
   return null;
 }
 
+function asNonNegativeInt(input: unknown, fallback = 0): number {
+  const numeric = asNullableNumber(input);
+  if (numeric === null) return fallback;
+  return Math.max(0, Math.trunc(numeric));
+}
+
 function asStringArray(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   return input
     .filter((item): item is string => typeof item === 'string')
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function asOptionsArray(input: unknown): string[] | null {
+  if (!Array.isArray(input)) return null;
+
+  const options = input
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (typeof item === 'number' && Number.isFinite(item)) return String(item);
+      return '';
+    })
+    .filter((item) => item.length > 0);
+
+  return options.length > 0 ? options : null;
+}
+
+function normalizeScreeningQuestion(raw: unknown): CandidateJobScreeningQuestion | null {
+  const root = asRecord(raw);
+  if (!root) return null;
+
+  const id = asString(root.id);
+  const text = asString(root.text);
+
+  if (!id || !text) return null;
+
+  return {
+    id,
+    text,
+    type: asString(root.type) || 'short_text',
+    required: asBoolean(root.required),
+    options: asOptionsArray(root.options),
+  };
+}
+
+function asScreeningQuestionsArray(input: unknown): CandidateJobScreeningQuestion[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => normalizeScreeningQuestion(item))
+    .filter((item): item is CandidateJobScreeningQuestion => item !== null);
 }
 
 function getApiMessage(payload: unknown): string | null {
@@ -183,7 +277,9 @@ function normalizeJob(raw: unknown): CandidateJobsApiJob | null {
     required_skills: asStringArray(root.required_skills),
     posted_at: asString(root.posted_at),
     description: asString(root.description),
+    key_responsibilities: asStringArray(root.key_responsibilities),
     match_percentage: asNullableNumber(root.match_percentage),
+    is_saved: asBoolean(root.is_saved),
   };
 }
 
@@ -241,6 +337,7 @@ function normalizeJobDetailResponse(payload: unknown): CandidateJobDetailRespons
     posted_at: base?.posted_at || '',
     description: base?.description || '',
     match_percentage: base?.match_percentage ?? null,
+    is_saved: base?.is_saved ?? false,
     department: asString(root.department),
     work_mode: asString(root.work_mode),
     experience_level: asString(root.experience_level),
@@ -254,6 +351,53 @@ function normalizeJobDetailResponse(payload: unknown): CandidateJobDetailRespons
     must_have_requirements: asStringArray(root.must_have_requirements),
     nice_to_have_requirements: asStringArray(root.nice_to_have_requirements),
     applicant_count: asNumber(root.applicant_count),
+    questions: asScreeningQuestionsArray(root.screening_questions ?? root.questions),
+  };
+}
+
+function normalizeSavedJob(raw: unknown): CandidateSavedJobItem | null {
+  const root = asRecord(raw);
+  if (!root) return null;
+
+  const id = asString(root.id);
+  const jobId = asString(root.job_id);
+  if (!id && !jobId) return null;
+
+  return {
+    id,
+    job_id: jobId || id,
+    job_title_snapshot: asString(root.job_title_snapshot),
+    company_name_snapshot: asString(root.company_name_snapshot),
+    location_snapshot: asString(root.location_snapshot),
+    salary_min_snapshot: asNullableNumber(root.salary_min_snapshot),
+    salary_max_snapshot: asNullableNumber(root.salary_max_snapshot),
+    currency_snapshot: asString(root.currency_snapshot),
+    job_status_snapshot: asString(root.job_status_snapshot),
+    saved_at: asString(root.saved_at),
+    is_applied: asBoolean(root.is_applied),
+  };
+}
+
+function normalizeSavedJobsResponse(payload: unknown, fallbackPageSize: number): CandidateSavedJobsResponse {
+  const root = asRecord(payload) || {};
+  const statsRaw = asRecord(root.stats) || {};
+  const jobsRaw = Array.isArray(root.jobs) ? root.jobs : [];
+
+  const jobs = jobsRaw
+    .map((item) => normalizeSavedJob(item))
+    .filter((item): item is CandidateSavedJobItem => item !== null);
+
+  return {
+    stats: {
+      total: asNonNegativeInt(statsRaw.total, jobs.length),
+      active: asNonNegativeInt(statsRaw.active),
+      applied: asNonNegativeInt(statsRaw.applied),
+      closed: asNonNegativeInt(statsRaw.closed),
+    },
+    jobs,
+    total: asNonNegativeInt(root.total, jobs.length),
+    page: asNonNegativeInt(root.page, 1),
+    page_size: asNonNegativeInt(root.page_size, fallbackPageSize),
   };
 }
 
@@ -332,6 +476,140 @@ export async function getCandidateJobs(
   }
 
   return normalizeJobsResponse(payload);
+}
+
+export async function saveCandidateJob(accessToken: string, jobId: string): Promise<unknown> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedJobId = jobId.trim();
+  if (!trimmedJobId) {
+    throw new Error('Job id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/jobs/saved-jobs`, {
+      method: 'POST',
+      headers: {
+        ...getCandidateRequestHeaders(nextAccessToken),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ job_id: trimmedJobId }),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `Save job failed with status ${response.status}`);
+  }
+
+  return payload;
+}
+
+export async function getCandidateSavedJobs(
+  accessToken: string,
+  params: GetCandidateSavedJobsParams = {}
+): Promise<CandidateSavedJobsResponse> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const page = asNonNegativeInt(params.page, 1) || 1;
+  const pageSize = Math.max(1, asNonNegativeInt(params.page_size, 10));
+  const queryParams = new URLSearchParams();
+  queryParams.set('page', String(page));
+  queryParams.set('page_size', String(pageSize));
+
+  if (typeof params.sort_by === 'string' && params.sort_by.trim()) {
+    queryParams.set('sort_by', params.sort_by.trim());
+  }
+
+  if (typeof params.status === 'string' && params.status.trim()) {
+    queryParams.set('status', params.status.trim().toLowerCase());
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/jobs/saved-jobs?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `Saved jobs fetch failed with status ${response.status}`);
+  }
+
+  return normalizeSavedJobsResponse(payload, pageSize);
+}
+
+export async function deleteCandidateSavedJob(accessToken: string, jobId: string): Promise<void> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedJobId = jobId.trim();
+  if (!trimmedJobId) {
+    throw new Error('Job id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/jobs/saved-jobs/${encodeURIComponent(trimmedJobId)}`, {
+      method: 'DELETE',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `Remove saved job failed with status ${response.status}`);
+  }
 }
 
 export async function getCandidateJobDetail(

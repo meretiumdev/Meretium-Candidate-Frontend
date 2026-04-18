@@ -6,6 +6,7 @@ import ApplicationPipeline from './components/ApplicationPipeline';
 import RecommendedJobs from './components/RecommendedJobs';
 import JobAlerts from './components/JobAlerts';
 import QuickApplyModal from '../../components/QuickApplyModal';
+import type { QuickApplyModalJob } from '../../components/QuickApplyModal';
 import type { RootState } from '../../redux/store';
 import { getCandidateDashboard, type CandidateDashboardResponse } from '../../services/dashboardApi';
 
@@ -30,12 +31,13 @@ function DashboardCardSkeleton({ heightClass }: { heightClass: string }) {
 export default function MainDashboard() {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [isQuickApplyOpen, setIsQuickApplyOpen] = useState(false);
-  const [selectedJob, setSelectedJob] = useState<unknown>(null);
+  const [selectedJob, setSelectedJob] = useState<QuickApplyModalJob | null>(null);
+  const [applyToast, setApplyToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
   const [dashboardData, setDashboardData] = useState<CandidateDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleQuickApply = (job: unknown) => {
+  const handleQuickApply = (job: QuickApplyModalJob) => {
     setSelectedJob(job);
     setIsQuickApplyOpen(true);
   };
@@ -63,6 +65,18 @@ export default function MainDashboard() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (!applyToast) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setApplyToast(null);
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [applyToast]);
 
   if (!loading && (errorMessage || !dashboardData)) {
     return (
@@ -92,6 +106,16 @@ export default function MainDashboard() {
 
   return (
     <div className="max-w-full mx-auto px-2 sm:px-12 py-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      {applyToast && (
+        <div className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+          applyToast.type === 'error'
+            ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+            : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+        }`}>
+          {applyToast.message}
+        </div>
+      )}
+
       <Header interviewCount={pipelineCounts.interview} />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -129,6 +153,8 @@ export default function MainDashboard() {
         isOpen={isQuickApplyOpen}
         onClose={() => setIsQuickApplyOpen(false)}
         job={selectedJob}
+        onApplySuccess={() => setApplyToast({ id: Date.now(), message: 'Applied successfully.', type: 'success' })}
+        onApplyError={(message) => setApplyToast({ id: Date.now(), message, type: 'error' })}
       />
     </div>
   );

@@ -1,6 +1,11 @@
-import { Star, Users, Target } from 'lucide-react';
-import { useState } from 'react';
+import { Star, Users, Target, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import type { CandidateJobDetailResponse } from '../../../services/jobsApi';
+import { deleteCandidateSavedJob, saveCandidateJob } from '../../../services/jobsApi';
+import type { RootState } from '../../../redux/store';
+import QuickApplyModal from '../../../components/QuickApplyModal';
+import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
 
 interface SidebarActionsProps {
   job?: CandidateJobDetailResponse | null;
@@ -27,29 +32,103 @@ function formatPostedLabel(postedAt: string): string {
 }
 
 export default function SidebarActions({ job }: SidebarActionsProps) {
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [applyToast, setApplyToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
   const posted = formatPostedLabel(job?.posted_at || '');
   const applicants = typeof job?.applicant_count === 'number' ? String(job.applicant_count) : '';
-  const jobType = job?.job_type || '';
+  const jobType = formatJobTypeLabel(job?.job_type || '', '');
   const workMode = job?.work_mode || '';
   const match = '80%';
 
+  useEffect(() => {
+    if (!applyToast) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setApplyToast(null);
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [applyToast]);
+
+  useEffect(() => {
+    setIsSaved(Boolean(job?.is_saved));
+  }, [job?.id, job?.is_saved]);
+
+  const handleSaveJob = async () => {
+    if (!job?.id) return;
+
+    if (!accessToken?.trim()) {
+      setApplyToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.', type: 'error' });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      if (isSaved) {
+        await deleteCandidateSavedJob(accessToken, job.id);
+        setIsSaved(false);
+        setApplyToast({ id: Date.now(), message: 'Job removed from saved.', type: 'success' });
+      } else {
+        await saveCandidateJob(accessToken, job.id);
+        setIsSaved(true);
+        setApplyToast({ id: Date.now(), message: 'Job saved successfully.', type: 'success' });
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error && error.message.trim()
+        ? error.message
+        : 'Unable to update saved job right now.';
+      if (message.toLowerCase().includes('already')) {
+        setIsSaved(true);
+        setApplyToast({ id: Date.now(), message: 'Job already saved.', type: 'success' });
+      } else {
+        setApplyToast({ id: Date.now(), message, type: 'error' });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col gap-6 font-manrope transition-all duration-300">
+      {applyToast && (
+        <div className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+          applyToast.type === 'error'
+            ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+            : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+        }`}>
+          {applyToast.message}
+        </div>
+      )}
+
       <div className="space-y-3">
-        <button className="w-full bg-[#FF6934] text-white py-3 rounded-[10px] text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer shadow-sm shadow-orange-100">
+        <button
+          type="button"
+          onClick={() => setIsApplyModalOpen(true)}
+          disabled={!job?.id}
+          className="w-full bg-[#FF6934] text-white py-3 rounded-[10px] text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer shadow-sm shadow-orange-100 disabled:opacity-70 disabled:cursor-not-allowed"
+        >
           Apply now
         </button>
         <button
-          onClick={() => setIsSaved(!isSaved)}
-          className={`w-full border py-3 rounded-[10px] text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          type="button"
+          onClick={() => { void handleSaveJob(); }}
+          disabled={isSaving}
+          className={`w-full border py-3 rounded-[10px] text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed ${
             isSaved
               ? 'bg-[#FEF9EE] border-[#FF6934] text-[#344054]'
               : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
           }`}
         >
-          <Star size={18} className={isSaved ? 'fill-[#FF6934] text-[#FF6934]' : ''} />
-          {isSaved ? 'Job Saved' : 'Save job'}
+          {isSaving
+            ? <Loader2 size={18} className="animate-spin" />
+            : <Star size={18} className={isSaved ? 'fill-[#FF6934] text-[#FF6934]' : ''} />}
+          {isSaving ? 'Updating...' : (isSaved ? 'Remove saved' : 'Save job')}
         </button>
       </div>
 
@@ -82,6 +161,22 @@ export default function SidebarActions({ job }: SidebarActionsProps) {
           <div className="text-[12px] text-gray-600">match</div>
         </div>
       </div>
+
+      <QuickApplyModal
+        isOpen={isApplyModalOpen}
+        onClose={() => setIsApplyModalOpen(false)}
+        onApplySuccess={() => setApplyToast({ id: Date.now(), message: 'Applied successfully.', type: 'success' })}
+        onApplyError={(message) => setApplyToast({ id: Date.now(), message, type: 'error' })}
+        job={job ? {
+          id: job.id,
+          title: job.title,
+          company: job.company,
+          location: job.location,
+          job_type: job.job_type,
+          key_responsibilities: job.key_responsibilities,
+          questions: job.questions,
+        } : null}
+      />
     </div>
   );
 }
