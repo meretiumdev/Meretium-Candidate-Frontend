@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronDown, Check } from 'lucide-react';
+import type { CandidateProfileVisibility, CandidateSettingsProfileAndVisibility } from '../../../services/settingsApi';
 
 interface ToggleProps {
   label: string;
@@ -25,32 +26,47 @@ const Toggle = ({ label, subtextText, checked, onChange }: ToggleProps) => {
   );
 };
 
-export default function ProfileVisibilityContent() {
-  const [openToWork, setOpenToWork] = React.useState(true);
-  const [allowCvDownload, setAllowCvDownload] = React.useState(true);
-  const [showActiveStatus, setShowActiveStatus] = React.useState(true);
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [selectedVisibility, setSelectedVisibility] = React.useState('Open to all recruiters');
+interface ProfileVisibilityContentProps {
+  settings: CandidateSettingsProfileAndVisibility;
+}
 
-  const options = [
+function getVisibilityOptions() {
+  return [
     {
-      id: 'open',
+      id: 'public' as CandidateProfileVisibility,
       title: 'Open to all recruiters',
-      description: 'Your profile is visible to all recruiters'
+      description: 'Your profile is visible to all recruiters',
     },
     {
-      id: 'matched',
+      id: 'matched' as CandidateProfileVisibility,
       title: 'Only matched recruiters',
-      description: 'Only recruiters you match with can see your profile'
+      description: 'Only recruiters you match with can see your profile',
     },
     {
-      id: 'private',
+      id: 'private' as CandidateProfileVisibility,
       title: 'Private',
-      description: 'Your profile is hidden from all recruiters'
-    }
+      description: 'Your profile is hidden from all recruiters',
+    },
   ];
+}
 
-  const currentOption = options.find(o => o.title === selectedVisibility) || options[0];
+export default function ProfileVisibilityContent({ settings }: ProfileVisibilityContentProps) {
+  const [openToWork, setOpenToWork] = React.useState(settings.is_open_to_work);
+  const [allowCvDownload, setAllowCvDownload] = React.useState(settings.allow_cv_download);
+  const [showActiveStatus, setShowActiveStatus] = React.useState(settings.show_last_active);
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [selectedVisibility, setSelectedVisibility] = React.useState<CandidateProfileVisibility>(settings.profile_visibility);
+
+  React.useEffect(() => {
+    setOpenToWork(settings.is_open_to_work);
+    setAllowCvDownload(settings.allow_cv_download);
+    setShowActiveStatus(settings.show_last_active);
+    setSelectedVisibility(settings.profile_visibility);
+  }, [settings.allow_cv_download, settings.is_open_to_work, settings.profile_visibility, settings.show_last_active]);
+
+  const options = getVisibilityOptions();
+
+  const currentOption = options.find((option) => option.id === selectedVisibility) || options[2];
 
   return (
     <div className="flex-1 font-manrope animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -70,7 +86,7 @@ export default function ProfileVisibilityContent() {
               onClick={() => setIsOpen(!isOpen)}
               className="w-full h-[52px] px-4 py-3 bg-white border border-gray-200 shadow-sm rounded-[10px] text-[14px] text-[#101828] flex items-center justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 transition-all font-manrope"
             >
-              <span className="font-regular text-[#101828]">{selectedVisibility}</span>
+              <span className="font-regular text-[#101828]">{currentOption.title}</span>
               <ChevronDown size={20} className={`text-[#667085] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -81,18 +97,18 @@ export default function ProfileVisibilityContent() {
                   <button
                     key={option.id}
                     onClick={() => {
-                      setSelectedVisibility(option.title);
+                      setSelectedVisibility(option.id);
                       setIsOpen(false);
                     }}
                     className={`w-full text-left p-4 sm:p-5 flex items-center justify-between transition-all duration-200 cursor-pointer border-b border-gray-50 last:border-0 ${
-                      selectedVisibility === option.title ? 'bg-[#FFF1EC]' : 'hover:bg-gray-50 bg-white'
+                      selectedVisibility === option.id ? 'bg-[#FFF1EC]' : 'hover:bg-gray-50 bg-white'
                     }`}
                   >
                     <div>
                       <h4 className="text-[14px] font-semibold text-[#101828]">{option.title}</h4>
                       <p className="text-[13px] text-[#667085] mt-1">{option.description}</p>
                     </div>
-                    {selectedVisibility === option.title && (
+                    {selectedVisibility === option.id && (
                       <Check size={20} className="text-[#FF6934] shrink-0" />
                     )}
                   </button>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronDown, Download, Trash2 } from 'lucide-react';
+import type { CandidateSettingsCvAndDataManagement } from '../../../services/settingsApi';
 
 interface ToggleProps {
   label: string;
@@ -25,8 +26,24 @@ const Toggle = ({ label, subtextText, checked, onChange }: ToggleProps) => {
   );
 };
 
-export default function CvDataContent() {
-  const [useDefaultQuickApply, setUseDefaultQuickApply] = React.useState(true);
+interface CvDataContentProps {
+  settings: CandidateSettingsCvAndDataManagement;
+}
+
+function getCvDisplayName(cv: CandidateSettingsCvAndDataManagement['default_cv']): string {
+  if (!cv) return 'No default CV selected';
+  return cv.name || cv.id || 'Default CV';
+}
+
+export default function CvDataContent({ settings }: CvDataContentProps) {
+  const [useDefaultQuickApply, setUseDefaultQuickApply] = React.useState(Boolean(settings.quick_apply_default_cv));
+
+  React.useEffect(() => {
+    setUseDefaultQuickApply(Boolean(settings.quick_apply_default_cv));
+  }, [settings.quick_apply_default_cv]);
+
+  const defaultCvDisplayName = getCvDisplayName(settings.default_cv);
+  const hasDefaultCv = settings.default_cv !== null;
 
   return (
     <div className="flex-1 font-manrope animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -41,10 +58,13 @@ export default function CvDataContent() {
           <div className="space-y-4">
             <h3 className="text-[14px] font-semibold text-[#101828]">Default CV</h3>
             <div className="relative">
-              <select className="w-full h-[52px] px-4 py-3 bg-white border border-gray-200 shadow-sm rounded-[10px] text-[14px] text-[#101828] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 appearance-none transition-all cursor-pointer font-manrope">
-                <option>Frontend_Designer_CV.pdf</option>
-                <option>Backend_Developer_CV.pdf</option>
-                <option>Fullstack_CV.pdf</option>
+              <select
+                value={defaultCvDisplayName}
+                onChange={() => undefined}
+                disabled={!hasDefaultCv}
+                className="w-full h-[52px] px-4 py-3 bg-white border border-gray-200 shadow-sm rounded-[10px] text-[14px] text-[#101828] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 appearance-none transition-all cursor-pointer disabled:cursor-not-allowed disabled:bg-[#F9FAFB] font-manrope"
+              >
+                <option>{defaultCvDisplayName}</option>
               </select>
               <ChevronDown size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#667085] pointer-events-none" />
             </div>

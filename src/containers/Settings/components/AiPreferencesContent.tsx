@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
+import type { CandidateSettingsAiPreferences } from '../../../services/settingsApi';
 
 interface ToggleProps {
   label: string;
@@ -25,11 +26,27 @@ const Toggle = ({ label, subtextText, checked, onChange }: ToggleProps) => {
   );
 };
 
-export default function AiPreferencesContent() {
-  const [improveProfile, setImproveProfile] = React.useState(true);
-  const [autoCoverLetter, setAutoCoverLetter] = React.useState(true);
-  const [showMatch, setShowMatch] = React.useState(true);
-  const [cvAnalysis, setCvAnalysis] = React.useState(true);
+interface AiPreferencesContentProps {
+  settings: CandidateSettingsAiPreferences;
+}
+
+export default function AiPreferencesContent({ settings }: AiPreferencesContentProps) {
+  const [improveProfile, setImproveProfile] = React.useState(settings.use_ai_to_improve_profile);
+  const [autoCoverLetter, setAutoCoverLetter] = React.useState(settings.auto_generate_cover_letters);
+  const [showMatch, setShowMatch] = React.useState(settings.show_ai_match_to_recruiters);
+  const [cvAnalysis, setCvAnalysis] = React.useState(settings.allow_ai_cv_analysis);
+
+  React.useEffect(() => {
+    setImproveProfile(settings.use_ai_to_improve_profile);
+    setAutoCoverLetter(settings.auto_generate_cover_letters);
+    setShowMatch(settings.show_ai_match_to_recruiters);
+    setCvAnalysis(settings.allow_ai_cv_analysis);
+  }, [
+    settings.allow_ai_cv_analysis,
+    settings.auto_generate_cover_letters,
+    settings.show_ai_match_to_recruiters,
+    settings.use_ai_to_improve_profile,
+  ]);
 
   return (
     <div className="flex-1 font-manrope animate-in fade-in slide-in-from-bottom-4 duration-500">

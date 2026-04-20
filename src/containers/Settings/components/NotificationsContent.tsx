@@ -1,4 +1,5 @@
 import React from 'react';
+import type { CandidateSettingsNotificationSettings } from '../../../services/settingsApi';
 
 interface ToggleProps {
   checked: boolean;
@@ -44,19 +45,55 @@ const NotificationRow = ({ label, subtext, inApp, email, onInAppChange, onEmailC
   );
 };
 
-export default function NotificationsContent() {
-  const [settings, setSettings] = React.useState({
-    appUpdatesInApp: true, appUpdatesEmail: true,
-    interviewInApp: true, interviewEmail: true,
-    offerInApp: true, offerEmail: true,
-    messagesInApp: true, messagesEmail: false,
-    profileViewedInApp: true, profileViewedEmail: false,
-    recommendationsInApp: true, recommendationsEmail: true,
-    productUpdatesInApp: false, productUpdatesEmail: false,
-  });
+interface NotificationsContentProps {
+  settings: CandidateSettingsNotificationSettings;
+}
 
-  const toggleSetting = (key: keyof typeof settings) => {
-    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+interface NotificationUiState {
+  appUpdatesInApp: boolean;
+  appUpdatesEmail: boolean;
+  interviewInApp: boolean;
+  interviewEmail: boolean;
+  offerInApp: boolean;
+  offerEmail: boolean;
+  messagesInApp: boolean;
+  messagesEmail: boolean;
+  profileViewedInApp: boolean;
+  profileViewedEmail: boolean;
+  recommendationsInApp: boolean;
+  recommendationsEmail: boolean;
+  productUpdatesInApp: boolean;
+  productUpdatesEmail: boolean;
+}
+
+function mapSettingsToUiState(settings: CandidateSettingsNotificationSettings): NotificationUiState {
+  return {
+    appUpdatesInApp: settings.application_updates_inapp,
+    appUpdatesEmail: settings.application_updates_email,
+    interviewInApp: settings.interview_invites_inapp,
+    interviewEmail: settings.interview_invites_email,
+    offerInApp: settings.offer_updates_inapp,
+    offerEmail: settings.offer_updates_email,
+    messagesInApp: settings.new_messages_inapp,
+    messagesEmail: settings.new_messages_email,
+    profileViewedInApp: settings.profile_viewed_inapp,
+    profileViewedEmail: settings.profile_viewed_email,
+    recommendationsInApp: settings.job_recommendations_inapp,
+    recommendationsEmail: settings.job_recommendations_email,
+    productUpdatesInApp: settings.product_updates_inapp,
+    productUpdatesEmail: settings.product_updates_email,
+  };
+}
+
+export default function NotificationsContent({ settings }: NotificationsContentProps) {
+  const [notificationSettings, setNotificationSettings] = React.useState<NotificationUiState>(() => mapSettingsToUiState(settings));
+
+  React.useEffect(() => {
+    setNotificationSettings(mapSettingsToUiState(settings));
+  }, [settings]);
+
+  const toggleSetting = (key: keyof NotificationUiState) => {
+    setNotificationSettings((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
@@ -79,24 +116,24 @@ export default function NotificationsContent() {
               <NotificationRow 
                 label="Application updates"
                 subtext="Status changes on your applications"
-                inApp={settings.appUpdatesInApp}
-                email={settings.appUpdatesEmail}
+                inApp={notificationSettings.appUpdatesInApp}
+                email={notificationSettings.appUpdatesEmail}
                 onInAppChange={() => toggleSetting('appUpdatesInApp')}
                 onEmailChange={() => toggleSetting('appUpdatesEmail')}
               />
               <NotificationRow 
                 label="Interview invites"
                 subtext="New interview requests from recruiters"
-                inApp={settings.interviewInApp}
-                email={settings.interviewEmail}
+                inApp={notificationSettings.interviewInApp}
+                email={notificationSettings.interviewEmail}
                 onInAppChange={() => toggleSetting('interviewInApp')}
                 onEmailChange={() => toggleSetting('interviewEmail')}
               />
               <NotificationRow 
                 label="Offer updates"
                 subtext="Job offers and updates"
-                inApp={settings.offerInApp}
-                email={settings.offerEmail}
+                inApp={notificationSettings.offerInApp}
+                email={notificationSettings.offerEmail}
                 onInAppChange={() => toggleSetting('offerInApp')}
                 onEmailChange={() => toggleSetting('offerEmail')}
               />
@@ -107,16 +144,16 @@ export default function NotificationsContent() {
               <NotificationRow 
                 label="New messages"
                 subtext="Messages from recruiters"
-                inApp={settings.messagesInApp}
-                email={settings.messagesEmail}
+                inApp={notificationSettings.messagesInApp}
+                email={notificationSettings.messagesEmail}
                 onInAppChange={() => toggleSetting('messagesInApp')}
                 onEmailChange={() => toggleSetting('messagesEmail')}
               />
               <NotificationRow 
                 label="Profile viewed"
                 subtext="When recruiters view your profile"
-                inApp={settings.profileViewedInApp}
-                email={settings.profileViewedEmail}
+                inApp={notificationSettings.profileViewedInApp}
+                email={notificationSettings.profileViewedEmail}
                 onInAppChange={() => toggleSetting('profileViewedInApp')}
                 onEmailChange={() => toggleSetting('profileViewedEmail')}
               />
@@ -127,16 +164,16 @@ export default function NotificationsContent() {
               <NotificationRow 
                 label="Job recommendations"
                 subtext="AI-powered job suggestions"
-                inApp={settings.recommendationsInApp}
-                email={settings.recommendationsEmail}
+                inApp={notificationSettings.recommendationsInApp}
+                email={notificationSettings.recommendationsEmail}
                 onInAppChange={() => toggleSetting('recommendationsInApp')}
                 onEmailChange={() => toggleSetting('recommendationsEmail')}
               />
               <NotificationRow 
                 label="Product updates"
                 subtext="New features and improvements"
-                inApp={settings.productUpdatesInApp}
-                email={settings.productUpdatesEmail}
+                inApp={notificationSettings.productUpdatesInApp}
+                email={notificationSettings.productUpdatesEmail}
                 onInAppChange={() => toggleSetting('productUpdatesInApp')}
                 onEmailChange={() => toggleSetting('productUpdatesEmail')}
               />
