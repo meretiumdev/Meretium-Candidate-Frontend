@@ -1,10 +1,10 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Manrope:wght@500;600;700&display=swap');
 
 @theme {
-  --font-heading: "Helvetica Neue", "Arial", sans-serif;
-  --font-body: "DM Sans", sans-serif;
-  --font-sans: "DM Sans", sans-serif;
+  --font-heading: "Manrope","Helvetica Neue", "Arial", sans-serif;
+  --font-body: "Manrope","DM Sans", sans-serif;
+  --font-manrope: "Manrope","DM Sans",sans-serif;
+  --font-sans: "Manrope","DM Sans", sans-serif;
 
   --color-primary-orange: #FF6934;
   --color-gray-900: #111827;
