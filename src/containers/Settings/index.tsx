@@ -175,7 +175,15 @@ export default function Settings() {
           />
         );
       case 'Security':
-        return <SecurityContent accountEmail={settingsData.account.email} />;
+        return (
+          <SecurityContent
+            accountEmail={settingsData.account.email}
+            activeSessions={settingsData.active_sessions}
+            onSessionsRefresh={async () => {
+              await loadSettings({ showLoading: false, forceRefresh: true });
+            }}
+          />
+        );
       case 'Integrations':
         return <IntegrationsContent />;
       case 'Help & Support':

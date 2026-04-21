@@ -179,12 +179,22 @@ export interface CandidateSettingsAiPreferences {
   allow_ai_cv_analysis: boolean;
 }
 
+export interface CandidateSettingsActiveSession {
+  id: string;
+  device_name: string;
+  city: string | null;
+  country: string | null;
+  last_used_at: string;
+  is_current: boolean;
+}
+
 export interface CandidateSettingsResponse {
   account: CandidateSettingsAccount;
   profile_and_visibility: CandidateSettingsProfileAndVisibility;
   cv_and_data_management: CandidateSettingsCvAndDataManagement;
   notification_settings: CandidateSettingsNotificationSettings;
   ai_preferences: CandidateSettingsAiPreferences;
+  active_sessions: CandidateSettingsActiveSession[];
 }
 
 interface CachedCandidateSettings {
@@ -303,6 +313,23 @@ function normalizeQuickApplyDefaultCv(input: unknown): boolean {
   return true;
 }
 
+function normalizeActiveSession(input: unknown): CandidateSettingsActiveSession | null {
+  const record = asRecord(input);
+  if (!record) return null;
+
+  const id = asString(record.id);
+  if (!id) return null;
+
+  return {
+    id,
+    device_name: asString(record.device_name) || 'Unknown device',
+    city: asNullableString(record.city),
+    country: asNullableString(record.country),
+    last_used_at: asString(record.last_used_at),
+    is_current: asBoolean(record.is_current, false),
+  };
+}
+
 function normalizeSettingsResponse(payload: unknown): CandidateSettingsResponse {
   const root = asSettingsRoot(payload);
   const accountRaw = asRecord(root.account) || {};
@@ -310,6 +337,7 @@ function normalizeSettingsResponse(payload: unknown): CandidateSettingsResponse 
   const cvAndDataRaw = asRecord(root.cv_and_data_management) || {};
   const notificationsRaw = asRecord(root.notification_settings) || {};
   const aiPreferencesRaw = asRecord(root.ai_preferences) || {};
+  const activeSessionsRaw = Array.isArray(root.active_sessions) ? root.active_sessions : [];
 
   return {
     account: {
@@ -352,6 +380,9 @@ function normalizeSettingsResponse(payload: unknown): CandidateSettingsResponse 
       show_ai_match_to_recruiters: asBoolean(aiPreferencesRaw.show_ai_match_to_recruiters, true),
       allow_ai_cv_analysis: asBoolean(aiPreferencesRaw.allow_ai_cv_analysis, true),
     },
+    active_sessions: activeSessionsRaw
+      .map((session) => normalizeActiveSession(session))
+      .filter((session): session is CandidateSettingsActiveSession => session !== null),
   };
 }
 

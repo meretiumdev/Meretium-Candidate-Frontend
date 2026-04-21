@@ -1,19 +1,32 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
-import { Shield, Smartphone, LogOut } from 'lucide-react';
+import { Shield, Smartphone, LogOut, Loader2 } from 'lucide-react';
 import type { RootState } from '../../../redux/store';
+import type { CandidateSettingsActiveSession } from '../../../services/settingsApi';
+import { deleteAuthSession } from '../../../services/sessionApi';
 import ChangePasswordModal from './ChangePasswordModal';
 import EnableTwoFactorModal from './EnableTwoFactorModal';
 import { isTwoFactorEnabled } from '../../../utils/twoFactor';
 
 interface SessionItemProps {
+  sessionId: string;
   device: string;
   location: string;
   time: string;
   isCurrent?: boolean;
+  isLoggingOut?: boolean;
+  onLogout?: (sessionId: string) => void;
 }
 
-const SessionItem = ({ device, location, time, isCurrent }: SessionItemProps) => {
+const SessionItem = ({
+  sessionId,
+  device,
+  location,
+  time,
+  isCurrent,
+  isLoggingOut = false,
+  onLogout,
+}: SessionItemProps) => {
   return (
     <div className="flex items-center justify-between py-4 border-b border-gray-200 last:border-0 last:pb-0 font-manrope">
       <div>
@@ -26,13 +39,22 @@ const SessionItem = ({ device, location, time, isCurrent }: SessionItemProps) =>
           )}
         </div>
         <p className="text-[12px] text-[#667085]">
-          {location} • {time}
+          {location} - {time}
         </p>
       </div>
       {!isCurrent && (
-        <button className="flex items-center gap-2 px-3 py-1.5 text-[14px] font-medium text-[#475467] hover:text-red-600 transition-colors cursor-pointer group">
-          <LogOut size={16} className="group-hover:text-red-600" />
-          <span>Logout</span>
+        <button
+          type="button"
+          disabled={isLoggingOut}
+          onClick={() => {
+            if (onLogout) onLogout(sessionId);
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 text-[14px] font-medium text-[#475467] hover:text-red-600 transition-colors cursor-pointer group disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isLoggingOut
+            ? <Loader2 size={16} className="animate-spin" />
+            : <LogOut size={16} className="group-hover:text-red-600" />}
+          <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
         </button>
       )}
     </div>
@@ -47,20 +69,86 @@ interface ToastState {
 
 interface SecurityContentProps {
   accountEmail?: string;
+  activeSessions?: CandidateSettingsActiveSession[];
+  onSessionsRefresh?: () => Promise<void> | void;
 }
 
-export default function SecurityContent({ accountEmail = '' }: SecurityContentProps) {
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return 'Failed to update sessions. Please try again.';
+}
+
+function getSessionTimestampMs(lastUsedAt: string): number {
+  const parsed = Date.parse(lastUsedAt);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function sortSessions(sessions: CandidateSettingsActiveSession[]): CandidateSettingsActiveSession[] {
+  return [...sessions].sort((a, b) => {
+    if (a.is_current && !b.is_current) return -1;
+    if (!a.is_current && b.is_current) return 1;
+    return getSessionTimestampMs(b.last_used_at) - getSessionTimestampMs(a.last_used_at);
+  });
+}
+
+function formatSessionLocation(session: CandidateSettingsActiveSession): string {
+  const city = session.city?.trim() || '';
+  const country = session.country?.trim() || '';
+
+  if (city && country) return `${city}, ${country}`;
+  if (city) return city;
+  if (country) return country;
+  return 'Unknown location';
+}
+
+function formatRelativeTime(isoValue: string): string {
+  const timestamp = Date.parse(isoValue);
+  if (Number.isNaN(timestamp)) return 'Recently active';
+
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (diffSeconds < 60) return 'Just now';
+
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes} min${diffMinutes === 1 ? '' : 's'} ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks < 5) return `${diffWeeks} week${diffWeeks === 1 ? '' : 's'} ago`;
+
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths} month${diffMonths === 1 ? '' : 's'} ago`;
+
+  const diffYears = Math.floor(diffDays / 365);
+  return `${diffYears} year${diffYears === 1 ? '' : 's'} ago`;
+}
+
+export default function SecurityContent({
+  accountEmail = '',
+  activeSessions = [],
+  onSessionsRefresh,
+}: SecurityContentProps) {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const authUser = useSelector((state: RootState) => state.auth.user);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = React.useState(false);
   const [isEnableTwoFactorOpen, setIsEnableTwoFactorOpen] = React.useState(false);
   const [isTwoFactorActive, setIsTwoFactorActive] = React.useState(isTwoFactorEnabled(authUser));
+  const [sessions, setSessions] = React.useState<CandidateSettingsActiveSession[]>(() => sortSessions(activeSessions));
+  const [pendingSessionIds, setPendingSessionIds] = React.useState<Record<string, boolean>>({});
   const [toast, setToast] = React.useState<ToastState | null>(null);
   const requiresTwoFactorVerification = isTwoFactorEnabled(authUser) || isTwoFactorActive;
 
   React.useEffect(() => {
     setIsTwoFactorActive(isTwoFactorEnabled(authUser));
   }, [authUser]);
+
+  React.useEffect(() => {
+    setSessions(sortSessions(activeSessions));
+  }, [activeSessions]);
 
   const showSuccessToast = React.useCallback((message: string) => {
     setToast({ id: Date.now(), message, type: 'success' });
@@ -77,6 +165,34 @@ export default function SecurityContent({ accountEmail = '' }: SecurityContentPr
     }, 3500);
     return () => window.clearTimeout(timeoutId);
   }, [toast]);
+
+  const handleSessionLogout = async (sessionId: string) => {
+    if (pendingSessionIds[sessionId]) return;
+
+    if (!accessToken?.trim()) {
+      showErrorToast('You are not authenticated. Please log in again.');
+      return;
+    }
+
+    setPendingSessionIds((prev) => ({ ...prev, [sessionId]: true }));
+
+    try {
+      const successMessage = await deleteAuthSession(accessToken, sessionId);
+      setSessions((prev) => sortSessions(prev.filter((session) => session.id !== sessionId)));
+      if (onSessionsRefresh) {
+        await onSessionsRefresh();
+      }
+      showSuccessToast(successMessage || 'Session logged out successfully.');
+    } catch (error: unknown) {
+      showErrorToast(getErrorMessage(error));
+    } finally {
+      setPendingSessionIds((prev) => {
+        const next = { ...prev };
+        delete next[sessionId];
+        return next;
+      });
+    }
+  };
 
   return (
     <>
@@ -99,7 +215,6 @@ export default function SecurityContent({ accountEmail = '' }: SecurityContentPr
         </div>
 
         <div className="space-y-6">
-          {/* Password Card */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 flex items-center justify-between gap-4 shadow-sm transition-all duration-300">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-[#FFF1EC] flex items-center justify-center shadow-sm">
@@ -118,7 +233,6 @@ export default function SecurityContent({ accountEmail = '' }: SecurityContentPr
             </button>
           </div>
 
-          {/* 2FA Card */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 flex items-center justify-between gap-4 shadow-sm transition-all duration-300">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-[#FFF1EC] flex items-center justify-center shadow-sm">
@@ -149,27 +263,26 @@ export default function SecurityContent({ accountEmail = '' }: SecurityContentPr
             </button>
           </div>
 
-          {/* Active Sessions Card */}
           <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm transition-all duration-300">
             <h3 className="text-[16px] font-semibold text-[#101828] mb-6">Active sessions</h3>
-            <div className="space-y-2">
-              <SessionItem
-                device="MacBook Pro"
-                location="London, UK"
-                time="Current device"
-                isCurrent
-              />
-              <SessionItem
-                device="iPhone 14"
-                location="London, UK"
-                time="2 days ago"
-              />
-              <SessionItem
-                device="Chrome on Windows"
-                location="Manchester, UK"
-                time="1 week ago"
-              />
-            </div>
+            {sessions.length === 0 ? (
+              <p className="text-[14px] text-[#667085]">No active sessions found.</p>
+            ) : (
+              <div className="space-y-2">
+                {sessions.map((session) => (
+                  <SessionItem
+                    key={session.id}
+                    sessionId={session.id}
+                    device={session.device_name || 'Unknown device'}
+                    location={formatSessionLocation(session)}
+                    time={session.is_current ? 'Current device' : formatRelativeTime(session.last_used_at)}
+                    isCurrent={session.is_current}
+                    isLoggingOut={pendingSessionIds[session.id] === true}
+                    onLogout={handleSessionLogout}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
