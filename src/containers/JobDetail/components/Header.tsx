@@ -1,6 +1,7 @@
-import { CheckCircle, MapPin, Briefcase, Clock, Building2 } from 'lucide-react';
+import { CheckCircle, MapPin, Briefcase, Clock, Building2, DollarSign } from 'lucide-react';
 import type { CandidateJobDetailResponse } from '../../../services/jobsApi';
 import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
+import { formatWorkModeLabel } from '../../../utils/formatWorkModeLabel';
 
 interface HeaderProps {
   job?: CandidateJobDetailResponse | null;
@@ -35,7 +36,7 @@ export default function Header({ job }: HeaderProps) {
   const isVerified = job?.company.is_verified === true;
   const location = job?.location || '';
   const jobType = formatJobTypeLabel(job?.job_type || '', '');
-  const workMode = job?.work_mode || '';
+  const workMode = formatWorkModeLabel(job?.work_mode || '', '');
   const salary = formatSalary(job?.min_salary ?? null, job?.max_salary ?? null, job?.currency || '');
 
   return (
@@ -61,9 +62,12 @@ export default function Header({ job }: HeaderProps) {
         <div className="flex items-center gap-2"><MapPin size={16} className="text-gray-400" /> {location}</div>
         <div className="flex items-center gap-2"><Briefcase size={16} className="text-gray-400" /> {jobType}</div>
         <div className="flex items-center gap-2"><Clock size={16} className="text-gray-400" /> {workMode}</div>
-        <div className="flex items-center gap-2 sm:ml-auto text-gray-900 font-semibold">
-          {salary}
-        </div>
+        {salary && (
+          <div className="flex items-center gap-2 text-gray-900 font-semibold">
+            <DollarSign size={18} className="text-[#FF6934] shrink-0" />
+            {salary}
+          </div>
+        )}
       </div>
     </div>
   );
