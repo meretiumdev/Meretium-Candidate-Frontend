@@ -10,6 +10,26 @@ interface HeaderProps {
   onProfileUpdated?: () => Promise<void> | void;
 }
 
+interface VisibilityOption {
+  status: OpenToWorkStatus;
+  label: string;
+}
+
+const VISIBILITY_OPTIONS: VisibilityOption[] = [
+  {
+    status: 'Open to opportunities',
+    label: 'Open to all recruiters',
+  },
+  {
+    status: 'Visible to matched recruiters',
+    label: 'Only matched recruiters',
+  },
+  {
+    status: 'Private',
+    label: 'Private',
+  },
+];
+
 function getInitial(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) return 'U';
@@ -31,6 +51,11 @@ function parseYearsToLabel(value: string): string {
   if (!Number.isFinite(parsed) || parsed <= 0) return 'No experience added';
   if (parsed === 1) return '1 year experience';
   return `${parsed} years experience`;
+}
+
+function getVisibilityLabel(status: OpenToWorkStatus): string {
+  const option = VISIBILITY_OPTIONS.find((item) => item.status === status);
+  return option ? option.label : 'Private';
 }
 
 export default function Header({ profile, onProfileUpdated }: HeaderProps) {
@@ -320,7 +345,7 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                       onClick={() => setOppsDropdownOpen((prev) => !prev)}
                       className="flex items-center justify-center gap-2 border border-[#E4E7EC] px-4 py-2.5 rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors bg-white cursor-pointer shadow-sm group disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {opportunityStatus}
+                      {getVisibilityLabel(opportunityStatus)}
                       <ChevronDown size={18} className={`text-[#475467] transition-transform duration-300 ${isOppsDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
 
@@ -331,36 +356,19 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                           onClick={() => setOppsDropdownOpen(false)}
                         />
                         <div className="absolute left-0 top-[calc(100%+6px)] w-fit min-w-fit max-w-[calc(100vw-2rem)] bg-white border border-[#E4E7EC] rounded-xl shadow-[0_12px_32px_-4px_rgba(16,24,40,0.1)] py-1.5 z-20 animate-scale-in origin-top">
-                          <button
-                            onClick={() => {
-                              void handleOpportunityStatusChange('Open to opportunities');
-                            }}
-                            className={`block text-left px-2 py-2 text-[14px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                              opportunityStatus === 'Open to opportunities' ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
-                            }`}
-                          >
-                            Open to opportunities
-                          </button>
-                          <button
-                            onClick={() => {
-                              void handleOpportunityStatusChange('Visible to matched recruiters');
-                            }}
-                            className={`block text-left px-2 py-2 text-[14px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                              opportunityStatus === 'Visible to matched recruiters' ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
-                            }`}
-                          >
-                            Visible to matched recruiters
-                          </button>
-                          <button
-                            onClick={() => {
-                              void handleOpportunityStatusChange('Private');
-                            }}
-                            className={`block text-left px-2 py-2 text-[14px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                              opportunityStatus === 'Private' ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
-                            }`}
-                          >
-                            Private
-                          </button>
+                          {VISIBILITY_OPTIONS.map((option) => (
+                            <button
+                              key={option.status}
+                              onClick={() => {
+                                void handleOpportunityStatusChange(option.status);
+                              }}
+                              className={`block text-left px-2 py-2 text-[14px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                                opportunityStatus === option.status ? 'text-[#FF6934] hover:bg-[#FF6934]/5' : 'text-[#344054] hover:bg-gray-50'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
                         </div>
                       </>
                     )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { login } from '../../redux/store';
 import type { AppDispatch, RootState } from '../../redux/store';
@@ -18,9 +18,10 @@ import {
 import VerifyPhoneStep from './components/VerifyPhoneStep';
 import OtpStep from './components/OtpStep';
 import VerifiedStep from './components/VerifiedStep';
+import TwoFactorStep from './components/TwoFactorStep';
 import AuthLayout from './components/AuthLayout';
 
-type AuthStep = 'auth' | 'verify-phone' | 'otp' | 'verified';
+type AuthStep = 'auth' | 'verify-phone' | 'otp' | 'verified' | 'two-factor';
 type PostVerificationAuthSource = 'credentials' | 'google';
 interface ToastState {
   id: number;
@@ -94,7 +95,7 @@ interface PersistedAuthFlowState {
 }
 
 function isAuthStep(input: unknown): input is AuthStep {
-  return input === 'auth' || input === 'verify-phone' || input === 'otp' || input === 'verified';
+  return input === 'auth' || input === 'verify-phone' || input === 'otp' || input === 'verified' || input === 'two-factor';
 }
 
 function getStringStateValue(input: unknown): string {
@@ -120,6 +121,20 @@ function normalizePersistedAuthFlowState(state: PersistedAuthFlowState): Persist
   }
 
   if (normalizedState.step === 'verified') {
+    normalizedState.step = 'auth';
+  }
+
+  if (
+    normalizedState.step === 'two-factor'
+    && (
+      !normalizedState.isLogin
+      || (
+        normalizedState.postVerificationAuthSource === 'google'
+          ? !normalizedState.pendingGoogleToken
+          : !normalizedState.email.trim() || !normalizedState.password.trim()
+      )
+    )
+  ) {
     normalizedState.step = 'auth';
   }
 
@@ -204,10 +219,23 @@ function getLandingRouteFromUser(user: unknown): string {
   return getLandingRouteByIsOnboarded(userObj?.is_onboarded);
 }
 
+function getRedirectPathFromSearch(search: string): string | null {
+  const params = new URLSearchParams(search);
+  const redirect = params.get('redirect');
+  if (!redirect) return null;
+
+  const trimmed = redirect.trim();
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) return null;
+
+  return trimmed;
+}
+
 const Auth = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
   const { accessToken, user } = useSelector((state: RootState) => state.auth);
+  const redirectAfterAuth = getRedirectPathFromSearch(location.search);
   const [persistedFlow] = useState<PersistedAuthFlowState | null>(() => readPersistedAuthFlowState());
 
   const [isLogin, setIsLogin] = useState(persistedFlow?.isLogin ?? false);
@@ -258,8 +286,8 @@ const Auth = () => {
   useEffect(() => {
     if (!accessToken) return;
     clearPersistedAuthFlowState();
-    navigate(getLandingRouteFromUser(user), { replace: true });
-  }, [accessToken, navigate, user]);
+    navigate(redirectAfterAuth || getLandingRouteFromUser(user), { replace: true });
+  }, [accessToken, navigate, redirectAfterAuth, user]);
 
   useEffect(() => {
     const state: PersistedAuthFlowState = {
@@ -373,10 +401,29 @@ const Auth = () => {
     return false;
   };
 
-  const loginWithCredentials = async (): Promise<string> => {
+  const handleTwoFactorRequired = (
+    error: unknown,
+    options?: { authSource?: PostVerificationAuthSource; googleToken?: string | null }
+  ): boolean => {
+    if (!isApiError(error)) return false;
+
+    const apiCode = (error.code || '').trim().toUpperCase();
+    if (error.status !== 401 || apiCode !== 'AUTH_202_2FA') return false;
+
+    const authSource = options?.authSource || 'credentials';
+    setPostVerificationAuthSource(authSource);
+    setPendingGoogleToken(authSource === 'google' ? options?.googleToken?.trim() || null : null);
+    setIsLogin(true);
+    setStep('two-factor');
+    return true;
+  };
+
+  const loginWithCredentials = async (totpCode = ''): Promise<string> => {
+    const trimmedTotpCode = totpCode.trim();
     const response = await loginUser({
       email: email.trim(),
       password,
+      ...(trimmedTotpCode ? { totp_code: trimmedTotpCode } : {}),
     });
 
     dispatch(login(response));
@@ -384,13 +431,17 @@ const Auth = () => {
     return getLandingRouteFromAuthResponse(response);
   };
 
-  const loginWithGoogleToken = async (token: string): Promise<string> => {
+  const loginWithGoogleToken = async (token: string, totpCode = ''): Promise<string> => {
     const trimmedToken = token.trim();
     if (!trimmedToken) {
       throw new Error('Google session expired. Please continue with Google again.');
     }
 
-    const response = await googleAuthUser({ token: trimmedToken });
+    const trimmedTotpCode = totpCode.trim();
+    const response = await googleAuthUser({
+      token: trimmedToken,
+      ...(trimmedTotpCode ? { totp_code: trimmedTotpCode } : {}),
+    });
     dispatch(login(response));
     clearPersistedAuthFlowState();
     return getLandingRouteFromAuthResponse(response);
@@ -407,7 +458,7 @@ const Auth = () => {
         setPendingGoogleToken(null);
         const nextRoute = await loginWithCredentials();
         clearPhoneVerificationContext();
-        navigate(nextRoute);
+        navigate(redirectAfterAuth || nextRoute);
         return;
       }
 
@@ -432,10 +483,42 @@ const Auth = () => {
       setOtpResendAvailableAt(null);
       setStep('verify-phone');
     } catch (error: unknown) {
+      if (isLogin && handleTwoFactorRequired(error, { authSource: 'credentials' })) {
+        return;
+      }
+
       if (isLogin && handlePhoneGateRedirect(error, { allowStatusPhoneGate: false, authSource: 'credentials' })) {
         return;
       }
 
+      showErrorToast(getErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTwoFactorVerify = async (totpCode: string) => {
+    setLoading(true);
+
+    try {
+      const completeTwoFactorAuth = async (): Promise<string> => {
+        if (postVerificationAuthSource === 'google') {
+          const googleToken = pendingGoogleToken;
+          if (!googleToken) {
+            throw new Error('Google session expired. Please continue with Google again.');
+          }
+          return loginWithGoogleToken(googleToken, totpCode);
+        }
+
+        return loginWithCredentials(totpCode);
+      };
+
+      const nextRoute = await completeTwoFactorAuth();
+      setPendingGoogleToken(null);
+      setPostVerificationAuthSource('credentials');
+      clearPhoneVerificationContext();
+      navigate(redirectAfterAuth || nextRoute);
+    } catch (error: unknown) {
       showErrorToast(getErrorMessage(error));
     } finally {
       setLoading(false);
@@ -448,8 +531,12 @@ const Auth = () => {
       setPendingGoogleToken(null);
       setPostVerificationAuthSource('credentials');
       clearPhoneVerificationContext();
-      navigate(nextRoute);
+      navigate(redirectAfterAuth || nextRoute);
     } catch (error: unknown) {
+      if (handleTwoFactorRequired(error, { authSource: 'google', googleToken: token })) {
+        return;
+      }
+
       if (handlePhoneGateRedirect(error, { allowStatusPhoneGate: true, authSource: 'google', googleToken: token })) {
         return;
       }
@@ -607,8 +694,16 @@ const Auth = () => {
 
       const nextRoute = await completePostVerificationAuth();
       clearPhoneVerificationContext();
-      navigate(nextRoute);
+      navigate(redirectAfterAuth || nextRoute);
     } catch (error: unknown) {
+      if (isPhoneVerified && handleTwoFactorRequired(error, {
+        authSource: postVerificationAuthSource,
+        googleToken: pendingGoogleToken,
+      })) {
+        clearPhoneVerificationContext();
+        return;
+      }
+
       if (isPhoneVerified) {
         clearPhoneVerificationContext();
         setIsLogin(true);
@@ -819,6 +914,19 @@ const Auth = () => {
       )}
 
       {step === 'verified' && <VerifiedStep />}
+
+      {step === 'two-factor' && (
+        <TwoFactorStep
+          email={email.trim()}
+          loading={loading}
+          onBack={() => {
+            setPendingGoogleToken(null);
+            setPostVerificationAuthSource('credentials');
+            setStep('auth');
+          }}
+          onVerify={handleTwoFactorVerify}
+        />
+      )}
     </AuthLayout>
   );
 };

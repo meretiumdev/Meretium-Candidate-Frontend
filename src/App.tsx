@@ -15,6 +15,7 @@ import Messages from './containers/Messages';
 import Auth from './containers/Auth';
 import Settings from './containers/Settings';
 import ForgotPassword from './containers/Auth/ForgotPassword';
+import VerifyEmailChange from './containers/VerifyEmailChange';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -47,6 +48,7 @@ function App() {
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/forget-password" element={<ForgotPassword />} />
+        <Route path="/verify-email-change" element={<VerifyEmailChange />} />
         
         <Route path="/" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />
         <Route path="/onboarding" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />

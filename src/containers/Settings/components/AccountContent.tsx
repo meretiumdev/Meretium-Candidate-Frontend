@@ -1,9 +1,15 @@
 import React from 'react';
+import { useSelector } from 'react-redux';
 import { Pencil, Upload, Check } from 'lucide-react';
+import type { RootState } from '../../../redux/store';
 import type { CandidateSettingsAccount } from '../../../services/settingsApi';
+import ChangeEmailModal from './ChangeEmailModal';
+import ChangePhoneModal from './ChangePhoneModal';
+import { isTwoFactorEnabled } from '../../../utils/twoFactor';
 
 interface AccountContentProps {
   settings: CandidateSettingsAccount;
+  onPhoneChanged?: (nextPhone: string) => Promise<void> | void;
 }
 
 function getInitials(name: string): string {
@@ -33,10 +39,15 @@ function getSignMethodLabel(signMethod: string): string {
     .join(' ');
 }
 
-export default function AccountContent({ settings }: AccountContentProps) {
+export default function AccountContent({ settings, onPhoneChanged }: AccountContentProps) {
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const authUser = useSelector((state: RootState) => state.auth.user);
   const [fullName, setFullName] = React.useState(settings.full_name);
   const [email, setEmail] = React.useState(settings.email);
   const [phoneNumber, setPhoneNumber] = React.useState(settings.phone_number);
+  const [isChangeEmailModalOpen, setIsChangeEmailModalOpen] = React.useState(false);
+  const [isChangePhoneModalOpen, setIsChangePhoneModalOpen] = React.useState(false);
+  const requiresTwoFactorVerification = isTwoFactorEnabled(authUser);
 
   React.useEffect(() => {
     setFullName(settings.full_name);
@@ -47,6 +58,13 @@ export default function AccountContent({ settings }: AccountContentProps) {
   const avatarUrl = settings.avatar?.trim() || null;
   const initials = getInitials(fullName || settings.full_name);
   const signMethodLabel = getSignMethodLabel(settings.sign_method);
+
+  const handlePhoneChanged = async (nextPhone: string) => {
+    setPhoneNumber(nextPhone);
+    if (onPhoneChanged) {
+      await onPhoneChanged(nextPhone);
+    }
+  };
 
   return (
     <div className="flex-1 font-manrope animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -99,10 +117,14 @@ export default function AccountContent({ settings }: AccountContentProps) {
             <input 
               type="email" 
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              readOnly
               className="flex-1 px-4 py-3 bg-[#F9FAFB] border border-[#E4E7EC] rounded-[10px] text-[14px] text-[#101828] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 font-manrope"
             />
-            <button className="flex items-center justify-center gap-2 px-4 py-3 border border-[#E4E7EC] shadow-sm rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 whitespace-nowrap cursor-pointer transition-colors">
+            <button
+              type="button"
+              onClick={() => setIsChangeEmailModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-4 py-3 border border-[#E4E7EC] shadow-sm rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 whitespace-nowrap cursor-pointer transition-colors"
+            >
               <Pencil size={16} />
               Change email
             </button>
@@ -118,7 +140,7 @@ export default function AccountContent({ settings }: AccountContentProps) {
               <input 
                 type="tel" 
                 value={phoneNumber}
-                onChange={(event) => setPhoneNumber(event.target.value)}
+                readOnly
                 className="w-full pl-4 pr-24 py-3 bg-[#F9FAFB] border border-[#E4E7EC] rounded-[10px] text-[14px] text-[#101828] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 font-manrope"
               />
               <div className={`absolute right-3 px-3 py-1 rounded-lg flex items-center gap-1.5 ${settings.phone_verified ? 'bg-[#D1FADF]' : 'bg-[#FEF0C7]'}`}>
@@ -128,13 +150,35 @@ export default function AccountContent({ settings }: AccountContentProps) {
                 </span>
               </div>
             </div>
-            <button className="flex items-center justify-center gap-2 px-4 py-3 border border-[#E4E7EC] shadow-sm rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 whitespace-nowrap cursor-pointer transition-colors">
+            <button
+              type="button"
+              onClick={() => setIsChangePhoneModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-4 py-3 border border-[#E4E7EC] shadow-sm rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 whitespace-nowrap cursor-pointer transition-colors"
+            >
               <Pencil size={16} />
               Change number
             </button>
           </div>
         </div>
       </div>
+
+      <ChangeEmailModal
+        isOpen={isChangeEmailModalOpen}
+        currentEmail={email}
+        accessToken={accessToken}
+        requireTwoFactor={requiresTwoFactorVerification}
+        onClose={() => setIsChangeEmailModalOpen(false)}
+      />
+
+      <ChangePhoneModal
+        isOpen={isChangePhoneModalOpen}
+        currentPhone={phoneNumber}
+        accessToken={accessToken}
+        requireTwoFactor={requiresTwoFactorVerification}
+        twoFactorEmail={email}
+        onClose={() => setIsChangePhoneModalOpen(false)}
+        onPhoneChanged={handlePhoneChanged}
+      />
     </div>
   );
 }

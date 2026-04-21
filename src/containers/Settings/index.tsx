@@ -25,28 +25,42 @@ export default function Settings() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
-  const loadSettings = React.useCallback(async () => {
+  const loadSettings = React.useCallback(async (
+    options: { showLoading?: boolean; forceRefresh?: boolean } = {}
+  ) => {
+    const showLoading = options.showLoading !== false;
+    const forceRefresh = options.forceRefresh === true;
+
     if (!accessToken?.trim()) {
       setErrorMessage('You are not authenticated. Please log in again.');
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    setErrorMessage(null);
+    if (showLoading) {
+      setIsLoading(true);
+      setErrorMessage(null);
+    }
 
     try {
-      const response = await getCandidateSettings(accessToken);
+      const response = await getCandidateSettings(accessToken, { forceRefresh });
       setSettingsData(response);
+      if (showLoading) {
+        setErrorMessage(null);
+      }
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error));
+      if (showLoading) {
+        setErrorMessage(getErrorMessage(error));
+      }
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   }, [accessToken]);
 
   React.useEffect(() => {
-    void loadSettings();
+    void loadSettings({ showLoading: true });
   }, [loadSettings]);
 
   if (isLoading && !settingsData) {
@@ -70,7 +84,7 @@ export default function Settings() {
             <p className="text-[#B42318] text-[14px] font-medium mb-4">{errorMessage || 'Failed to load settings.'}</p>
             <button
               onClick={() => {
-                void loadSettings();
+                void loadSettings({ showLoading: true, forceRefresh: true });
               }}
               className="bg-[#FF6934] text-white px-4 py-2 rounded-[8px] text-[14px] font-medium hover:opacity-90 transition-opacity"
             >
@@ -89,17 +103,79 @@ export default function Settings() {
   const renderContent = () => {
     switch (activeTab) {
       case 'Account':
-        return <AccountContent settings={settingsData.account} />;
+        return (
+          <AccountContent
+            settings={settingsData.account}
+            onPhoneChanged={async () => {
+              await loadSettings({ showLoading: false, forceRefresh: true });
+            }}
+          />
+        );
       case 'Profile & Visibility':
-        return <ProfileVisibilityContent settings={settingsData.profile_and_visibility} />;
+        return (
+          <ProfileVisibilityContent
+            settings={settingsData.profile_and_visibility}
+            onSettingsPatched={(patch) => {
+              setSettingsData((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  profile_and_visibility: {
+                    ...prev.profile_and_visibility,
+                    ...patch,
+                  },
+                };
+              });
+            }}
+          />
+        );
       case 'CV & Data':
-        return <CvDataContent settings={settingsData.cv_and_data_management} />;
+        return (
+          <CvDataContent
+            settings={settingsData.cv_and_data_management}
+            onSettingsRefresh={async () => {
+              await loadSettings({ showLoading: false, forceRefresh: true });
+            }}
+          />
+        );
       case 'Notifications':
-        return <NotificationsContent settings={settingsData.notification_settings} />;
+        return (
+          <NotificationsContent
+            settings={settingsData.notification_settings}
+            onSettingsPatched={(patch) => {
+              setSettingsData((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  notification_settings: {
+                    ...prev.notification_settings,
+                    ...patch,
+                  },
+                };
+              });
+            }}
+          />
+        );
       case 'AI Preferences':
-        return <AiPreferencesContent settings={settingsData.ai_preferences} />;
+        return (
+          <AiPreferencesContent
+            settings={settingsData.ai_preferences}
+            onSettingsPatched={(patch) => {
+              setSettingsData((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  ai_preferences: {
+                    ...prev.ai_preferences,
+                    ...patch,
+                  },
+                };
+              });
+            }}
+          />
+        );
       case 'Security':
-        return <SecurityContent />;
+        return <SecurityContent accountEmail={settingsData.account.email} />;
       case 'Integrations':
         return <IntegrationsContent />;
       case 'Help & Support':

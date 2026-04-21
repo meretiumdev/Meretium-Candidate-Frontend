@@ -47,6 +47,20 @@ function getApiMessage(payload: unknown): string | null {
   return trimmedMessage.length > 0 ? trimmedMessage : null;
 }
 
+function getApiSuccessMessage(payload: unknown): string | null {
+  const topLevelMessage = getApiMessage(payload);
+  if (topLevelMessage) return topLevelMessage;
+
+  if (typeof payload !== 'object' || payload === null) return null;
+  const data = (payload as { data?: unknown }).data;
+  if (typeof data !== 'object' || data === null) return null;
+
+  const nestedMessage = (data as { message?: unknown }).message;
+  if (typeof nestedMessage !== 'string') return null;
+  const trimmedNestedMessage = nestedMessage.trim();
+  return trimmedNestedMessage.length > 0 ? trimmedNestedMessage : null;
+}
+
 function getApiDetailMessage(payload: unknown): string | null {
   if (typeof payload !== 'object' || payload === null) return null;
 
@@ -341,6 +355,45 @@ export async function deleteCandidateCv(accessToken: string, cvId: string): Prom
       || `CV delete failed with status ${response.status}`
     );
   }
+}
+
+export async function deleteAllCandidateCvs(accessToken: string): Promise<string | null> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/cvs/delete-all`, {
+      method: 'DELETE',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `All CV delete failed with status ${response.status}`
+    );
+  }
+
+  return getApiSuccessMessage(payload);
 }
 
 export async function getCandidateCvDownloadUrl(accessToken: string, cvId: string): Promise<string> {
