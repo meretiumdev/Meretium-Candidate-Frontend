@@ -6,6 +6,7 @@ import { deleteCandidateSavedJob, saveCandidateJob } from '../../../services/job
 import type { RootState } from '../../../redux/store';
 import QuickApplyModal from '../../../components/QuickApplyModal';
 import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
+import { formatWorkModeLabel } from '../../../utils/formatWorkModeLabel';
 
 interface SidebarActionsProps {
   job?: CandidateJobDetailResponse | null;
@@ -40,7 +41,7 @@ export default function SidebarActions({ job }: SidebarActionsProps) {
   const posted = formatPostedLabel(job?.posted_at || '');
   const applicants = typeof job?.applicant_count === 'number' ? String(job.applicant_count) : '';
   const jobType = formatJobTypeLabel(job?.job_type || '', '');
-  const workMode = job?.work_mode || '';
+  const workMode = formatWorkModeLabel(job?.work_mode || '', '');
   const match = '80%';
 
   useEffect(() => {

@@ -78,7 +78,7 @@ export default function Navbar() {
         {/* 1. Logo */}
         <div 
           className="flex items-center gap-2 cursor-pointer order-1 shrink-0 min-w-fit"
-          onClick={() => navigate('/explore-jobs')}
+          onClick={() => navigate('/dashboard')}
         >
           <img src={logo} alt="meretium" className="h-6 md:h-7 w-auto object-contain" />
         </div>
