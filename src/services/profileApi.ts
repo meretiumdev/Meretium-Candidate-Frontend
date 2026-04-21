@@ -93,6 +93,9 @@ export interface UpdateProfilePayload {
   total_years_experience?: number;
   is_open_to_work?: boolean;
   open_to_work_status?: OpenToWorkStatus;
+  allow_cv_download?: boolean;
+  show_last_active?: boolean;
+  quick_apply_default_cv?: boolean;
 }
 
 export interface CreateProfileSkillPayload {

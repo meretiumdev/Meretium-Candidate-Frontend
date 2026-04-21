@@ -46,10 +46,12 @@ interface VerifyPhoneOtpRequest extends SendPhoneOtpRequest {
 interface LoginRequest {
   email: string;
   password: string;
+  totp_code?: string;
 }
 
 interface GoogleAuthRequest {
   token: string;
+  totp_code?: string;
 }
 
 interface ForgetPasswordRequest {
@@ -68,6 +70,48 @@ interface ResetPasswordRequest {
 
 interface RefreshAccessTokenRequest {
   refresh_token: string;
+}
+
+interface EmailChangeRequestPayload {
+  new_email: string;
+  password: string;
+}
+
+interface EmailChangeConfirmPayload {
+  token: string;
+}
+
+interface PhoneChangeRequestPayload {
+  new_phone_number: string;
+}
+
+interface PhoneChangeConfirmPayload {
+  otp: string;
+}
+
+interface ChangePasswordPayload {
+  old_password: string;
+  new_password: string;
+}
+
+interface TwoFactorSetupPayload {
+  email: string;
+}
+
+interface TwoFactorEnablePayload {
+  email: string;
+  otp: string;
+}
+
+interface TwoFactorVerifyPayload {
+  email: string;
+  otp: string;
+}
+
+interface TwoFactorSetupResponseData {
+  qr_code_url: string;
+  secret_key: string;
+  backup_codes: string[];
 }
 
 type ApiResponse<TData> = ApiResponseEnvelope<TData>;
@@ -147,6 +191,36 @@ function getStringOrNumberValue(input: unknown): string | null {
   }
 
   return null;
+}
+
+function getEmailChangePath(action: 'request' | 'confirm'): string {
+  const normalizedBase = AUTH_API_BASE_URL.toLowerCase();
+  const pathPrefix = normalizedBase.endsWith('/auth') ? '' : '/auth';
+  return `${pathPrefix}/email-change/${action}`;
+}
+
+function getPhoneChangePath(action: 'request' | 'confirm'): string {
+  const normalizedBase = AUTH_API_BASE_URL.toLowerCase();
+  const pathPrefix = normalizedBase.endsWith('/auth') ? '' : '/auth';
+  return `${pathPrefix}/phone-change/${action}`;
+}
+
+function getChangePasswordPath(): string {
+  const normalizedBase = AUTH_API_BASE_URL.toLowerCase();
+  const pathPrefix = normalizedBase.endsWith('/auth') ? '' : '/auth';
+  return `${pathPrefix}/change-password`;
+}
+
+function getTwoFactorPath(action: 'setup' | 'enable'): string {
+  const normalizedBase = AUTH_API_BASE_URL.toLowerCase();
+  const pathPrefix = normalizedBase.endsWith('/auth') ? '' : '/auth';
+  return `${pathPrefix}/2fa/${action}`;
+}
+
+function getTwoFactorVerifyPath(): string {
+  const normalizedBase = AUTH_API_BASE_URL.toLowerCase();
+  const pathPrefix = normalizedBase.endsWith('/auth') ? '' : '/auth';
+  return `${pathPrefix}/2fa/verify`;
 }
 
 export function getApiErrorStatus(payload: unknown): string | null {
@@ -259,6 +333,60 @@ async function post<TResponse>(path: string, body: unknown): Promise<TResponse> 
   return payload as TResponse;
 }
 
+async function postAuthorized<TResponse>(path: string, accessToken: string, body: unknown): Promise<TResponse> {
+  if (!AUTH_API_BASE_URL) {
+    throw new Error('Missing VITE_AUTH_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const response = await fetch(`${AUTH_API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${trimmedAccessToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  const message = getApiMessage(payload);
+  const detailMessage = getApiDetailMessage(payload);
+  const code = getApiCode(payload);
+
+  if (!response.ok) {
+    throw new ApiError({
+      status: response.status,
+      code,
+      message: detailMessage || message || `Request failed with status ${response.status}`,
+      payload,
+    });
+  }
+
+  if (code && /(ERROR|FAIL)/i.test(code)) {
+    throw new ApiError({
+      status: response.status,
+      code,
+      message: detailMessage || message || `Request failed with code ${code}`,
+      payload,
+    });
+  }
+
+  return payload as TResponse;
+}
+
 export async function registerUser(payload: RegisterRequest): Promise<ApiResponse<RegisterResponseData>> {
   return post<ApiResponse<RegisterResponseData>>('/register', payload);
 }
@@ -293,4 +421,45 @@ export async function resetPassword(payload: ResetPasswordRequest): Promise<ApiR
 
 export async function refreshAccessToken(payload: RefreshAccessTokenRequest): Promise<ApiResponse<unknown>> {
   return post<ApiResponse<unknown>>('/refresh', payload);
+}
+
+export async function requestEmailChange(accessToken: string, payload: EmailChangeRequestPayload): Promise<ApiResponse<unknown>> {
+  return postAuthorized<ApiResponse<unknown>>(getEmailChangePath('request'), accessToken, payload);
+}
+
+export async function confirmEmailChange(accessToken: string, payload: EmailChangeConfirmPayload): Promise<ApiResponse<unknown>> {
+  return postAuthorized<ApiResponse<unknown>>(getEmailChangePath('confirm'), accessToken, payload);
+}
+
+export async function requestPhoneChange(accessToken: string, payload: PhoneChangeRequestPayload): Promise<ApiResponse<unknown>> {
+  return postAuthorized<ApiResponse<unknown>>(getPhoneChangePath('request'), accessToken, payload);
+}
+
+export async function confirmPhoneChange(accessToken: string, payload: PhoneChangeConfirmPayload): Promise<ApiResponse<unknown>> {
+  return postAuthorized<ApiResponse<unknown>>(getPhoneChangePath('confirm'), accessToken, payload);
+}
+
+export async function changePassword(accessToken: string, payload: ChangePasswordPayload): Promise<ApiResponse<unknown>> {
+  return postAuthorized<ApiResponse<unknown>>(getChangePasswordPath(), accessToken, payload);
+}
+
+export async function setupTwoFactorAuth(
+  accessToken: string,
+  payload: TwoFactorSetupPayload
+): Promise<ApiResponse<TwoFactorSetupResponseData>> {
+  return postAuthorized<ApiResponse<TwoFactorSetupResponseData>>(getTwoFactorPath('setup'), accessToken, payload);
+}
+
+export async function enableTwoFactorAuth(
+  accessToken: string,
+  payload: TwoFactorEnablePayload
+): Promise<ApiResponse<unknown>> {
+  return postAuthorized<ApiResponse<unknown>>(getTwoFactorPath('enable'), accessToken, payload);
+}
+
+export async function verifyTwoFactorAuth(
+  accessToken: string,
+  payload: TwoFactorVerifyPayload
+): Promise<ApiResponse<unknown>> {
+  return postAuthorized<ApiResponse<unknown>>(getTwoFactorVerifyPath(), accessToken, payload);
 }
