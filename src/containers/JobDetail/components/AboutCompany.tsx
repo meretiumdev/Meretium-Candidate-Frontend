@@ -1,11 +1,13 @@
 import { Building2, Users, ChevronRight } from 'lucide-react';
 import type { CandidateJobDetailResponse } from '../../../services/jobsApi';
+import { useNavigate } from 'react-router-dom';
 
 interface AboutCompanyProps {
   job?: CandidateJobDetailResponse | null;
 }
 
 export default function AboutCompany({ job }: AboutCompanyProps) {
+  const navigate = useNavigate();
   const description = job?.company_description || '';
   const industry = job?.company_industry || '';
   const size = job?.company_size_range || '';
@@ -26,7 +28,10 @@ export default function AboutCompany({ job }: AboutCompanyProps) {
           <span className="text-sm text-gray-500 font-regular">Size: <span className="text-[#101828] font-medium ml-1">{size}</span></span>
         </div>
       </div>
-      <button className="flex items-center gap-1 text-[#FF6934] text-[14px] font-medium hover:underline cursor-pointer group">
+      <button 
+        onClick={() => navigate('/company')}
+        className="flex items-center gap-1 text-[#FF6934] text-[14px] font-medium hover:underline cursor-pointer group"
+      >
         View company profile
         <ChevronRight size={14} className="transition-transform group-hover:translate-x-1" />
       </button>
