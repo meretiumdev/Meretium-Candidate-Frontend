@@ -55,8 +55,11 @@ export interface CandidateProfile {
   is_open_to_work: boolean;
   open_to_work_status: OpenToWorkStatus;
   total_years_experience: number;
-  share_slug: string;
+  share_slug: string | null;
   is_public: boolean;
+  quick_apply_default_cv: boolean;
+  allow_cv_download: boolean;
+  show_last_active: boolean;
   last_shared_at: string | null;
 }
 
@@ -222,8 +225,11 @@ function normalizeProfileResponse(payload: unknown): CandidateProfileResponse {
     is_open_to_work: isOpenToWork,
     open_to_work_status: asOpenToWorkStatus(profileRaw.open_to_work_status, fallbackStatus),
     total_years_experience: asNumber(profileRaw.total_years_experience),
-    share_slug: asString(profileRaw.share_slug),
+    share_slug: asNullableString(profileRaw.share_slug),
     is_public: asBoolean(profileRaw.is_public),
+    quick_apply_default_cv: asBoolean(profileRaw.quick_apply_default_cv),
+    allow_cv_download: asBoolean(profileRaw.allow_cv_download),
+    show_last_active: asBoolean(profileRaw.show_last_active),
     last_shared_at: asNullableString(profileRaw.last_shared_at),
   };
 

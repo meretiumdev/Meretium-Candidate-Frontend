@@ -1,6 +1,6 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
-import type { RootState } from './redux/store';
+import { useDispatch, useSelector } from 'react-redux';
+import type { AppDispatch, RootState } from './redux/store';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Onboarding from './containers/Onboarding';
@@ -18,6 +18,8 @@ import ForgotPassword from './containers/Auth/ForgotPassword';
 import VerifyEmailChange from './containers/VerifyEmailChange';
 import CompanyProfile from './containers/CompanyProfile';
 import CompanyJobs from './containers/CompanyJobs';
+import { getCandidateProfile } from './services/profileApi';
+import { setProfile } from './redux/store';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -44,6 +46,35 @@ function OnboardingAccessGuard({ children }: AuthGuardProps) {
 }
 
 function App() {
+  const dispatch = useDispatch<AppDispatch>();
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const profile = useSelector((state: RootState) => state.auth.profile);
+
+  React.useEffect(() => {
+    if (!accessToken?.trim()) {
+      dispatch(setProfile(null));
+      return;
+    }
+
+    if (profile) return;
+
+    let isCancelled = false;
+    void (async () => {
+      try {
+        const response = await getCandidateProfile(accessToken);
+        if (!isCancelled) {
+          dispatch(setProfile(response.profile));
+        }
+      } catch {
+        // Keep app usable even if profile bootstrap fails.
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [accessToken, dispatch, profile]);
+
   console.log("App Version: 1.0.1 - Deployment Triggered at " + new Date().toLocaleTimeString());
   return (
     <Router>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../redux/store';
+import { useDispatch, useSelector } from 'react-redux';
+import type { AppDispatch, RootState } from '../../redux/store';
 import Header from './components/Header';
 import StrengthCard from './components/StrengthCard';
 import AboutSection from './components/AboutSection';
@@ -10,6 +10,7 @@ import CVSection from './components/CVSection';
 import JobPreferences from './components/JobPreferences';
 import SidebarStats from './components/SidebarStats';
 import { getCandidateProfile, type CandidateProfileResponse } from '../../services/profileApi';
+import { setProfile } from '../../redux/store';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) return error.message;
@@ -30,6 +31,7 @@ function ProfileCardSkeleton({ heightClass }: { heightClass: string }) {
 }
 
 export default function Profile() {
+  const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [profileData, setProfileData] = useState<CandidateProfileResponse | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
@@ -50,6 +52,7 @@ export default function Profile() {
     try {
       const response = await getCandidateProfile(accessToken);
       setProfileData(response);
+      dispatch(setProfile(response.profile));
       if (showPageLoading) {
         setErrorMessage(null);
       }
@@ -62,7 +65,7 @@ export default function Profile() {
         setIsPageLoading(false);
       }
     }
-  }, [accessToken]);
+  }, [accessToken, dispatch]);
 
   useEffect(() => {
     void loadProfile({ showPageLoading: true });

@@ -1,7 +1,8 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { AlertTriangle, ChevronDown, Download, Loader2, Trash2 } from 'lucide-react';
-import type { RootState } from '../../../redux/store';
+import type { AppDispatch, RootState } from '../../../redux/store';
+import { setProfile } from '../../../redux/store';
 import { exportCandidateData, type CandidateSettingsCvAndDataManagement } from '../../../services/settingsApi';
 import { deleteAllCandidateCvs, getCandidateCvs, updateCandidateCv, type CandidateCvItem } from '../../../services/cvApi';
 import { updateCandidateProfile } from '../../../services/profileApi';
@@ -67,6 +68,7 @@ function triggerBrowserDownload(fileUrl: string, fileName?: string | null): void
 }
 
 export default function CvDataContent({ settings, onSettingsRefresh }: CvDataContentProps) {
+  const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [useDefaultQuickApply, setUseDefaultQuickApply] = React.useState(settings.quick_apply_default_cv);
   const [selectedDefaultCvId, setSelectedDefaultCvId] = React.useState(settings.default_cv?.id || '');
@@ -180,7 +182,8 @@ export default function CvDataContent({ settings, onSettingsRefresh }: CvDataCon
     setIsUpdatingQuickApply(true);
 
     try {
-      await updateCandidateProfile(accessToken, { quick_apply_default_cv: nextValue });
+      const response = await updateCandidateProfile(accessToken, { quick_apply_default_cv: nextValue });
+      dispatch(setProfile(response.profile));
       setToast({ id: Date.now(), message: 'Quick Apply default CV preference updated.', type: 'success' });
       if (onSettingsRefresh) {
         await onSettingsRefresh();

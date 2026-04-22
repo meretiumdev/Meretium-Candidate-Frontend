@@ -3,10 +3,35 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 
 interface AuthState {
   user: unknown | null;
+  profile: CandidateProfileState | null;
   accessToken: string | null;
   refreshToken: string | null;
   tokenType: string | null;
   tokenExpiresAt: number | null;
+}
+
+type OpenToWorkStatus =
+  | 'Open to opportunities'
+  | 'Visible to matched recruiters'
+  | 'Private';
+
+interface CandidateProfileState {
+  id: string;
+  user_id: string;
+  full_name: string;
+  headline: string;
+  location: string;
+  about: string;
+  profile_strength: number;
+  is_open_to_work: boolean;
+  open_to_work_status: OpenToWorkStatus;
+  total_years_experience: number;
+  share_slug: string | null;
+  is_public: boolean;
+  quick_apply_default_cv: boolean;
+  allow_cv_download: boolean;
+  show_last_active: boolean;
+  last_shared_at: string | null;
 }
 
 interface LoginData {
@@ -51,9 +76,91 @@ function getNullableBooleanValue(input: unknown): boolean | null {
   return null;
 }
 
+function getBooleanValue(input: unknown, fallback = false): boolean {
+  if (typeof input === 'boolean') return input;
+  if (typeof input === 'number') return input === 1;
+  if (typeof input === 'string') {
+    const normalized = input.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+  }
+  return fallback;
+}
+
 function getRecordValue(input: unknown): Record<string, unknown> | null {
   if (typeof input !== 'object' || input === null) return null;
   return input as Record<string, unknown>;
+}
+
+function getNullableStringValue(input: unknown): string | null {
+  const value = getStringValue(input);
+  return value ?? null;
+}
+
+function getOpenToWorkStatus(
+  input: unknown,
+  fallback: OpenToWorkStatus
+): OpenToWorkStatus {
+  if (typeof input !== 'string') return fallback;
+  const trimmed = input.trim();
+  if (
+    trimmed === 'Open to opportunities'
+    || trimmed === 'Visible to matched recruiters'
+    || trimmed === 'Private'
+  ) {
+    return trimmed as OpenToWorkStatus;
+  }
+  if (trimmed === 'Closed to opportunities') return 'Private';
+  return fallback;
+}
+
+function normalizeProfileState(input: unknown): CandidateProfileState | null {
+  const raw = getRecordValue(input);
+  if (!raw) return null;
+
+  const id = getStringValue(raw.id) || '';
+  const userId = getStringValue(raw.user_id) || '';
+  if (!id || !userId) return null;
+
+  const isOpenToWork = getBooleanValue(raw.is_open_to_work, false);
+  const fallbackStatus: OpenToWorkStatus = isOpenToWork ? 'Open to opportunities' : 'Private';
+
+  return {
+    id,
+    user_id: userId,
+    full_name: getStringValue(raw.full_name) || '',
+    headline: getStringValue(raw.headline) || '',
+    location: getStringValue(raw.location) || '',
+    about: getStringValue(raw.about) || '',
+    profile_strength: getNumberValue(raw.profile_strength) ?? 0,
+    is_open_to_work: isOpenToWork,
+    open_to_work_status: getOpenToWorkStatus(raw.open_to_work_status, fallbackStatus),
+    total_years_experience: getNumberValue(raw.total_years_experience) ?? 0,
+    share_slug: getNullableStringValue(raw.share_slug),
+    is_public: getBooleanValue(raw.is_public, false),
+    quick_apply_default_cv: getBooleanValue(raw.quick_apply_default_cv, false),
+    allow_cv_download: getBooleanValue(raw.allow_cv_download, false),
+    show_last_active: getBooleanValue(raw.show_last_active, false),
+    last_shared_at: getNullableStringValue(raw.last_shared_at),
+  };
+}
+
+function parseStoredProfile(raw: string | null): CandidateProfileState | null {
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    const normalized = normalizeProfileState(parsed);
+    if (normalized) return normalized;
+  } catch {
+    // fall through to cleanup
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('profile');
+  }
+
+  return null;
 }
 
 function extractLoginData(payload: unknown): LoginData {
@@ -162,6 +269,7 @@ function extractLoginData(payload: unknown): LoginData {
 }
 
 const savedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+const savedProfile = typeof window !== 'undefined' ? localStorage.getItem('profile') : null;
 const savedAccessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
 const savedRefreshToken = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
 const savedTokenType = typeof window !== 'undefined' ? localStorage.getItem('tokenType') : null;
@@ -170,6 +278,7 @@ const savedTokenExpiresAt = savedTokenExpiresAtRaw ? Number(savedTokenExpiresAtR
 
 const initialState: AuthState = {
   user: parseStoredUser(savedUser),
+  profile: parseStoredProfile(savedProfile),
   accessToken: savedAccessToken || null,
   refreshToken: savedRefreshToken || null,
   tokenType: savedTokenType || null,
@@ -185,6 +294,7 @@ const authSlice = createSlice({
       const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : null;
 
       state.user = user;
+      state.profile = null;
       state.accessToken = accessToken;
       state.refreshToken = refreshToken;
       state.tokenType = tokenType;
@@ -195,6 +305,7 @@ const authSlice = createSlice({
       } else {
         localStorage.removeItem('user');
       }
+      localStorage.removeItem('profile');
 
       if (accessToken) {
         localStorage.setItem('accessToken', accessToken);
@@ -254,14 +365,26 @@ const authSlice = createSlice({
         localStorage.removeItem('tokenExpiresAt');
       }
     },
+    setProfile: (state, action: PayloadAction<unknown>) => {
+      const profile = normalizeProfileState(action.payload);
+      state.profile = profile;
+
+      if (profile) {
+        localStorage.setItem('profile', JSON.stringify(profile));
+      } else {
+        localStorage.removeItem('profile');
+      }
+    },
     logout: (state) => {
       state.user = null;
+      state.profile = null;
       state.accessToken = null;
       state.refreshToken = null;
       state.tokenType = null;
       state.tokenExpiresAt = null;
 
       localStorage.removeItem('user');
+      localStorage.removeItem('profile');
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('tokenType');
@@ -270,7 +393,7 @@ const authSlice = createSlice({
   },
 });
 
-export const { login, refreshTokens, logout } = authSlice.actions;
+export const { login, refreshTokens, setProfile, logout } = authSlice.actions;
 
 export const store = configureStore({
   reducer: {

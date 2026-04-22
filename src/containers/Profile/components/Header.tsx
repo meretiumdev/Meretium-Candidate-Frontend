@@ -36,8 +36,8 @@ function getInitial(name: string): string {
   return trimmed.charAt(0).toUpperCase();
 }
 
-function getShareUrl(shareSlug: string): string | null {
-  const trimmedSlug = shareSlug.trim();
+function getShareUrl(shareSlug: string | null): string | null {
+  const trimmedSlug = (shareSlug || '').trim();
   if (!trimmedSlug) return null;
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';

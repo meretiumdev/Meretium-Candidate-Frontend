@@ -1,8 +1,9 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { ChevronDown, Check } from 'lucide-react';
 import type { CandidateProfileVisibility, CandidateSettingsProfileAndVisibility } from '../../../services/settingsApi';
-import type { RootState } from '../../../redux/store';
+import type { AppDispatch, RootState } from '../../../redux/store';
+import { setProfile } from '../../../redux/store';
 import { updateCandidateProfile, type OpenToWorkStatus, type UpdateProfilePayload } from '../../../services/profileApi';
 
 interface ToggleProps {
@@ -75,6 +76,7 @@ function getVisibilityOptions() {
 }
 
 export default function ProfileVisibilityContent({ settings, onSettingsPatched }: ProfileVisibilityContentProps) {
+  const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [openToWork, setOpenToWork] = React.useState(settings.is_open_to_work);
   const [allowCvDownload, setAllowCvDownload] = React.useState(settings.allow_cv_download);
@@ -126,7 +128,8 @@ export default function ProfileVisibilityContent({ settings, onSettingsPatched }
     setPending((prev) => ({ ...prev, [pendingKey]: true }));
 
     try {
-      await updateCandidateProfile(accessToken, updates);
+      const response = await updateCandidateProfile(accessToken, updates);
+      dispatch(setProfile(response.profile));
       if (onPatched) onPatched();
     } catch (error: unknown) {
       rollback();

@@ -72,6 +72,7 @@ function formatCvUpdatedLabel(value: string): string {
 
 export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, onApplyError }: QuickApplyModalProps) {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const profile = useSelector((state: RootState) => state.auth.profile);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cvsRequestRef = useRef(0);
   const jobDetailRequestRef = useRef(0);
@@ -83,6 +84,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
 
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [selectedCV, setSelectedCV] = useState('');
+  const [hasUserSelectedCv, setHasUserSelectedCv] = useState(false);
   const [coverLetter, setCoverLetter] = useState(DEFAULT_COVER_LETTER);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -180,6 +182,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
 
     setCurrentStep(1);
     setSelectedCV('');
+    setHasUserSelectedCv(false);
     setCoverLetter(DEFAULT_COVER_LETTER);
     setIsConfirmed(false);
     setIsGenerating(false);
@@ -209,11 +212,45 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
   }, [isGenerating, hasGenerated]);
 
   useEffect(() => {
-    if (selectedCV && cvs.some((cv) => cv.id === selectedCV)) return;
+    if (cvs.length === 0) {
+      if (selectedCV) setSelectedCV('');
+      if (hasUserSelectedCv) setHasUserSelectedCv(false);
+      return;
+    }
+
+    const selectedCvExists = selectedCV ? cvs.some((cv) => cv.id === selectedCV) : false;
+    const shouldAutoSelectDefaultCv = profile?.quick_apply_default_cv ?? true;
+
+    if (selectedCvExists && hasUserSelectedCv) return;
+
+    if (selectedCvExists && !hasUserSelectedCv) {
+      if (!shouldAutoSelectDefaultCv) {
+        setSelectedCV('');
+      }
+      return;
+    }
+
+    if (hasUserSelectedCv && selectedCV && !selectedCvExists) {
+      setHasUserSelectedCv(false);
+    }
+
+    if (!shouldAutoSelectDefaultCv) {
+      if (selectedCV) setSelectedCV('');
+      return;
+    }
+
     const primaryCv = cvs.find((cv) => cv.is_primary);
     const fallbackCv = cvs[0];
-    setSelectedCV(primaryCv?.id || fallbackCv?.id || '');
-  }, [cvs, selectedCV]);
+    const nextSelectedCv = primaryCv?.id || fallbackCv?.id || '';
+    if (nextSelectedCv !== selectedCV) {
+      setSelectedCV(nextSelectedCv);
+    }
+  }, [cvs, selectedCV, hasUserSelectedCv, profile?.quick_apply_default_cv]);
+
+  const handleCvSelect = (cvId: string) => {
+    setSelectedCV(cvId);
+    setHasUserSelectedCv(true);
+  };
 
   useEffect(() => {
     if (currentStep !== 2 || !shouldSkipScreeningStep) return;
@@ -555,7 +592,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
                   cvs.map((cv) => (
                     <div
                       key={cv.id}
-                      onClick={() => setSelectedCV(cv.id)}
+                      onClick={() => handleCvSelect(cv.id)}
                       className={`relative p-4 rounded-xl border transition-all cursor-pointer group flex items-start gap-4 ${
                         selectedCV === cv.id
                           ? 'border-[#FF6934] bg-[#FFF9F2] shadow-sm'
