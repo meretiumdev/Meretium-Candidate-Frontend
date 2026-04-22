@@ -1,4 +1,4 @@
-import { Search, Briefcase, FileText, Bookmark, MessageSquare, Bell, User, Settings, LogOut } from 'lucide-react';
+import { Search, Briefcase, FileText, Bookmark, MessageSquare, Bell, User, Settings, LogOut, Building2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import logo from '../assets/logo_primary.png';

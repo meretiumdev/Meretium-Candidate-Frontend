@@ -16,6 +16,8 @@ import Auth from './containers/Auth';
 import Settings from './containers/Settings';
 import ForgotPassword from './containers/Auth/ForgotPassword';
 import VerifyEmailChange from './containers/VerifyEmailChange';
+import CompanyProfile from './containers/CompanyProfile';
+import CompanyJobs from './containers/CompanyJobs';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -63,6 +65,9 @@ function App() {
         <Route path="/saved" element={<AuthGuard><Saved /></AuthGuard>} />
         <Route path="/messages" element={<AuthGuard><Messages /></AuthGuard>} />
         <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
+        <Route path="/company/:id/jobs" element={<AuthGuard><CompanyJobs /></AuthGuard>} />
+        <Route path="/company/:id" element={<AuthGuard><CompanyProfile /></AuthGuard>} />
+        <Route path="/company" element={<AuthGuard><CompanyProfile /></AuthGuard>} />
         
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
