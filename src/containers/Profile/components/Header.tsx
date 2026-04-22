@@ -15,6 +15,12 @@ interface VisibilityOption {
   label: string;
 }
 
+interface ToastState {
+  id: number;
+  message: string;
+  type: 'error' | 'success';
+}
+
 const VISIBILITY_OPTIONS: VisibilityOption[] = [
   {
     status: 'Open to opportunities',
@@ -73,6 +79,7 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
   const [isOpenToWork, setIsOpenToWork] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -93,6 +100,14 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
   const shareUrl = useMemo(() => getShareUrl(profile.share_slug), [profile.share_slug]);
   const experienceLabel = useMemo(() => parseYearsToLabel(expYears), [expYears]);
 
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setToast(null);
+    }, 3500);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
+
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
@@ -111,10 +126,13 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
 
   const patchProfileFields = async (
     updates: UpdateProfilePayload,
-    fallbackErrorMessage: string
+    fallbackErrorMessage: string,
+    successMessage?: string
   ): Promise<boolean> => {
     if (!accessToken) {
-      setSaveError('You are not authenticated. Please log in again.');
+      const message = 'You are not authenticated. Please log in again.';
+      setSaveError(message);
+      setToast({ id: Date.now(), message, type: 'error' });
       return false;
     }
 
@@ -129,12 +147,16 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
       if (onProfileUpdated) {
         await onProfileUpdated();
       }
+      if (successMessage) {
+        setToast({ id: Date.now(), message: successMessage, type: 'success' });
+      }
       return true;
     } catch (error: unknown) {
       const message = error instanceof Error && error.message.trim()
         ? error.message
         : fallbackErrorMessage;
       setSaveError(message);
+      setToast({ id: Date.now(), message, type: 'error' });
       return false;
     } finally {
       setIsSaving(false);
@@ -152,7 +174,8 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
 
     const saved = await patchProfileFields(
       { headline: nextHeadline },
-      'Failed to update headline.'
+      'Failed to update headline.',
+      'Headline updated.'
     );
     if (!saved) return;
 
@@ -197,10 +220,10 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
       setIsEditing(false);
       return;
     }
-//saved
     const saved = await patchProfileFields(
       updates,
-      'Failed to update profile.'
+      'Failed to update profile.',
+      'Profile updated.'
     );
     if (!saved) return;
 
@@ -221,7 +244,8 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
     setOpportunityStatus(nextStatus);
     const saved = await patchProfileFields(
       { open_to_work_status: nextStatus },
-      'Failed to update opportunity visibility.'
+      'Failed to update opportunity visibility.',
+      'Opportunity visibility updated.'
     );
 
     if (!saved) {
@@ -231,6 +255,19 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
 
   return (
     <>
+      {toast && (
+        <div
+          key={toast.id}
+          className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+            toast.type === 'error'
+              ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+              : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       <div className="bg-white sm:mt-3 border border-gray-200 rounded-xl p-6 md:p-8 shadow-sm font-manrope transition-all duration-300">
         <div className="flex flex-col md:flex-row items-start gap-4 md:gap-6 relative">
           <div className="relative group shrink-0">

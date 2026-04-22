@@ -27,6 +27,7 @@ interface ExperienceModalProps {
 interface ToastState {
   id: number;
   message: string;
+  type: 'error' | 'success';
 }
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -108,27 +109,27 @@ export default function AddExperienceModal({
     if (!role.trim() || !company.trim()) return;
 
     if (!startDate.trim()) {
-      setToast({ id: Date.now(), message: 'Start date is required.' });
+      setToast({ id: Date.now(), message: 'Start date is required.', type: 'error' });
       return;
     }
 
     if (!isDateValid(startDate)) {
-      setToast({ id: Date.now(), message: 'Start date must be in YYYY-MM-DD format.' });
+      setToast({ id: Date.now(), message: 'Start date must be in YYYY-MM-DD format.', type: 'error' });
       return;
     }
 
     if (!current && !endDate.trim()) {
-      setToast({ id: Date.now(), message: 'End date is required when current role is unchecked.' });
+      setToast({ id: Date.now(), message: 'End date is required when current role is unchecked.', type: 'error' });
       return;
     }
 
     if (!current && !isDateValid(endDate)) {
-      setToast({ id: Date.now(), message: 'End date must be in YYYY-MM-DD format.' });
+      setToast({ id: Date.now(), message: 'End date must be in YYYY-MM-DD format.', type: 'error' });
       return;
     }
 
     if (!accessToken) {
-      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.' });
+      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.', type: 'error' });
       return;
     }
 
@@ -160,12 +161,17 @@ export default function AddExperienceModal({
         await onExperienceAdded();
       }
 
+      setToast({
+        id: Date.now(),
+        message: isEditMode ? 'Experience updated successfully.' : 'Experience added successfully.',
+        type: 'success',
+      });
       closeModal(true);
     } catch (error: unknown) {
       const message = error instanceof Error && error.message.trim()
         ? error.message
         : (isEditMode ? 'Failed to update experience.' : 'Failed to add experience.');
-      setToast({ id: Date.now(), message });
+      setToast({ id: Date.now(), message, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -176,7 +182,11 @@ export default function AddExperienceModal({
       {toast && (
         <div
           key={toast.id}
-          className="fixed top-4 right-4 z-[140] max-w-[360px] bg-[#FEF3F2] border border-[#FDA29B] text-[#B42318] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium"
+          className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+            toast.type === 'error'
+              ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+              : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+          }`}
         >
           {toast.message}
         </div>

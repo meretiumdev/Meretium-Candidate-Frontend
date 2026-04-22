@@ -1,4 +1,5 @@
 import { Book, ChevronUp, ChevronDown, Search, ChevronRight, ArrowLeft, ThumbsUp, ThumbsDown, Lightbulb } from 'lucide-react';
+import React from 'react';
 
 interface HelpCenterSectionProps {
   expanded: boolean;
@@ -17,6 +18,16 @@ const topics = [
 ];
 
 export default function HelpCenterSection({ expanded, onToggle, onSelectArticle, selectedArticle, onBackToTopics }: HelpCenterSectionProps) {
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredTopics = React.useMemo(() => {
+    if (!normalizedSearchQuery) return topics;
+
+    return topics.filter((topic) => (
+      topic.title.toLowerCase().includes(normalizedSearchQuery)
+      || topic.category.toLowerCase().includes(normalizedSearchQuery)
+    ));
+  }, [normalizedSearchQuery]);
   
   const renderArticleContent = () => (
     <div className="space-y-6 font-manrope animate-in fade-in slide-in-from-left-4 duration-300 bg-white">
@@ -95,28 +106,38 @@ export default function HelpCenterSection({ expanded, onToggle, onSelectArticle,
                 </div>
                 <input 
                   type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search help articles..."
                   className="w-full h-[52px] pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-[10px] text-[14px] text-[#101828] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 transition-all font-manrope shadow-sm"
                 />
               </div>
 
               <div className="space-y-0">
-                <h4 className="text-[14px] font-semibold text-[#101828] mb-4">Popular topics</h4>
-                <div className="space-y-3">
-                  {topics.map((topic) => (
-                    <button 
-                      key={topic.title}
-                      onClick={() => onSelectArticle(topic.title)}
-                      className="w-full p-4 sm:p-5 rounded-xl border border-gray-200 bg-white hover:border-[#FF6934/50] hover:shadow-sm transition-all group text-left cursor-pointer flex items-center justify-between"
-                    >
-                      <div>
-                        <h4 className="text-[14px] font-semibold text-[#101828] mb-1 group-hover:text-[#FF6934] transition-colors">{topic.title}</h4>
-                        <p className="text-[12px] text-[#667085]">{topic.category}</p>
-                      </div>
-                      <ChevronRight size={18} className="text-[#98A2B3] group-hover:text-[#FF6934] transition-colors" />
-                    </button>
-                  ))}
-                </div>
+                <h4 className="text-[14px] font-semibold text-[#101828] mb-4">
+                  {normalizedSearchQuery ? 'Search results' : 'Popular topics'}
+                </h4>
+                {filteredTopics.length > 0 ? (
+                  <div className="space-y-3">
+                    {filteredTopics.map((topic) => (
+                      <button 
+                        key={topic.title}
+                        onClick={() => onSelectArticle(topic.title)}
+                        className="w-full p-4 sm:p-5 rounded-xl border border-gray-200 bg-white hover:border-[#FF6934/50] hover:shadow-sm transition-all group text-left cursor-pointer flex items-center justify-between"
+                      >
+                        <div>
+                          <h4 className="text-[14px] font-semibold text-[#101828] mb-1 group-hover:text-[#FF6934] transition-colors">{topic.title}</h4>
+                          <p className="text-[12px] text-[#667085]">{topic.category}</p>
+                        </div>
+                        <ChevronRight size={18} className="text-[#98A2B3] group-hover:text-[#FF6934] transition-colors" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-gray-200 bg-white p-5 text-[14px] text-[#667085]">
+                    No help articles found for "<span className="font-medium text-[#344054]">{searchQuery.trim()}</span>".
+                  </div>
+                )}
               </div>
             </>
           )}

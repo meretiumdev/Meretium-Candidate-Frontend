@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../redux/store';
@@ -8,6 +8,13 @@ interface AddSkillModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSkillAdded?: () => Promise<void> | void;
+  onActionToast?: (message: string, type: 'error' | 'success') => void;
+}
+
+interface ToastState {
+  id: number;
+  message: string;
+  type: 'error' | 'success';
 }
 
 function mapCategoryToApi(category: string): string {
@@ -16,13 +23,13 @@ function mapCategoryToApi(category: string): string {
   return 'CORE';
 }
 
-export default function AddSkillModal({ isOpen, onClose, onSkillAdded }: AddSkillModalProps) {
+export default function AddSkillModal({ isOpen, onClose, onSkillAdded, onActionToast }: AddSkillModalProps) {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [skillName, setSkillName] = useState('');
   const [category, setCategory] = useState('Core');
   const [proficiency, setProficiency] = useState('');
   const [saving, setSaving] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   const proficiencyValue = Number(proficiency);
   const isProficiencyValid = (
@@ -33,7 +40,15 @@ export default function AddSkillModal({ isOpen, onClose, onSkillAdded }: AddSkil
     && proficiencyValue <= 5
   );
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setToast(null);
+    }, 3500);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
+
+  if (!isOpen && !toast) return null;
 
   const closeModal = (force = false) => {
     // Reset state closely following standard modal behavior
@@ -48,12 +63,12 @@ export default function AddSkillModal({ isOpen, onClose, onSkillAdded }: AddSkil
     if (!skillName.trim() || !isProficiencyValid) return;
 
     if (!accessToken) {
-      setToastMessage('You are not authenticated. Please log in again.');
+      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.', type: 'error' });
       return;
     }
 
     setSaving(true);
-    setToastMessage(null);
+    setToast(null);
 
     try {
       await createProfileSkill(accessToken, {
@@ -66,12 +81,21 @@ export default function AddSkillModal({ isOpen, onClose, onSkillAdded }: AddSkil
         await onSkillAdded();
       }
 
-      closeModal(true);
+      const successMessage = 'Skill added successfully.';
+      if (onActionToast) {
+        onActionToast(successMessage, 'success');
+        closeModal(true);
+      } else {
+        setToast({ id: Date.now(), message: successMessage, type: 'success' });
+        window.setTimeout(() => {
+          closeModal(true);
+        }, 600);
+      }
     } catch (error: unknown) {
       const message = error instanceof Error && error.message.trim()
         ? error.message
         : 'Failed to add skill.';
-      setToastMessage(message);
+      setToast({ id: Date.now(), message, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -79,102 +103,109 @@ export default function AddSkillModal({ isOpen, onClose, onSkillAdded }: AddSkil
 
   return (
     <>
-      {toastMessage && (
-        <div className="fixed top-4 right-4 z-[70] max-w-[360px] bg-[#FEF3F2] border border-[#FDA29B] text-[#B42318] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium">
-          {toastMessage}
+      {toast && (
+        <div
+          key={toast.id}
+          className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+            toast.type === 'error'
+              ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+              : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+          }`}
+        >
+          {toast.message}
         </div>
       )}
 
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-all"
-        onClick={() => closeModal()}
-      >
+      {isOpen && (
         <div
-          className="w-full max-w-md bg-white rounded-[16px] shadow-2xl overflow-hidden border border-gray-100"
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-all"
+          onClick={() => closeModal()}
         >
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <h3 className="text-[20px] md:text-[24px] font-semibold text-[#101828]">Add skill</h3>
-          <button 
-            onClick={() => closeModal()}
-            className="text-[#667085] hover:text-gray-900 transition-colors cursor-pointer"
+          <div
+            className="w-full max-w-md bg-white rounded-[16px] shadow-2xl overflow-hidden border border-gray-100"
+            onClick={(e) => e.stopPropagation()}
           >
-            <X size={24} />
-          </button>
-        </div>
+        {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h3 className="text-[20px] md:text-[24px] font-semibold text-[#101828]">Add skill</h3>
+              <button
+                onClick={() => closeModal()}
+                className="text-[#667085] hover:text-gray-900 transition-colors cursor-pointer"
+              >
+                <X size={24} />
+              </button>
+            </div>
 
         {/* Body */}
-        <div className="p-6 space-y-6">
-                    <div>
-            <label className="block text-[#101828] text-[14px] font-medium mb-3">Category</label>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: 'Core', label: 'CORE' },
-                { value: 'Tools', label: 'TOOLS' },
-                { value: 'Soft Skills', label: 'SOFT SKILLS' },
-              ].map((cat) => (
-                <button
-                  key={cat.value}
-                  onClick={() => setCategory(cat.value)}
-                  className={`px-4 py-2 rounded-[8px] text-[14px] font-medium transition-colors cursor-pointer ${
-                    category === cat.value 
-                      ? 'bg-[#FF6934] text-white' 
-                      : 'bg-[#F9FAFB] text-[#475467] hover:bg-gray-100'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="block text-[#101828] text-[14px] font-medium mb-3">Category</label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'Core', label: 'CORE' },
+                    { value: 'Tools', label: 'TOOLS' },
+                    { value: 'Soft Skills', label: 'SOFT SKILLS' },
+                  ].map((cat) => (
+                    <button
+                      key={cat.value}
+                      onClick={() => setCategory(cat.value)}
+                      className={`px-4 py-2 rounded-[8px] text-[14px] font-medium transition-colors cursor-pointer ${
+                        category === cat.value
+                          ? 'bg-[#FF6934] text-white'
+                          : 'bg-[#F9FAFB] text-[#475467] hover:bg-gray-100'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[#101828] text-[14px] font-medium mb-2">Skill name</label>
+                <input
+                  type="text"
+                  value={skillName}
+                  onChange={(e) => setSkillName(e.target.value)}
+                  placeholder="e.g. React, Product Design, Leadership"
+                  className="w-full border border-gray-200 rounded-[8px] px-3.5 py-2.5 text-[14px] text-[#101828] outline-none focus:border-[#FF6934] transition-colors placeholder:text-[#98A2B3]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#101828] text-[14px] font-medium mb-2">Proficiency level (1-5)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={proficiency}
+                  onChange={(e) => setProficiency(e.target.value)}
+                  placeholder="e.g. 4"
+                  className="w-full border border-gray-200 rounded-[8px] px-3.5 py-2.5 text-[14px] text-[#101828] outline-none focus:border-[#FF6934] transition-colors placeholder:text-[#98A2B3]"
+                />
+              </div>
             </div>
-          </div>
-          <div>
-            <label className="block text-[#101828] text-[14px] font-medium mb-2">Skill name</label>
-            <input 
-              type="text" 
-              value={skillName}
-              onChange={(e) => setSkillName(e.target.value)}
-              placeholder="e.g. React, Product Design, Leadership"
-              className="w-full border border-gray-200 rounded-[8px] px-3.5 py-2.5 text-[14px] text-[#101828] outline-none focus:border-[#FF6934] transition-colors placeholder:text-[#98A2B3]"
-            />
-          </div>
-
-
-
-          <div>
-            <label className="block text-[#101828] text-[14px] font-medium mb-2">Proficiency level (1-5)</label>
-            <input
-              type="number"
-              min={1}
-              max={5}
-              step={1}
-              value={proficiency}
-              onChange={(e) => setProficiency(e.target.value)}
-              placeholder="e.g. 4"
-              className="w-full border border-gray-200 rounded-[8px] px-3.5 py-2.5 text-[14px] text-[#101828] outline-none focus:border-[#FF6934] transition-colors placeholder:text-[#98A2B3]"
-            />
-          </div>
-        </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-5 border-t border-gray-100">
-          <button 
-            onClick={() => closeModal()}
-            disabled={saving}
-            className="text-[#475467] text-[14px] font-medium px-4 py-2 hover:bg-gray-50 rounded-[8px] transition-colors cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={() => { void handleAddSkill(); }}
-            disabled={!skillName.trim() || !isProficiencyValid || saving}
-            className="bg-[#FF6934] text-white rounded-[8px] px-5 py-2 text-[14px] font-medium transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Adding...' : 'Add skill'}
-          </button>
+            <div className="flex items-center justify-end gap-3 px-6 py-5 border-t border-gray-100">
+              <button
+                onClick={() => closeModal()}
+                disabled={saving}
+                className="text-[#475467] text-[14px] font-medium px-4 py-2 hover:bg-gray-50 rounded-[8px] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { void handleAddSkill(); }}
+                disabled={!skillName.trim() || !isProficiencyValid || saving}
+                className="bg-[#FF6934] text-white rounded-[8px] px-5 py-2 text-[14px] font-medium transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Adding...' : 'Add skill'}
+              </button>
+            </div>
+          </div>
         </div>
-        </div>
-      </div>
+      )}
     </>
   );
 }

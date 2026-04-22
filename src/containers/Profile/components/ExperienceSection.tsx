@@ -27,6 +27,7 @@ interface ExperienceItem {
 interface ToastState {
   id: number;
   message: string;
+  type: 'error' | 'success';
 }
 
 function readString(record: Record<string, unknown>, keys: string[]): string {
@@ -222,12 +223,12 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
     if (!deleteTarget) return;
 
     if (!accessToken) {
-      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.' });
+      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.', type: 'error' });
       return;
     }
 
     if (!deleteTarget.experienceId) {
-      setToast({ id: Date.now(), message: 'Experience id is missing. Please refresh and try again.' });
+      setToast({ id: Date.now(), message: 'Experience id is missing. Please refresh and try again.', type: 'error' });
       return;
     }
 
@@ -240,18 +241,19 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
       if (onExperienceAdded) {
         await onExperienceAdded();
       }
+      setToast({ id: Date.now(), message: 'Experience deleted successfully.', type: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error && error.message.trim()
         ? error.message
         : 'Failed to delete experience.';
-      setToast({ id: Date.now(), message });
+      setToast({ id: Date.now(), message, type: 'error' });
     } finally {
       setDeleting(false);
     }
   };
 
   const handleAiImprove = () => {
-    setToast({ id: Date.now(), message: 'AI improvement is not available yet.' });
+    setToast({ id: Date.now(), message: 'AI improvement is not available yet.', type: 'error' });
   };
 
   return (
@@ -259,7 +261,11 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
       {toast && (
         <div
           key={toast.id}
-          className="fixed top-4 right-4 z-[140] max-w-[360px] bg-[#FEF3F2] border border-[#FDA29B] text-[#B42318] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium"
+          className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+            toast.type === 'error'
+              ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+              : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+          }`}
         >
           {toast.message}
         </div>

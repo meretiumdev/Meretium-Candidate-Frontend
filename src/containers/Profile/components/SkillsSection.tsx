@@ -23,6 +23,7 @@ interface SkillItem {
 interface ToastState {
   id: number;
   message: string;
+  type: 'error' | 'success';
 }
 
 const CATEGORY_ORDER = ['CORE', 'TOOLS', 'SOFT SKILLS'] as const;
@@ -171,12 +172,12 @@ export default function SkillsSection({ skills, onSkillAdded }: SkillsSectionPro
 
   const handleDeleteSkill = async (skill: SkillItem) => {
     if (!accessToken) {
-      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.' });
+      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.', type: 'error' });
       return;
     }
 
     if (!skill.skillId) {
-      setToast({ id: Date.now(), message: 'Skill id is missing. Please refresh and try again.' });
+      setToast({ id: Date.now(), message: 'Skill id is missing. Please refresh and try again.', type: 'error' });
       return;
     }
 
@@ -188,11 +189,12 @@ export default function SkillsSection({ skills, onSkillAdded }: SkillsSectionPro
       if (onSkillAdded) {
         await onSkillAdded();
       }
+      setToast({ id: Date.now(), message: 'Skill deleted successfully.', type: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error && error.message.trim()
         ? error.message
         : 'Failed to delete skill.';
-      setToast({ id: Date.now(), message });
+      setToast({ id: Date.now(), message, type: 'error' });
     } finally {
       setDeletingSkillId(null);
     }
@@ -203,7 +205,11 @@ export default function SkillsSection({ skills, onSkillAdded }: SkillsSectionPro
       {toast && (
         <div
           key={toast.id}
-          className="fixed top-4 right-4 z-[140] max-w-[360px] bg-[#FEF3F2] border border-[#FDA29B] text-[#B42318] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium"
+          className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+            toast.type === 'error'
+              ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+              : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+          }`}
         >
           {toast.message}
         </div>
@@ -265,7 +271,14 @@ export default function SkillsSection({ skills, onSkillAdded }: SkillsSectionPro
           </div>
         )}
       </div>
-      <AddSkillModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSkillAdded={onSkillAdded} />
+      <AddSkillModal
+        isOpen={isModalOpen}
+        onClose={() => setModalOpen(false)}
+        onSkillAdded={onSkillAdded}
+        onActionToast={(message, type) => {
+          setToast({ id: Date.now(), message, type });
+        }}
+      />
     </>
   );
 }

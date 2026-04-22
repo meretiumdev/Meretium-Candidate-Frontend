@@ -23,6 +23,7 @@ interface CVItem {
 interface ToastState {
   id: number;
   message: string;
+  type: 'error' | 'success';
 }
 
 function readString(record: Record<string, unknown>, keys: string[]): string {
@@ -119,7 +120,7 @@ export default function CVSection({ cvs, onCvUploaded }: CVSectionProps) {
 
   const getAccessToken = (): string | null => {
     if (!accessToken) {
-      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.' });
+      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.', type: 'error' });
       return null;
     }
     return accessToken;
@@ -127,7 +128,7 @@ export default function CVSection({ cvs, onCvUploaded }: CVSectionProps) {
 
   const validateCvAction = (cv: CVItem | null): cv is CVItem & { cvId: string } => {
     if (!cv || !cv.cvId) {
-      setToast({ id: Date.now(), message: 'CV id is missing. Please refresh and try again.' });
+      setToast({ id: Date.now(), message: 'CV id is missing. Please refresh and try again.', type: 'error' });
       return false;
     }
 
@@ -147,11 +148,12 @@ export default function CVSection({ cvs, onCvUploaded }: CVSectionProps) {
         is_primary: !cv.isDefault,
       });
       await refreshCvs();
+      setToast({ id: Date.now(), message: 'Default CV updated.', type: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error && error.message.trim()
         ? error.message
         : 'Failed to update primary CV.';
-      setToast({ id: Date.now(), message });
+      setToast({ id: Date.now(), message, type: 'error' });
     } finally {
       setUpdatingPrimaryCvId(null);
     }
@@ -171,11 +173,12 @@ export default function CVSection({ cvs, onCvUploaded }: CVSectionProps) {
       });
       setRenameTarget(null);
       await refreshCvs();
+      setToast({ id: Date.now(), message: 'CV name updated.', type: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error && error.message.trim()
         ? error.message
         : 'Failed to rename CV.';
-      setToast({ id: Date.now(), message });
+      setToast({ id: Date.now(), message, type: 'error' });
     } finally {
       setRenamingCvId(null);
     }
@@ -193,11 +196,12 @@ export default function CVSection({ cvs, onCvUploaded }: CVSectionProps) {
       await deleteCandidateCv(token, deleteTarget.cvId);
       setDeleteTarget(null);
       await refreshCvs();
+      setToast({ id: Date.now(), message: 'CV deleted successfully.', type: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error && error.message.trim()
         ? error.message
         : 'Failed to delete CV.';
-      setToast({ id: Date.now(), message });
+      setToast({ id: Date.now(), message, type: 'error' });
     } finally {
       setDeletingCvId(null);
     }
@@ -208,7 +212,11 @@ export default function CVSection({ cvs, onCvUploaded }: CVSectionProps) {
       {toast && (
         <div
           key={toast.id}
-          className="fixed top-4 right-4 z-[140] max-w-[360px] bg-[#FEF3F2] border border-[#FDA29B] text-[#B42318] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium"
+          className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+            toast.type === 'error'
+              ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+              : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+          }`}
         >
           {toast.message}
         </div>

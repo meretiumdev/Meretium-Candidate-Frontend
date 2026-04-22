@@ -9,6 +9,12 @@ interface AboutSectionProps {
   onProfileUpdated?: () => Promise<void> | void;
 }
 
+interface ToastState {
+  id: number;
+  message: string;
+  type: 'error' | 'success';
+}
+
 const AI_APPENDIX =
   'With over 8 years of experience in product design, I specialize in creating intuitive, user-centered interfaces that drive business results. My approach combines deep user research, rapid prototyping, and data-driven decision making to deliver exceptional digital experiences.';
 
@@ -20,6 +26,7 @@ export default function AboutSection({ about, onProfileUpdated }: AboutSectionPr
   const [aboutDraft, setAboutDraft] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   useEffect(() => {
     setAboutText(about.trim());
@@ -38,6 +45,14 @@ export default function AboutSection({ about, onProfileUpdated }: AboutSectionPr
     setIsEditingLocal(true);
   };
 
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setToast(null);
+    }, 3500);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
+
   const cancelEditing = () => {
     setAboutDraft('');
     setAboutText(about.trim());
@@ -53,7 +68,9 @@ export default function AboutSection({ about, onProfileUpdated }: AboutSectionPr
     }
 
     if (!accessToken) {
-      setSaveError('You are not authenticated. Please log in again.');
+      const message = 'You are not authenticated. Please log in again.';
+      setSaveError(message);
+      setToast({ id: Date.now(), message, type: 'error' });
       return;
     }
 
@@ -67,11 +84,13 @@ export default function AboutSection({ about, onProfileUpdated }: AboutSectionPr
         await onProfileUpdated();
       }
       setIsEditingLocal(false);
+      setToast({ id: Date.now(), message: 'About section updated.', type: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error && error.message.trim()
         ? error.message
         : 'Failed to update about section.';
       setSaveError(message);
+      setToast({ id: Date.now(), message, type: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -79,6 +98,19 @@ export default function AboutSection({ about, onProfileUpdated }: AboutSectionPr
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mt-6 font-manrope transition-all duration-300">
+      {toast && (
+        <div
+          key={toast.id}
+          className={`fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+            toast.type === 'error'
+              ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+              : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-[18px] md:text-[20px] font-semibold text-[#101828]">About</h2>
         {!isEditingLocal && (
