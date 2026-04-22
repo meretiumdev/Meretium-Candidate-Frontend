@@ -106,6 +106,7 @@ export default function AccountContent({ settings, onPhoneChanged }: AccountCont
             type="text" 
             value={fullName}
             onChange={(event) => setFullName(event.target.value)}
+            disabled={true}
             className="w-full px-4 py-3 bg-[#F9FAFB] border border-[#E4E7EC] rounded-[10px] text-[14px] text-[#101828] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 transition-all font-manrope"
           />
         </div>

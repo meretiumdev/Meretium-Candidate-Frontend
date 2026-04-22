@@ -1,9 +1,10 @@
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { AlertTriangle, Pause, Trash2 } from 'lucide-react';
+import { AlertTriangle, Pause, Trash2, X } from 'lucide-react';
 import type { RootState } from '../../../redux/store';
 import { logout } from '../../../redux/store';
 import { deactivateAccount, deleteAccount } from '../../../services/dangerZoneApi';
+import { logoutUser } from '../../../services/authApi';
 
 type DangerAction = 'deactivate' | 'delete';
 
@@ -13,28 +14,6 @@ interface ToastState {
   type: 'success' | 'error';
 }
 
-interface ConfirmationContent {
-  title: string;
-  message: string;
-  confirmLabel: string;
-  confirmLabelLoading: string;
-}
-
-const confirmationByAction: Record<DangerAction, ConfirmationContent> = {
-  deactivate: {
-    title: 'Deactivate account?',
-    message: 'Your profile will be hidden from recruiters until you reactivate your account.',
-    confirmLabel: 'Deactivate',
-    confirmLabelLoading: 'Deactivating...',
-  },
-  delete: {
-    title: 'Delete account?',
-    message: 'Your account and all associated data will be permanently deleted. This action cannot be undone.',
-    confirmLabel: 'Delete',
-    confirmLabelLoading: 'Deleting...',
-  },
-};
-
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) return error.message;
   return fallback;
@@ -42,12 +21,12 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 export default function DangerZoneContent() {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const refreshToken = useSelector((state: RootState) => state.auth.refreshToken);
   const dispatch = useDispatch();
   const [toast, setToast] = React.useState<ToastState | null>(null);
   const [actionToConfirm, setActionToConfirm] = React.useState<DangerAction | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isRedirecting, setIsRedirecting] = React.useState(false);
-  const redirectTimerRef = React.useRef<number | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = React.useState('');
 
   React.useEffect(() => {
     if (!toast) return undefined;
@@ -57,12 +36,6 @@ export default function DangerZoneContent() {
     return () => window.clearTimeout(timeoutId);
   }, [toast]);
 
-  React.useEffect(() => () => {
-    if (redirectTimerRef.current !== null) {
-      window.clearTimeout(redirectTimerRef.current);
-    }
-  }, []);
-
   const showSuccessToast = React.useCallback((message: string) => {
     setToast({ id: Date.now(), message, type: 'success' });
   }, []);
@@ -71,10 +44,29 @@ export default function DangerZoneContent() {
     setToast({ id: Date.now(), message, type: 'error' });
   }, []);
 
-  const handleConfirmAction = async () => {
-    if (!actionToConfirm || isSubmitting || isRedirecting) return;
+  const closeModal = () => {
+    if (isSubmitting) return;
+    setActionToConfirm(null);
+    setDeleteConfirmText('');
+  };
 
-    if (!accessToken?.trim()) {
+  const runLogoutFlow = async () => {
+    const trimmedAccessToken = accessToken?.trim() || '';
+    const trimmedRefreshToken = refreshToken?.trim() || '';
+    if (!trimmedAccessToken || !trimmedRefreshToken) {
+      throw new Error('Unable to logout. Missing authentication token.');
+    }
+
+    await logoutUser(trimmedAccessToken, { refresh_token: trimmedRefreshToken });
+    dispatch(logout());
+    window.location.replace('/auth');
+  };
+
+  const handleDeactivateConfirm = async () => {
+    if (isSubmitting) return;
+
+    const trimmedAccessToken = accessToken?.trim() || '';
+    if (!trimmedAccessToken) {
       showErrorToast('You are not authenticated. Please log in again.');
       return;
     }
@@ -82,42 +74,49 @@ export default function DangerZoneContent() {
     setIsSubmitting(true);
 
     try {
-      const responseMessage = actionToConfirm === 'deactivate'
-        ? await deactivateAccount(accessToken)
-        : await deleteAccount(accessToken);
-
-      showSuccessToast(
-        responseMessage
-        || (actionToConfirm === 'deactivate'
-          ? 'Account deactivated successfully.'
-          : 'Account deleted successfully.')
-      );
-
-      setActionToConfirm(null);
-
-      if (actionToConfirm === 'delete') {
-        setIsRedirecting(true);
-        redirectTimerRef.current = window.setTimeout(() => {
-          dispatch(logout());
-          window.location.replace('/auth');
-        }, 1200);
-      }
+      const responseMessage = await deactivateAccount(trimmedAccessToken);
+      showSuccessToast(responseMessage || 'Account deactivated successfully.');
+      await runLogoutFlow();
     } catch (error: unknown) {
       showErrorToast(
         getErrorMessage(
           error,
-          actionToConfirm === 'deactivate'
-            ? 'Unable to deactivate account. Please try again.'
-            : 'Unable to delete account. Please try again.'
+          'Unable to deactivate account. Please try again.'
         )
       );
-    } finally {
       setIsSubmitting(false);
     }
   };
 
-  const isBusy = isSubmitting || isRedirecting;
-  const confirmationContent = actionToConfirm ? confirmationByAction[actionToConfirm] : null;
+  const handleDeleteConfirm = async () => {
+    if (isSubmitting) return;
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') return;
+
+    const trimmedAccessToken = accessToken?.trim() || '';
+    if (!trimmedAccessToken) {
+      showErrorToast('You are not authenticated. Please log in again.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const responseMessage = await deleteAccount(trimmedAccessToken);
+      showSuccessToast(responseMessage || 'Account deleted successfully.');
+      await runLogoutFlow();
+    } catch (error: unknown) {
+      showErrorToast(
+        getErrorMessage(
+          error,
+          'Unable to delete account. Please try again.'
+        )
+      );
+      setIsSubmitting(false);
+    }
+  };
+
+  const isBusy = isSubmitting;
+  const isDeleteConfirmValid = deleteConfirmText.trim().toUpperCase() === 'DELETE';
 
   return (
     <>
@@ -150,9 +149,12 @@ export default function DangerZoneContent() {
                 <p className="text-[14px] text-[#667085] leading-relaxed">Temporarily hide your profile from recruiters. You can reactivate anytime.</p>
               </div>
               <button
-                onClick={() => setActionToConfirm('deactivate')}
+                onClick={() => {
+                  setActionToConfirm('deactivate');
+                  setDeleteConfirmText('');
+                }}
                 disabled={isBusy}
-                className="px-6 h-[44px] border border-gray-200 text-[#344054] rounded-[10px] text-[14px] font-medium hover:border-red-200 hover:text-red-600 transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                className="px-6 h-[44px] border border-gray-200 text-[#344054] rounded-[10px] text-[14px] font-medium hover:border-[#E7000B]/30 hover:text-[#E7000B] transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Deactivate account
               </button>
@@ -169,9 +171,12 @@ export default function DangerZoneContent() {
                 <p className="text-[14px] text-[#667085] leading-relaxed">Permanently delete your account and all associated data. This action cannot be undone.</p>
               </div>
               <button
-                onClick={() => setActionToConfirm('delete')}
+                onClick={() => {
+                  setActionToConfirm('delete');
+                  setDeleteConfirmText('');
+                }}
                 disabled={isBusy}
-                className="px-6 h-[44px] border border-gray-200 text-[#344054] rounded-[10px] text-[14px] font-medium hover:bg-red-600 hover:text-white hover:border-red-600 transition-all flex items-center gap-2 cursor-pointer shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                className="px-6 h-[44px] border border-gray-200 text-[#344054] rounded-[10px] text-[14px] font-medium hover:bg-[#E7000B] hover:text-white hover:border-[#E7000B] transition-all flex items-center gap-2 cursor-pointer shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Trash2 size={18} />
                 Delete account
@@ -181,39 +186,110 @@ export default function DangerZoneContent() {
         </div>
       </div>
 
-      {actionToConfirm && confirmationContent && (
+      {actionToConfirm === 'deactivate' && (
         <div
-          className="fixed inset-0 z-[170] flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[170] flex items-center justify-center bg-black/45 p-3 sm:p-4"
           onClick={() => {
-            if (!isBusy) setActionToConfirm(null);
+            if (!isBusy) closeModal();
           }}
         >
           <div
-            className="w-full max-w-sm rounded-[16px] border border-gray-100 bg-white p-6 text-center shadow-2xl"
+            className="w-full max-w-[480px] rounded-[14px] bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mx-auto mb-5 flex size-12 items-center justify-center rounded-full bg-[#FEE4E2]">
-              <AlertTriangle size={24} className="text-[#F04438]" />
+            <div className="flex items-center justify-between px-4 sm:px-5 pt-5 sm:pt-6">
+              <h3 className="text-[18px] leading-none font-semibold text-[#111827]">Deactivate Account</h3>
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={isBusy}
+                className="text-[#98A2B3] hover:text-[#667085] transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <h3 className="mb-2 text-[18px] font-semibold text-[#101828]">{confirmationContent.title}</h3>
-            <p className="mb-8 text-[14px] leading-relaxed text-[#475467]">
-              {confirmationContent.message}
-            </p>
-            <div className="flex items-center justify-center gap-3">
+            <div className="px-4 sm:px-5 pt-3 pb-5 sm:pb-6">
+              <p className="text-[14px] sm:text-[14px] leading-[1.45] text-[#364153] mb-5 font-400">
+                Deactivate your account? You can reactivate later by logging in again.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={closeModal}
+                  disabled={isBusy}
+                  className="h-[42px] rounded-[10px] bg-white border border-[#D0D5DD] text-[#344054] text-[14px] sm:text-[15px] font-medium hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { void handleDeactivateConfirm(); }}
+                  disabled={isBusy}
+                  className="h-[42px] rounded-[10px] bg-[#E7000B] text-white text-[14px] sm:text-[15px] font-medium hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting ? 'Deactivating...' : 'Deactivate'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {actionToConfirm === 'delete' && (
+        <div
+          className="fixed inset-0 z-[170] flex items-center justify-center bg-black/45 p-3 sm:p-4"
+          onClick={() => {
+            if (!isBusy) closeModal();
+          }}
+        >
+          <div
+            className="w-full max-w-[480px] rounded-[14px] bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 sm:px-6 pt-5 sm:pt-6">
+              <h3 className="text-[18px] leading-none font-semibold text-[#111827]">Delete Account</h3>
               <button
-                onClick={() => setActionToConfirm(null)}
+                type="button"
+                onClick={closeModal}
                 disabled={isBusy}
-                className="rounded-[8px] border border-gray-300 px-6 py-2 text-[14px] font-medium text-[#344054] transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="text-[#98A2B3] hover:text-[#667085] transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-1"
               >
-                Cancel
+                <X size={18} />
               </button>
-              <button
-                onClick={() => { void handleConfirmAction(); }}
-                disabled={isBusy}
-                className="rounded-[8px] bg-[#FF6934] px-6 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSubmitting ? confirmationContent.confirmLabelLoading : confirmationContent.confirmLabel}
-              </button>
+            </div>
+            <div className="px-5 sm:px-6 pt-3 pb-5 sm:pb-6 space-y-4">
+              <div className="rounded-[12px] border border-[#F5B5BB] bg-[#FFF2F3] px-3.5 py-3 flex items-start gap-2">
+                <AlertTriangle size={15} className="text-[#B10D17] shrink-0 mt-0.5" />
+                <p className="text-[14px] leading-[1.45] text-[#B10D17]">
+                  Deleting your account is permanent and cannot be undone. All your data will be lost.
+                </p>
+              </div>
+              <div>
+                <p className="text-[14px] text-[#101828] mb-2 line-2">Type <span className="font-semibold">DELETE</span> to confirm</p>
+                <input
+                  value={deleteConfirmText}
+                  onChange={(event) => setDeleteConfirmText(event.target.value)}
+                  disabled={isBusy}
+                  placeholder="DELETE"
+                  className="w-full h-[42px] rounded-[10px] border border-[#D0D5DD] px-3.5 text-[14px] text-[#101828] placeholder:text-[#98A2B3] focus:outline-none focus:border-[#E7000B] focus:ring-2 focus:ring-[#E7000B]/20 disabled:bg-[#F9FAFB] disabled:cursor-not-allowed"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={closeModal}
+                  disabled={isBusy}
+                  className="h-[42px] rounded-[10px] border border-[#D0D5DD] bg-white text-[#344054] text-[14px] sm:text-[15px] font-medium hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { void handleDeleteConfirm(); }}
+                  disabled={isBusy || !isDeleteConfirmValid}
+                  className={`h-[42px] rounded-[10px] text-white text-[14px] sm:text-[15px] font-medium transition-opacity disabled:cursor-not-allowed ${
+                    isDeleteConfirmValid ? 'bg-[#E7000B] hover:opacity-90' : 'bg-[#E97680]'
+                  }`}
+                >
+                  {isSubmitting ? 'Deleting...' : 'Delete Account'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

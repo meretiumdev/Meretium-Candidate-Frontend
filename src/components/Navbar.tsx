@@ -1,4 +1,4 @@
-import { Search, Briefcase, FileText, Bookmark, MessageSquare, Bell, User, Settings, LogOut, Building2 } from 'lucide-react';
+import { Search, Briefcase, FileText, Bookmark, MessageSquare, Bell, User, Settings, LogOut } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import logo from '../assets/logo_primary.png';
@@ -7,6 +7,7 @@ import NotificationsModal from './NotificationsModal';
 import { logout } from '../redux/store';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../redux/store';
+import { logoutUser } from '../services/authApi';
 
 function getUserEmail(user: unknown): string {
   if (typeof user !== 'object' || user === null) return 'Email not available';
@@ -40,18 +41,44 @@ export default function Navbar() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const refreshToken = useSelector((state: RootState) => state.auth.refreshToken);
   const location = useLocation();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const userEmail = getUserEmail(user);
   const userName = getUserName(user);
   const userInitial = getUserInitial(userName);
 
-  const handleLogout = () => {
-    setIsProfileMenuOpen(false);
-    dispatch(logout());
-    navigate('/auth');
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+
+    setLogoutError(null);
+
+    try {
+      const trimmedAccessToken = accessToken?.trim() || '';
+      const trimmedRefreshToken = refreshToken?.trim() || '';
+      if (!trimmedAccessToken || !trimmedRefreshToken) {
+        setLogoutError('Unable to logout. Missing authentication token.');
+        return;
+      }
+
+      setIsLoggingOut(true);
+      await logoutUser(trimmedAccessToken, { refresh_token: trimmedRefreshToken });
+      setIsProfileMenuOpen(false);
+      dispatch(logout());
+      navigate('/auth', { replace: true });
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message.trim()) {
+        setLogoutError(error.message);
+      } else {
+        setLogoutError('Unable to logout. Please try again.');
+      }
+      setIsLoggingOut(false);
+    }
   };
 
   const jobsActive = location.pathname.startsWith('/jobs') || location.pathname === '/explore-jobs';
@@ -195,11 +222,15 @@ export default function Navbar() {
                     <Settings size={16} /> Settings
                   </button>
                   <button 
-                    onClick={handleLogout}
-                    className="w-full flex items-center cursor-pointer gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left font-medium mt-1 border-t border-gray-50 pt-3"
+                    onClick={() => { void handleLogout(); }}
+                    disabled={isLoggingOut}
+                    className="w-full flex items-center cursor-pointer gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left font-medium mt-1 border-t border-gray-50 pt-3 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <LogOut size={16} /> Logout
+                    <LogOut size={16} /> {isLoggingOut ? 'Logging out...' : 'Logout'}
                   </button>
+                  {logoutError && (
+                    <p className="px-4 pb-2 text-[12px] text-[#B42318]">{logoutError}</p>
+                  )}
                 </div>
               )}
             </div>

@@ -13,6 +13,19 @@ import HelpSupportContent from './components/HelpSupportContent';
 import DangerZoneContent from './components/DangerZoneContent';
 import { getCandidateSettings, type CandidateSettingsResponse } from '../../services/settingsApi';
 
+const SETTINGS_ACTIVE_TAB_STORAGE_KEY = 'settings-active-tab';
+const SETTINGS_TABS = [
+  'Account',
+  'Profile & Visibility',
+  'CV & Data',
+  'Notifications',
+  'AI Preferences',
+  'Security',
+  'Integrations',
+  'Help & Support',
+  'Danger Zone',
+];
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) return error.message;
   return 'Failed to load settings. Please try again.';
@@ -20,7 +33,16 @@ function getErrorMessage(error: unknown): string {
 
 export default function Settings() {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
-  const [activeTab, setActiveTab] = React.useState('Account');
+  const [activeTab, setActiveTab] = React.useState(() => {
+    if (typeof window === 'undefined') return 'Account';
+
+    const savedTab = window.sessionStorage.getItem(SETTINGS_ACTIVE_TAB_STORAGE_KEY);
+    if (savedTab && SETTINGS_TABS.includes(savedTab)) {
+      return savedTab;
+    }
+
+    return 'Account';
+  });
   const [settingsData, setSettingsData] = React.useState<CandidateSettingsResponse | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -62,6 +84,11 @@ export default function Settings() {
   React.useEffect(() => {
     void loadSettings({ showLoading: true });
   }, [loadSettings]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(SETTINGS_ACTIVE_TAB_STORAGE_KEY, activeTab);
+  }, [activeTab]);
 
   if (isLoading && !settingsData) {
     return (

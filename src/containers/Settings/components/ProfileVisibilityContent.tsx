@@ -23,9 +23,9 @@ const Toggle = ({ label, subtextText, checked, onChange, disabled = false }: Tog
       <button 
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`w-11 h-6 rounded-full transition-colors relative duration-200 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${checked ? 'bg-[#FF6934]' : 'bg-[#EAECF0]'}`}
+        className={`w-11 h-6 rounded-full transition-colors relative duration-200 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ${checked ? 'bg-[#FF6934]' : 'bg-[#FDF7E9]'}`}
       >
-        <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform duration-200 ${checked ? 'translate-x-5 bg-white' : 'translate-x-0 bg-[#FF6934]'}`} />
       </button>
     </div>
   );

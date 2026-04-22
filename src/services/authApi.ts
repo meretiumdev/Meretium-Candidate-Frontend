@@ -72,6 +72,10 @@ interface RefreshAccessTokenRequest {
   refresh_token: string;
 }
 
+interface LogoutRequest {
+  refresh_token: string;
+}
+
 interface EmailChangeRequestPayload {
   new_email: string;
   password: string;
@@ -333,7 +337,12 @@ async function post<TResponse>(path: string, body: unknown): Promise<TResponse> 
   return payload as TResponse;
 }
 
-async function postAuthorized<TResponse>(path: string, accessToken: string, body: unknown): Promise<TResponse> {
+async function postAuthorized<TResponse>(
+  path: string,
+  accessToken: string,
+  body: unknown,
+  options?: { expectedStatus?: number }
+): Promise<TResponse> {
   if (!AUTH_API_BASE_URL) {
     throw new Error('Missing VITE_AUTH_API_BASE_URL in environment variables.');
   }
@@ -371,6 +380,15 @@ async function postAuthorized<TResponse>(path: string, accessToken: string, body
       status: response.status,
       code,
       message: detailMessage || message || `Request failed with status ${response.status}`,
+      payload,
+    });
+  }
+
+  if (options?.expectedStatus && response.status !== options.expectedStatus) {
+    throw new ApiError({
+      status: response.status,
+      code,
+      message: detailMessage || message || `Request returned unexpected status ${response.status}`,
       payload,
     });
   }
@@ -421,6 +439,10 @@ export async function resetPassword(payload: ResetPasswordRequest): Promise<ApiR
 
 export async function refreshAccessToken(payload: RefreshAccessTokenRequest): Promise<ApiResponse<unknown>> {
   return post<ApiResponse<unknown>>('/refresh', payload);
+}
+
+export async function logoutUser(accessToken: string, payload: LogoutRequest): Promise<ApiResponse<unknown>> {
+  return postAuthorized<ApiResponse<unknown>>('/logout', accessToken, payload, { expectedStatus: 200 });
 }
 
 export async function requestEmailChange(accessToken: string, payload: EmailChangeRequestPayload): Promise<ApiResponse<unknown>> {

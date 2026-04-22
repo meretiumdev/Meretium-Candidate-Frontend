@@ -28,18 +28,18 @@ const SessionItem = ({
   onLogout,
 }: SessionItemProps) => {
   return (
-    <div className="flex items-center justify-between py-4 border-b border-gray-200 last:border-0 last:pb-0 font-manrope">
-      <div>
+    <div className="flex items-center justify-between gap-4 rounded-[10px] border border-[#EAECF0] bg-[#FCFCFD] px-4 py-3 font-manrope">
+      <div className="min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <h4 className="text-[14px] font-medium text-[#101828]">{device}</h4>
           {isCurrent && (
-            <span className="px-2 py-0.5 bg-[#ECFDF3] text-[#027A48] text-[12px] font-medium rounded-full border border-[#ABEFC6]">
-              Current session
+            <span className="inline-flex items-center rounded-full bg-[#FFF1EC] px-2 py-0.5 text-[11px] leading-[14px] font-medium text-[#FF6934]">
+              Current
             </span>
           )}
         </div>
         <p className="text-[12px] text-[#667085]">
-          {location} - {time}
+          {location} · {time}
         </p>
       </div>
       {!isCurrent && (

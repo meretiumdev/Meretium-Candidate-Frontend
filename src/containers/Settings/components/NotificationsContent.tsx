@@ -15,9 +15,9 @@ const SmallToggle = ({ checked, onChange, disabled = false }: ToggleProps) => {
     <button 
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`w-10 h-5 rounded-full transition-colors relative duration-200 shrink-0 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${checked ? 'bg-[#FF6934]' : 'bg-[#EAECF0]'}`}
+      className={`w-10 h-5 rounded-full transition-colors relative duration-200 shrink-0 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ${checked ? 'bg-[#FF6934]' : 'bg-[#FDF7E9]'}`}
     >
-      <div className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-transform duration-200 ${checked ? 'translate-x-5 bg-white' : 'translate-x-0 bg-[#FF6934]'}`} />
     </button>
   );
 };
