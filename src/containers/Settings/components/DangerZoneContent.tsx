@@ -50,7 +50,12 @@ export default function DangerZoneContent() {
     setDeleteConfirmText('');
   };
 
-  const runLogoutFlow = async () => {
+  const runClientLogoutFlow = () => {
+    dispatch(logout());
+    window.location.replace('/auth');
+  };
+
+  const runServerLogoutFlow = async () => {
     const trimmedAccessToken = accessToken?.trim() || '';
     const trimmedRefreshToken = refreshToken?.trim() || '';
     if (!trimmedAccessToken || !trimmedRefreshToken) {
@@ -58,8 +63,7 @@ export default function DangerZoneContent() {
     }
 
     await logoutUser(trimmedAccessToken, { refresh_token: trimmedRefreshToken });
-    dispatch(logout());
-    window.location.replace('/auth');
+    runClientLogoutFlow();
   };
 
   const handleDeactivateConfirm = async () => {
@@ -74,9 +78,9 @@ export default function DangerZoneContent() {
     setIsSubmitting(true);
 
     try {
-      const responseMessage = await deactivateAccount(trimmedAccessToken);
-      showSuccessToast(responseMessage || 'Account deactivated successfully.');
-      await runLogoutFlow();
+      await deactivateAccount(trimmedAccessToken);
+      // Deactivate revokes the session server-side, so finish with local logout.
+      runClientLogoutFlow();
     } catch (error: unknown) {
       showErrorToast(
         getErrorMessage(
@@ -103,7 +107,7 @@ export default function DangerZoneContent() {
     try {
       const responseMessage = await deleteAccount(trimmedAccessToken);
       showSuccessToast(responseMessage || 'Account deleted successfully.');
-      await runLogoutFlow();
+      await runServerLogoutFlow();
     } catch (error: unknown) {
       showErrorToast(
         getErrorMessage(
