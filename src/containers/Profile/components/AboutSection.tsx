@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sparkles, Edit3 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../redux/store';
-import { updateCandidateProfile } from '../../../services/profileApi';
+import { generateCandidateProfileSummary, updateCandidateProfile } from '../../../services/profileApi';
 
 interface AboutSectionProps {
   about: string;
@@ -15,14 +15,14 @@ interface ToastState {
   type: 'error' | 'success';
 }
 
-const AI_APPENDIX =
-  'With over 8 years of experience in product design, I specialize in creating intuitive, user-centered interfaces that drive business results. My approach combines deep user research, rapid prototyping, and data-driven decision making to deliver exceptional digital experiences.';
+const ABOUT_PREVIEW_LIMIT = 420;
 
 export default function AboutSection({ about, onProfileUpdated }: AboutSectionProps) {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
-  const [isImproving, setIsImproving] = useState(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isEditingLocal, setIsEditingLocal] = useState(false);
   const [aboutText, setAboutText] = useState('');
+  const [isAboutExpanded, setIsAboutExpanded] = useState(false);
   const [aboutDraft, setAboutDraft] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -32,15 +32,12 @@ export default function AboutSection({ about, onProfileUpdated }: AboutSectionPr
     setAboutText(about.trim());
   }, [about]);
 
-  const aiImprovedText = useMemo(() => {
-    const base = aboutText.trim();
-    if (!base) return AI_APPENDIX;
-    return `${base}\n\n${AI_APPENDIX}`;
+  useEffect(() => {
+    setIsAboutExpanded(false);
   }, [aboutText]);
 
   const startEditing = () => {
     setAboutDraft(aboutText);
-    setIsImproving(false);
     setSaveError(null);
     setIsEditingLocal(true);
   };
@@ -96,6 +93,43 @@ export default function AboutSection({ about, onProfileUpdated }: AboutSectionPr
     }
   };
 
+  const improveWithAi = async () => {
+    const currentAbout = aboutText.trim();
+    if (!currentAbout) return;
+
+    if (!accessToken) {
+      const message = 'You are not authenticated. Please log in again.';
+      setSaveError(message);
+      setToast({ id: Date.now(), message, type: 'error' });
+      return;
+    }
+
+    setIsGeneratingSummary(true);
+    setSaveError(null);
+
+    try {
+      const generatedSummary = await generateCandidateProfileSummary(accessToken, currentAbout);
+      setAboutDraft(generatedSummary);
+      setIsEditingLocal(true);
+      setToast({ id: Date.now(), message: 'AI summary generated. Review and save your changes.', type: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error && error.message.trim()
+        ? error.message
+        : 'Failed to generate AI summary.';
+      setSaveError(message);
+      setToast({ id: Date.now(), message, type: 'error' });
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
+  const isImproveDisabled = aboutText.trim().length === 0 || isGeneratingSummary || isSaving;
+  const trimmedAboutText = aboutText.trim();
+  const isAboutLong = trimmedAboutText.length > ABOUT_PREVIEW_LIMIT;
+  const visibleAboutText = isAboutExpanded || !isAboutLong
+    ? trimmedAboutText
+    : `${trimmedAboutText.slice(0, ABOUT_PREVIEW_LIMIT).trimEnd()}...`;
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mt-6 font-manrope transition-all duration-300">
       {toast && (
@@ -122,10 +156,15 @@ export default function AboutSection({ about, onProfileUpdated }: AboutSectionPr
               <Edit3 size={18} />
             </button>
             <button
-              onClick={() => setIsImproving(!isImproving)}
-              className={`flex items-center gap-2 text-[14px] font-bold transition-colors cursor-pointer ${isImproving ? 'text-[#FF6934]' : 'text-[#475467] hover:text-[#FF6934]'}`}
+              onClick={() => { void improveWithAi(); }}
+              disabled={isImproveDisabled}
+              className={`flex items-center gap-2 text-[14px] font-bold transition-colors ${
+                isImproveDisabled
+                  ? 'text-[#98A2B3] cursor-not-allowed'
+                  : 'text-[#475467] hover:text-[#FF6934] cursor-pointer'
+              }`}
             >
-              <Sparkles size={18} /> Improve with AI
+              <Sparkles size={18} /> {isGeneratingSummary ? 'Improving...' : 'Improve with AI'}
             </button>
           </div>
         )}
@@ -140,63 +179,46 @@ export default function AboutSection({ about, onProfileUpdated }: AboutSectionPr
               className="w-full min-h-[180px] px-6 py-7 text-[14px] text-[#475467] font-medium leading-relaxed border border-[#D0D5DD] rounded-[16px] focus:outline-none focus:border-[#FF6934] transition-colors resize-none"
               placeholder="Tell us about yourself..."
             />
-                <div className="flex items-center gap-6">
-                  <button
-                    onClick={() => { void saveEditing(); }}
-                    disabled={isSaving}
-                    className="min-w-[120px] px-8 py-3 bg-[#FF6934] text-white rounded-[14px] text-[14px] font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {isSaving ? 'Saving...' : 'Save'}
-                  </button>
-                  <button
-                    onClick={cancelEditing}
-                    disabled={isSaving}
-                    className="px-1 py-3 text-[#344054] text-[14px] font-semibold hover:text-gray-900 transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                {saveError && (
-                  <p className="text-[13px] font-medium text-[#B42318]">{saveError}</p>
-                )}
-              </div>
-        ) : !isImproving ? (
-          aboutText.trim().length > 0 ? (
+            <div className="flex items-center gap-6">
+              <button
+                onClick={() => { void saveEditing(); }}
+                disabled={isSaving}
+                className="min-w-[120px] px-8 py-3 bg-[#FF6934] text-white rounded-[14px] text-[14px] font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={cancelEditing}
+                disabled={isSaving}
+                className="px-1 py-3 text-[#344054] text-[14px] font-semibold hover:text-gray-900 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+            {saveError && (
+              <p className="text-[13px] font-medium text-[#B42318]">{saveError}</p>
+            )}
+          </div>
+        ) : trimmedAboutText.length > 0 ? (
+          <div>
             <p className="text-[14px] text-[#475467] font-medium leading-relaxed font-body whitespace-pre-wrap">
-              {aboutText}
+              {visibleAboutText}
             </p>
-          ) : (
-            <div className="bg-[#F9FAFB] border border-[#EAECF0] rounded-xl px-4 py-5">
-              <p className="text-[14px] text-[#667085] font-medium">
-                About section is empty. Add a short professional summary to improve your profile.
-              </p>
-            </div>
-          )
+            {isAboutLong && (
+              <button
+                type="button"
+                onClick={() => setIsAboutExpanded((prev) => !prev)}
+                className="mt-3 text-[13px] font-semibold text-[#FF6934] hover:opacity-90 transition-opacity cursor-pointer"
+              >
+                {isAboutExpanded ? 'View less' : 'View more'}
+              </button>
+            )}
+          </div>
         ) : (
-          <div className="bg-[#FFF8F5] p-5 md:p-6 rounded-xl border border-[#FF6934]/10 shadow-sm">
-            <div className="flex items-center gap-2 mb-3 text-[#FF6934] font-medium text-[15px]">
-              <Sparkles size={18} className="text-[#FF6934]" /> AI-improved version
-            </div>
-            <p className="text-[14px] text-[#475467] font-medium leading-relaxed font-body mb-6 whitespace-pre-wrap">
-              {aiImprovedText}
+          <div className="bg-[#F9FAFB] border border-[#EAECF0] rounded-xl px-4 py-5">
+            <p className="text-[14px] text-[#667085] font-medium">
+              About section is empty. Add a short professional summary to improve your profile.
             </p>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => {
-                  setAboutText(aiImprovedText);
-                  setIsImproving(false);
-                }}
-                className="px-5 py-2 bg-[#FF6934] text-white rounded-[8px] text-[14px] font-medium hover:opacity-90 transition-opacity cursor-pointer shadow-sm"
-              >
-                Accept
-              </button>
-              <button
-                onClick={() => setIsImproving(false)}
-                className="px-4 py-2 text-[#475467] rounded-[8px] text-[14px] font-medium hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                Decline
-              </button>
-            </div>
           </div>
         )}
       </div>

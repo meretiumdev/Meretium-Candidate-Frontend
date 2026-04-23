@@ -9,7 +9,13 @@ import SkillsSection from './components/SkillsSection';
 import CVSection from './components/CVSection';
 import JobPreferences from './components/JobPreferences';
 import SidebarStats from './components/SidebarStats';
-import { getCandidateProfile, type CandidateProfileResponse } from '../../services/profileApi';
+import {
+  generateCandidateProfileAutoSummary,
+  getCandidateProfileInsights,
+  getCandidateProfile,
+  type CandidateProfileInsights,
+  type CandidateProfileResponse,
+} from '../../services/profileApi';
 import { setProfile } from '../../redux/store';
 
 function getErrorMessage(error: unknown): string {
@@ -34,12 +40,19 @@ export default function Profile() {
   const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [profileData, setProfileData] = useState<CandidateProfileResponse | null>(null);
+  const [profileSummary, setProfileSummary] = useState('');
+  const [profileInsights, setProfileInsights] = useState<CandidateProfileInsights>({
+    top_role_matches: [],
+    strengths: [],
+    areas_to_improve: [],
+  });
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadProfile = useCallback(async ({ showPageLoading = true }: { showPageLoading?: boolean } = {}) => {
     if (!accessToken) {
       setErrorMessage('You are not authenticated. Please log in again.');
+      setProfileSummary('');
       setIsPageLoading(false);
       return;
     }
@@ -50,8 +63,19 @@ export default function Profile() {
     }
 
     try {
-      const response = await getCandidateProfile(accessToken);
+      const [response, summary, insights] = await Promise.all([
+        getCandidateProfile(accessToken),
+        generateCandidateProfileAutoSummary(accessToken).catch(() => ''),
+        getCandidateProfileInsights(accessToken).catch(() => ({
+          top_role_matches: [],
+          strengths: [],
+          areas_to_improve: [],
+        })),
+      ]);
+
       setProfileData(response);
+      setProfileSummary(summary);
+      setProfileInsights(insights);
       dispatch(setProfile(response.profile));
       if (showPageLoading) {
         setErrorMessage(null);
@@ -137,7 +161,12 @@ export default function Profile() {
         </div>
 
         <div className="lg:col-span-4 space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-          <SidebarStats />
+          <SidebarStats
+            aiSummary={profileSummary}
+            strengths={profileInsights.strengths}
+            areasToImprove={profileInsights.areas_to_improve}
+            topRoleMatches={profileInsights.top_role_matches}
+          />
         </div>
       </div>
     </div>

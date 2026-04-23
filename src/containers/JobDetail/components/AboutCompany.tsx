@@ -11,6 +11,7 @@ export default function AboutCompany({ job }: AboutCompanyProps) {
   const description = job?.company_description || '';
   const industry = job?.company_industry || '';
   const size = job?.company_size_range || '';
+  const companyId = (job?.company.id || job?.company_id || '').trim();
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 md:p-8 shadow-sm font-manrope transition-all duration-300">
@@ -29,7 +30,7 @@ export default function AboutCompany({ job }: AboutCompanyProps) {
         </div>
       </div>
       <button 
-        onClick={() => navigate('/company')}
+        onClick={() => navigate(companyId ? `/company/${companyId}` : '/company')}
         className="flex items-center gap-1 text-[#FF6934] text-[14px] font-medium hover:underline cursor-pointer group"
       >
         View company profile

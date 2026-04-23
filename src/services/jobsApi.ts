@@ -15,6 +15,7 @@ function getCandidateApiBaseUrl(): string {
 const CANDIDATE_API_BASE_URL = getCandidateApiBaseUrl();
 
 export interface CandidateJobsApiCompany {
+  id: string;
   name: string;
   logo_url: string;
   is_verified: boolean;
@@ -22,6 +23,7 @@ export interface CandidateJobsApiCompany {
 
 export interface CandidateJobsApiJob {
   id: string;
+  company_id: string;
   title: string;
   company: CandidateJobsApiCompany;
   location: string;
@@ -96,6 +98,54 @@ export interface CandidateJobScreeningQuestion {
   type: string;
   required: boolean;
   options: string[] | null;
+}
+
+export interface CandidateJobMatchAnalysis {
+  match_percentage: number | null;
+  matching_skills: string[];
+  missing_skills: string[];
+  summary: string;
+}
+
+export interface CandidateJobMatchImprovementSkill {
+  id: string;
+  name: string;
+  impact: string;
+}
+
+export interface CandidateJobMatchImprovementExperience {
+  id: string;
+  title: string;
+  issue: string;
+  impact: string;
+}
+
+export interface CandidateJobMatchImprovementSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  impact: string;
+}
+
+export interface CandidateJobMatchImprovement {
+  current_match: number | null;
+  potential_match: number | null;
+  missing_skills: CandidateJobMatchImprovementSkill[];
+  experience_suggestions: CandidateJobMatchImprovementExperience[];
+  suggested_additions: CandidateJobMatchImprovementSuggestion[];
+  summary: string;
+}
+
+export interface AutoImproveCandidateJobPayload {
+  skill_id?: string;
+  skill_name?: string;
+  experience_ids?: string[];
+}
+
+export interface CandidateJobAutoImproveResponse {
+  updated_match_percentage: number | null;
+  message: string;
+  changes: string[];
 }
 
 export interface GetCandidateJobsParams {
@@ -177,6 +227,21 @@ function asOptionsArray(input: unknown): string[] | null {
     .filter((item) => item.length > 0);
 
   return options.length > 0 ? options : null;
+}
+
+function asTextArray(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (typeof item !== 'object' || item === null) return '';
+
+      const text = (item as { text?: unknown }).text;
+      if (typeof text !== 'string') return '';
+      return text.trim();
+    })
+    .filter((item) => item.length > 0);
 }
 
 function normalizeScreeningQuestion(raw: unknown): CandidateJobScreeningQuestion | null {
@@ -263,8 +328,10 @@ function normalizeJob(raw: unknown): CandidateJobsApiJob | null {
 
   return {
     id: asString(root.id),
+    company_id: asString(root.company_id) || asString(companyRaw.id),
     title: asString(root.title),
     company: {
+      id: asString(companyRaw.id) || asString(root.company_id),
       name: asString(companyRaw.name),
       logo_url: asString(companyRaw.logo_url),
       is_verified: asBoolean(companyRaw.is_verified),
@@ -324,10 +391,12 @@ function normalizeJobDetailResponse(payload: unknown): CandidateJobDetailRespons
     id: base?.id || '',
     title: base?.title || '',
     company: base?.company || {
+      id: '',
       name: '',
       logo_url: '',
       is_verified: false,
     },
+    company_id: base?.company_id || '',
     location: base?.location || '',
     job_type: base?.job_type || '',
     min_salary: base?.min_salary ?? null,
@@ -352,6 +421,213 @@ function normalizeJobDetailResponse(payload: unknown): CandidateJobDetailRespons
     nice_to_have_requirements: asStringArray(root.nice_to_have_requirements),
     applicant_count: asNumber(root.applicant_count),
     questions: asScreeningQuestionsArray(root.screening_questions ?? root.questions),
+  };
+}
+
+function normalizeJobMatchAnalysis(payload: unknown): CandidateJobMatchAnalysis {
+  const root = asRecord(payload) || {};
+  const data = asRecord(root.data) || {};
+
+  const matchingSkills = asTextArray(root.matching_skills).length > 0
+    ? asTextArray(root.matching_skills)
+    : asTextArray(data.matching_skills).length > 0
+      ? asTextArray(data.matching_skills)
+      : asTextArray(root.matched_skills).length > 0
+        ? asTextArray(root.matched_skills)
+        : asTextArray(data.matched_skills);
+
+  const missingSkills = asTextArray(root.missing_skills).length > 0
+    ? asTextArray(root.missing_skills)
+    : asTextArray(data.missing_skills).length > 0
+      ? asTextArray(data.missing_skills)
+      : asTextArray(root.gap_skills).length > 0
+        ? asTextArray(root.gap_skills)
+        : asTextArray(data.gap_skills);
+
+  const matchPercentageRaw = asNullableNumber(root.match_percentage) ?? asNullableNumber(data.match_percentage);
+  const matchPercentage = typeof matchPercentageRaw === 'number'
+    ? Math.max(0, Math.min(100, Math.round(matchPercentageRaw)))
+    : null;
+
+  return {
+    match_percentage: matchPercentage,
+    matching_skills: matchingSkills,
+    missing_skills: missingSkills,
+    summary: asString(root.summary) || asString(data.summary) || asString(root.analysis) || asString(data.analysis),
+  };
+}
+
+function formatImpact(value: unknown): string {
+  const stringValue = asString(value);
+  if (stringValue) return stringValue;
+
+  const numeric = asNullableNumber(value);
+  if (numeric === null) return '';
+  const rounded = Math.round(numeric);
+  if (rounded === 0) return '0%';
+  return rounded > 0 ? `+${rounded}%` : `${rounded}%`;
+}
+
+function normalizeImprovementSkill(raw: unknown, index: number): CandidateJobMatchImprovementSkill | null {
+  if (typeof raw === 'string') {
+    const name = raw.trim();
+    if (!name) return null;
+    return {
+      id: `skill-${index + 1}`,
+      name,
+      impact: '',
+    };
+  }
+
+  const root = asRecord(raw);
+  if (!root) return null;
+
+  const name = asString(root.name) || asString(root.skill) || asString(root.title) || asString(root.text);
+  if (!name) return null;
+
+  const id = asString(root.id) || asString(root.skill_id) || name;
+
+  return {
+    id,
+    name,
+    impact: formatImpact(root.impact)
+      || formatImpact(root.match_impact)
+      || formatImpact(root.match_boost)
+      || formatImpact(root.impact_pct),
+  };
+}
+
+function normalizeImprovementExperience(raw: unknown): CandidateJobMatchImprovementExperience | null {
+  const root = asRecord(raw);
+  if (!root) return null;
+
+  const roleTitle = asString(root.role_title);
+  const company = asString(root.company);
+  const combinedRoleTitle = roleTitle && company ? `${roleTitle} at ${company}` : '';
+  const title = asString(root.title)
+    || asString(root.role)
+    || asString(root.experience_title)
+    || combinedRoleTitle
+    || roleTitle;
+  if (!title) return null;
+
+  return {
+    id: asString(root.id) || asString(root.experience_id),
+    title,
+    issue: asString(root.issue) || asString(root.gap) || asString(root.reason) || asString(root.weakness_label),
+    impact: formatImpact(root.impact)
+      || formatImpact(root.match_impact)
+      || formatImpact(root.match_boost)
+      || formatImpact(root.impact_pct),
+  };
+}
+
+function normalizeImprovementSuggestion(raw: unknown, index: number): CandidateJobMatchImprovementSuggestion | null {
+  const root = asRecord(raw);
+  if (!root) return null;
+
+  const title = asString(root.title) || asString(root.name) || asString(root.suggestion) || asString(root.label);
+  if (!title) return null;
+
+  return {
+    id: asString(root.id) || `suggestion-${index + 1}`,
+    title,
+    description: asString(root.description) || asString(root.reason),
+    impact: formatImpact(root.impact)
+      || formatImpact(root.match_impact)
+      || formatImpact(root.match_boost)
+      || formatImpact(root.impact_pct),
+  };
+}
+
+function normalizeJobMatchImprovement(payload: unknown): CandidateJobMatchImprovement {
+  const root = asRecord(payload) || {};
+  const data = asRecord(root.data) || {};
+
+  const currentMatchRaw = asNullableNumber(root.current_match)
+    ?? asNullableNumber(data.current_match)
+    ?? asNullableNumber(root.current_match_pct)
+    ?? asNullableNumber(data.current_match_pct)
+    ?? asNullableNumber(root.match_percentage)
+    ?? asNullableNumber(data.match_percentage);
+
+  const potentialMatchRaw = asNullableNumber(root.potential_match)
+    ?? asNullableNumber(data.potential_match)
+    ?? asNullableNumber(root.potential_match_pct)
+    ?? asNullableNumber(data.potential_match_pct)
+    ?? asNullableNumber(root.potential_match_percentage)
+    ?? asNullableNumber(data.potential_match_percentage);
+
+  const currentMatch = typeof currentMatchRaw === 'number'
+    ? Math.max(0, Math.min(100, Math.round(currentMatchRaw)))
+    : null;
+
+  const potentialMatch = typeof potentialMatchRaw === 'number'
+    ? Math.max(0, Math.min(100, Math.round(potentialMatchRaw)))
+    : null;
+
+  const skillsRaw = Array.isArray(root.missing_skills) ? root.missing_skills
+    : Array.isArray(data.missing_skills) ? data.missing_skills
+      : Array.isArray(root.skills_to_add) ? root.skills_to_add
+        : Array.isArray(data.skills_to_add) ? data.skills_to_add
+          : Array.isArray(root.recommended_skills) ? root.recommended_skills
+            : Array.isArray(data.recommended_skills) ? data.recommended_skills
+              : [];
+
+  const experiencesRaw = Array.isArray(root.experience_suggestions) ? root.experience_suggestions
+    : Array.isArray(data.experience_suggestions) ? data.experience_suggestions
+      : Array.isArray(root.experience_gaps) ? root.experience_gaps
+        : Array.isArray(data.experience_gaps) ? data.experience_gaps
+      : Array.isArray(root.experiences) ? root.experiences
+        : Array.isArray(data.experiences) ? data.experiences
+          : Array.isArray(root.experience_improvements) ? root.experience_improvements
+            : Array.isArray(data.experience_improvements) ? data.experience_improvements
+              : [];
+
+  const suggestionsRaw = Array.isArray(root.suggested_additions) ? root.suggested_additions
+    : Array.isArray(data.suggested_additions) ? data.suggested_additions
+      : Array.isArray(root.additions) ? root.additions
+        : Array.isArray(data.additions) ? data.additions
+          : Array.isArray(root.suggestions) ? root.suggestions
+            : Array.isArray(data.suggestions) ? data.suggestions
+              : [];
+
+  return {
+    current_match: currentMatch,
+    potential_match: potentialMatch,
+    missing_skills: skillsRaw
+      .map((item, index) => normalizeImprovementSkill(item, index))
+      .filter((item): item is CandidateJobMatchImprovementSkill => item !== null),
+    experience_suggestions: experiencesRaw
+      .map((item) => normalizeImprovementExperience(item))
+      .filter((item): item is CandidateJobMatchImprovementExperience => item !== null),
+    suggested_additions: suggestionsRaw
+      .map((item, index) => normalizeImprovementSuggestion(item, index))
+      .filter((item): item is CandidateJobMatchImprovementSuggestion => item !== null),
+    summary: asString(root.summary)
+      || asString(data.summary)
+      || asString(root.live_preview)
+      || asString(data.live_preview)
+      || asString(root.gap_breakdown_summary)
+      || asString(data.gap_breakdown_summary),
+  };
+}
+
+function normalizeAutoImproveJobResponse(payload: unknown): CandidateJobAutoImproveResponse {
+  const root = asRecord(payload) || {};
+  const data = asRecord(root.data) || {};
+
+  const updatedMatchRaw = asNullableNumber(root.updated_match_percentage)
+    ?? asNullableNumber(data.updated_match_percentage)
+    ?? asNullableNumber(root.match_percentage)
+    ?? asNullableNumber(data.match_percentage);
+
+  return {
+    updated_match_percentage: typeof updatedMatchRaw === 'number'
+      ? Math.max(0, Math.min(100, Math.round(updatedMatchRaw)))
+      : null,
+    message: asString(root.message) || asString(data.message) || 'Profile improvement applied.',
+    changes: asTextArray(root.changes).length > 0 ? asTextArray(root.changes) : asTextArray(data.changes),
   };
 }
 
@@ -653,4 +929,168 @@ export async function getCandidateJobDetail(
   }
 
   return normalizeJobDetailResponse(payload);
+}
+
+export async function getCandidateJobMatchAnalysis(
+  accessToken: string,
+  jobId: string
+): Promise<CandidateJobMatchAnalysis> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedJobId = jobId.trim();
+  if (!trimmedJobId) {
+    throw new Error('Job id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/jobs/${encodeURIComponent(trimmedJobId)}/match-analysis`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Match analysis fetch failed with status ${response.status}`
+    );
+  }
+
+  return normalizeJobMatchAnalysis(payload);
+}
+
+export async function getCandidateJobMatchImprovement(
+  accessToken: string,
+  jobId: string
+): Promise<CandidateJobMatchImprovement> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedJobId = jobId.trim();
+  if (!trimmedJobId) {
+    throw new Error('Job id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/jobs/${encodeURIComponent(trimmedJobId)}/match-improvement`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Match improvement fetch failed with status ${response.status}`
+    );
+  }
+
+  return normalizeJobMatchImprovement(payload);
+}
+
+export async function autoImproveCandidateJob(
+  accessToken: string,
+  jobId: string,
+  payload: AutoImproveCandidateJobPayload = {}
+): Promise<CandidateJobAutoImproveResponse> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedJobId = jobId.trim();
+  if (!trimmedJobId) {
+    throw new Error('Job id is required.');
+  }
+
+  const body: Record<string, unknown> = {};
+  if (typeof payload.skill_id === 'string' && payload.skill_id.trim()) {
+    body.skill_id = payload.skill_id.trim();
+  }
+  if (typeof payload.skill_name === 'string' && payload.skill_name.trim()) {
+    body.skill_name = payload.skill_name.trim();
+  }
+
+  if (Array.isArray(payload.experience_ids)) {
+    const cleanedExperienceIds = payload.experience_ids
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item) => item.length > 0);
+
+    if (cleanedExperienceIds.length > 0) {
+      body.experience_ids = cleanedExperienceIds;
+    }
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/jobs/${encodeURIComponent(trimmedJobId)}/auto-improve`, {
+      method: 'POST',
+      headers: {
+        ...getCandidateRequestHeaders(nextAccessToken),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+  );
+
+  const raw = await response.text();
+  let responsePayload: unknown = null;
+  if (raw) {
+    try {
+      responsePayload = JSON.parse(raw);
+    } catch {
+      responsePayload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, responsePayload);
+    throw new Error(
+      getApiDetailMessage(responsePayload)
+      || getApiMessage(responsePayload)
+      || `Auto improve failed with status ${response.status}`
+    );
+  }
+
+  return normalizeAutoImproveJobResponse(responsePayload);
 }

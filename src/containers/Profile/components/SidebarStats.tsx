@@ -1,20 +1,53 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sparkles, CheckCircle, AlertTriangle, TrendingUp, Eye, Search, Target, Award, Calendar } from 'lucide-react';
 import MatchImprovementModal from '../../../components/MatchImprovementModal';
+import type { CandidateProfileInsightRoleMatch } from '../../../services/profileApi';
 
 interface RoleMatch {
   role: string;
   match: number;
 }
 
-export default function SidebarStats() {
-  const [selectedRole, setSelectedRole] = useState<RoleMatch | null>(null);
+interface SidebarStatsProps {
+  aiSummary?: string;
+  strengths?: string[];
+  areasToImprove?: string[];
+  topRoleMatches?: CandidateProfileInsightRoleMatch[];
+}
 
-  const roleMatches: RoleMatch[] = [
-    { role: 'Senior Frontend Engineer', match: 78 },
-    { role: 'Product Engineer', match: 87 },
-    { role: 'Design Systems Lead', match: 84 },
-  ];
+const AI_SUMMARY_PREVIEW_LIMIT = 260;
+
+export default function SidebarStats({
+  aiSummary = '',
+  strengths = [],
+  areasToImprove = [],
+  topRoleMatches = [],
+}: SidebarStatsProps) {
+  const [selectedRole, setSelectedRole] = useState<RoleMatch | null>(null);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+
+  const roleMatches: RoleMatch[] = topRoleMatches
+    .map((item) => ({
+      role: item.title.replace(/\s*-\s*$/, '').trim(),
+      match: Math.max(0, Math.min(100, Math.round(item.match_percentage))),
+    }))
+    .filter((item) => item.role.length > 0);
+
+  const summaryText = aiSummary.trim() || 'AI summary is not available right now.';
+  const isSummaryLong = summaryText.length > AI_SUMMARY_PREVIEW_LIMIT;
+  const visibleSummaryText = isSummaryExpanded || !isSummaryLong
+    ? summaryText
+    : `${summaryText.slice(0, AI_SUMMARY_PREVIEW_LIMIT).trimEnd()}...`;
+  const strengthsItems = strengths
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  const areasToImproveItems = areasToImprove
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+  useEffect(() => {
+    setIsSummaryExpanded(false);
+  }, [summaryText]);
 
   return (
     <>
@@ -29,8 +62,17 @@ export default function SidebarStats() {
             </h3>
           </div>
           <p className="text-[14px] md:text-[15px] text-[#475467] leading-relaxed">
-            Strong product design background with proven leadership in design systems. Technical skills in React and TypeScript make this candidate valuable for design-engineering collaboration.
+            {visibleSummaryText}
           </p>
+          {isSummaryLong && (
+            <button
+              type="button"
+              onClick={() => setIsSummaryExpanded((prev) => !prev)}
+              className="mt-3 text-[13px] font-semibold text-[#FF6934] hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              {isSummaryExpanded ? 'View less' : 'View more'}
+            </button>
+          )}
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
@@ -40,19 +82,23 @@ export default function SidebarStats() {
               Strengths
             </h3>
           </div>
-          <ul className="space-y-4">
-            {[
-              'Scalable React architecture experience',
-              'System design and component library expertise',
-              'Proven mentorship and team leadership',
-              'Data-driven design approach'
-            ].map((s) => (
-              <li key={s} className="flex items-start gap-3 text-[14px] md:text-[15px] text-[#475467] leading-relaxed">
-                <CheckCircle size={18} className="text-[#039855] shrink-0 mt-0.5" />
-                {s}
-              </li>
-            ))}
-          </ul>
+          {strengthsItems.length > 0 ? (
+            <ul className="space-y-4">
+              {strengthsItems.map((strength, index) => (
+                <li
+                  key={`${strength}-${index}`}
+                  className="flex items-start gap-3 text-[14px] md:text-[15px] text-[#475467] leading-relaxed"
+                >
+                  <CheckCircle size={18} className="text-[#039855] shrink-0 mt-0.5" />
+                  {strength}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[14px] md:text-[15px] text-[#475467]">
+              Strength insights are not available right now.
+            </p>
+          )}
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
@@ -62,17 +108,23 @@ export default function SidebarStats() {
               Areas to improve
             </h3>
           </div>
-          <ul className="space-y-4">
-            {[
-              'Limited recent leadership roles',
-              'No unit testing framework experience mentioned'
-            ].map((s) => (
-              <li key={s} className="flex items-start gap-3 text-[14px] md:text-[15px] text-[#475467] leading-relaxed">
-                <AlertTriangle size={18} className="text-[#FF6934] shrink-0 mt-0.5" />
-                {s}
-              </li>
-            ))}
-          </ul>
+          {areasToImproveItems.length > 0 ? (
+            <ul className="space-y-4">
+              {areasToImproveItems.map((item, index) => (
+                <li
+                  key={`${item}-${index}`}
+                  className="flex items-start gap-3 text-[14px] md:text-[15px] text-[#475467] leading-relaxed"
+                >
+                  <AlertTriangle size={18} className="text-[#FF6934] shrink-0 mt-0.5" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[14px] md:text-[15px] text-[#475467]">
+              Improvement insights are not available right now.
+            </p>
+          )}
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
@@ -82,29 +134,37 @@ export default function SidebarStats() {
               Top Role Matches
             </h3>
           </div>
-          <div className="space-y-4">
-            {roleMatches.map((r) => (
-              <div
-                key={r.role}
-                onClick={() => setSelectedRole(r)}
-                className="bg-[#FAFAFA]/80 border border-gray-200 rounded-xl p-4 flex flex-col gap-3 cursor-pointer hover:border-[#FF6934] hover:shadow-md transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[14px] md:text-[15px] font-medium text-[#101828]">{r.role}</span>
-                  <span className="text-[14px] md:text-[15px] font-medium text-[#FF6934]">{r.match}%</span>
-                </div>
-                <div className="h-[6px] w-full bg-[#E4E7EC] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#EA580C] rounded-full transition-all" style={{ width: `${r.match}%` }}></div>
-                </div>
+          {roleMatches.length > 0 ? (
+            <>
+              <div className="space-y-4">
+                {roleMatches.map((r) => (
+                  <div
+                    key={`${r.role}-${r.match}`}
+                    onClick={() => setSelectedRole(r)}
+                    className="bg-[#FAFAFA]/80 border border-gray-200 rounded-xl p-4 flex flex-col gap-3 cursor-pointer hover:border-[#FF6934] hover:shadow-md transition-all group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[14px] md:text-[15px] font-medium text-[#101828]">{r.role}</span>
+                      <span className="text-[14px] md:text-[15px] font-medium text-[#FF6934]">{r.match}%</span>
+                    </div>
+                    <div className="h-[6px] w-full bg-[#E4E7EC] rounded-full overflow-hidden">
+                      <div className="h-full bg-[#EA580C] rounded-full transition-all" style={{ width: `${r.match}%` }}></div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <button
-            onClick={() => setSelectedRole(roleMatches[0])}
-            className="w-fit mt-6 px-6 py-2.5 bg-[#FF6934] text-white rounded-[10px] text-[14px] font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-sm cursor-pointer"
-          >
-            <Sparkles size={18} /> Improve my match
-          </button>
+              <button
+                onClick={() => setSelectedRole(roleMatches[0])}
+                className="w-fit mt-6 px-6 py-2.5 bg-[#FF6934] text-white rounded-[10px] text-[14px] font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-sm cursor-pointer"
+              >
+                <Sparkles size={18} /> Improve my match
+              </button>
+            </>
+          ) : (
+            <p className="text-[14px] md:text-[15px] text-[#475467]">
+              Role match insights are not available right now.
+            </p>
+          )}
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">

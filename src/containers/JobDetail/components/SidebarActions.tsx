@@ -10,6 +10,7 @@ import { formatWorkModeLabel } from '../../../utils/formatWorkModeLabel';
 
 interface SidebarActionsProps {
   job?: CandidateJobDetailResponse | null;
+  matchPercentageOverride?: number | null;
 }
 
 function formatPostedLabel(postedAt: string): string {
@@ -32,7 +33,7 @@ function formatPostedLabel(postedAt: string): string {
   return `${weeks} weeks ago`;
 }
 
-export default function SidebarActions({ job }: SidebarActionsProps) {
+export default function SidebarActions({ job, matchPercentageOverride = null }: SidebarActionsProps) {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -42,7 +43,12 @@ export default function SidebarActions({ job }: SidebarActionsProps) {
   const applicants = typeof job?.applicant_count === 'number' ? String(job.applicant_count) : '';
   const jobType = formatJobTypeLabel(job?.job_type || '', '');
   const workMode = formatWorkModeLabel(job?.work_mode || '', '');
-  const match = '80%';
+  const matchSource = typeof matchPercentageOverride === 'number'
+    ? matchPercentageOverride
+    : job?.match_percentage;
+  const matchPercentage = typeof matchSource === 'number'
+    ? Math.max(0, Math.min(100, Math.round(matchSource)))
+    : null;
 
   useEffect(() => {
     if (!applyToast) return undefined;
@@ -158,7 +164,9 @@ export default function SidebarActions({ job }: SidebarActionsProps) {
           <Target className="text-[#FF6934] size-6" />
         </div>
         <div>
-          <div className="text-[24px] font-black text-[#FF6934] leading-none mb-1">{match}</div>
+          <div className="text-[24px] font-black text-[#FF6934] leading-none mb-1">
+            {matchPercentage === null ? '--' : `${matchPercentage}%`}
+          </div>
           <div className="text-[12px] text-gray-600">match</div>
         </div>
       </div>

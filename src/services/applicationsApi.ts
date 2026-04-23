@@ -176,6 +176,12 @@ export interface CandidateApplyJobPayload {
   screening_answers: CandidateApplicationScreeningAnswer[];
 }
 
+export interface CandidateGeneratedCoverLetterResponse {
+  cover_letter: string;
+  job_title: string;
+  company_name: string;
+}
+
 export type CandidateOfferAction = 'accept' | 'decline';
 export type CandidateInterviewAction = 'accept' | 'reschedule';
 
@@ -485,6 +491,16 @@ function normalizeApplicationsResponse(payload: unknown): CandidateApplicationsL
   };
 }
 
+function normalizeGeneratedCoverLetterResponse(payload: unknown): CandidateGeneratedCoverLetterResponse {
+  const root = asRecord(payload) || {};
+
+  return {
+    cover_letter: asString(root.cover_letter),
+    job_title: asString(root.job_title),
+    company_name: asString(root.company_name),
+  };
+}
+
 export async function getCandidateApplications(
   accessToken: string,
   params: GetCandidateApplicationsParams = {}
@@ -660,6 +676,59 @@ export async function applyToCandidateJob(
   }
 
   return responsePayload;
+}
+
+export async function generateCandidateCoverLetter(
+  accessToken: string,
+  jobId: string
+): Promise<CandidateGeneratedCoverLetterResponse> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedJobId = jobId.trim();
+  if (!trimmedJobId) {
+    throw new Error('Job id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/cover-letter/generate`, {
+      method: 'POST',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+      body: JSON.stringify({ job_id: trimmedJobId }),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Cover letter generation failed with status ${response.status}`
+    );
+  }
+
+  const normalized = normalizeGeneratedCoverLetterResponse(payload);
+  if (!normalized.cover_letter) {
+    throw new Error('Received an empty cover letter.');
+  }
+
+  return normalized;
 }
 
 export async function respondToCandidateOffer(

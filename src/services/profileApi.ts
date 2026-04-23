@@ -101,6 +101,27 @@ export interface UpdateProfilePayload {
   quick_apply_default_cv?: boolean;
 }
 
+interface GenerateSummaryResponseShape {
+  summary?: unknown;
+  generated_summary?: unknown;
+  about?: unknown;
+  description?: unknown;
+  refined_description?: unknown;
+  achievements?: unknown;
+  refined_achievements?: unknown;
+  bullets?: unknown;
+  highlights?: unknown;
+  experience_id?: unknown;
+  role_title?: unknown;
+  company?: unknown;
+  data?: unknown;
+}
+
+export interface RefinedExperienceContent {
+  description: string;
+  achievements: string[];
+}
+
 export interface CreateProfileSkillPayload {
   name: string;
   category: string;
@@ -114,7 +135,7 @@ export interface CreateProfileExperiencePayload {
   end_date?: string | null;
   is_current: boolean;
   description: string;
-  achievements: string[];
+  achievements?: string[];
 }
 
 export interface UpdateProfileExperiencePayload {
@@ -135,6 +156,17 @@ export interface CandidateProfileResponse {
   cvs?: Array<Record<string, unknown>>;
 }
 
+export interface CandidateProfileInsightRoleMatch {
+  title: string;
+  match_percentage: number;
+}
+
+export interface CandidateProfileInsights {
+  top_role_matches: CandidateProfileInsightRoleMatch[];
+  strengths: string[];
+  areas_to_improve: string[];
+}
+
 function asRecord(input: unknown): Record<string, unknown> | null {
   if (typeof input !== 'object' || input === null) return null;
   return input as Record<string, unknown>;
@@ -143,6 +175,13 @@ function asRecord(input: unknown): Record<string, unknown> | null {
 function asString(input: unknown): string {
   if (typeof input !== 'string') return '';
   return input.trim();
+}
+
+function asStringArray(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => asString(item))
+    .filter((item) => item.length > 0);
 }
 
 function asNullableString(input: unknown): string | null {
@@ -287,6 +326,184 @@ function getApiDetailMessage(payload: unknown): string | null {
   return trimmedMsg.length > 0 ? trimmedMsg : null;
 }
 
+function extractGeneratedSummary(payload: unknown): string {
+  if (typeof payload === 'string') {
+    const summary = payload.trim();
+    return summary;
+  }
+
+  const root = asRecord(payload) as GenerateSummaryResponseShape | null;
+  if (!root) return '';
+
+  const directCandidates = [
+    root.summary,
+    root.generated_summary,
+    root.about,
+  ];
+
+  for (const candidate of directCandidates) {
+    const summary = asString(candidate);
+    if (summary) return summary;
+  }
+
+  if (typeof root.data === 'string') {
+    const nestedSummary = root.data.trim();
+    if (nestedSummary) return nestedSummary;
+  }
+
+  const dataRecord = asRecord(root.data) as GenerateSummaryResponseShape | null;
+  if (!dataRecord) return '';
+
+  const nestedCandidates = [
+    dataRecord.summary,
+    dataRecord.generated_summary,
+    dataRecord.about,
+    dataRecord.data,
+  ];
+
+  for (const candidate of nestedCandidates) {
+    const summary = asString(candidate);
+    if (summary) return summary;
+  }
+
+  return '';
+}
+
+function extractRefinedExperienceContent(payload: unknown): RefinedExperienceContent {
+  if (typeof payload === 'string') {
+    return {
+      description: payload.trim(),
+      achievements: [],
+    };
+  }
+
+  const readFromRecord = (record: GenerateSummaryResponseShape): RefinedExperienceContent => {
+    const descriptionCandidates = [
+      record.refined_description,
+      record.description,
+      record.about,
+      record.summary,
+      record.generated_summary,
+    ];
+
+    let description = '';
+    for (const candidate of descriptionCandidates) {
+      const next = asString(candidate);
+      if (next) {
+        description = next;
+        break;
+      }
+    }
+
+    const achievementCandidates = [
+      record.refined_achievements,
+      record.achievements,
+      record.bullets,
+      record.highlights,
+    ];
+
+    let achievements: string[] = [];
+    for (const candidate of achievementCandidates) {
+      const next = asStringArray(candidate);
+      if (next.length > 0) {
+        achievements = next;
+        break;
+      }
+    }
+
+    return { description, achievements };
+  };
+
+  const root = asRecord(payload) as GenerateSummaryResponseShape | null;
+  if (!root) {
+    return { description: '', achievements: [] };
+  }
+
+  const direct = readFromRecord(root);
+  if (direct.description || direct.achievements.length > 0) {
+    return direct;
+  }
+
+  if (typeof root.data === 'string') {
+    const nestedDescription = root.data.trim();
+    if (nestedDescription) {
+      return { description: nestedDescription, achievements: [] };
+    }
+  }
+
+  const dataRecord = asRecord(root.data) as GenerateSummaryResponseShape | null;
+  if (!dataRecord) {
+    return direct;
+  }
+
+  const nested = readFromRecord(dataRecord);
+  if (nested.description || nested.achievements.length > 0) {
+    return nested;
+  }
+
+  return { description: '', achievements: [] };
+}
+
+function normalizeProfileInsights(payload: unknown): CandidateProfileInsights {
+  const root = asRecord(payload) || {};
+  const data = asRecord(root.data) || {};
+
+  const normalizeTextItems = (input: unknown): string[] => {
+    if (!Array.isArray(input)) return [];
+
+    return input
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        const text = asString(asRecord(item)?.text);
+        return text;
+      })
+      .filter((item) => item.length > 0);
+  };
+
+  const normalizeRoleMatches = (input: unknown): CandidateProfileInsightRoleMatch[] => {
+    if (!Array.isArray(input)) return [];
+
+    return input
+      .map((item) => {
+        const record = asRecord(item);
+        if (!record) return null;
+
+        const title = asString(record.title);
+        const matchPercentage = asNumber(record.match_percentage);
+
+        if (!title) return null;
+
+        return {
+          title,
+          match_percentage: Math.max(0, Math.min(100, Math.round(matchPercentage))),
+        };
+      })
+      .filter((item): item is CandidateProfileInsightRoleMatch => item !== null);
+  };
+
+  const topRoleMatches = normalizeRoleMatches(root.top_role_matches).length > 0
+    ? normalizeRoleMatches(root.top_role_matches)
+    : normalizeRoleMatches(data.top_role_matches);
+
+  const strengths = normalizeTextItems(root.strengths).length > 0
+    ? normalizeTextItems(root.strengths)
+    : normalizeTextItems(data.strengths).length > 0
+      ? normalizeTextItems(data.strengths)
+      : normalizeTextItems(root.profile_strengths).length > 0
+        ? normalizeTextItems(root.profile_strengths)
+        : normalizeTextItems(data.profile_strengths);
+
+  const areasToImprove = normalizeTextItems(root.areas_to_improve).length > 0
+    ? normalizeTextItems(root.areas_to_improve)
+    : normalizeTextItems(data.areas_to_improve);
+
+  return {
+    top_role_matches: topRoleMatches,
+    strengths,
+    areas_to_improve: areasToImprove,
+  };
+}
+
 export async function getCandidateProfile(accessToken: string): Promise<CandidateProfileResponse> {
   if (!CANDIDATE_API_BASE_URL) {
     throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
@@ -363,6 +580,149 @@ export async function updateCandidateProfile(
   }
 
   return normalizeProfileResponse(payload);
+}
+
+export async function generateCandidateProfileSummary(
+  accessToken: string,
+  about: string
+): Promise<string> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedAbout = about.trim();
+  if (!trimmedAbout) {
+    throw new Error('About section is empty.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/generate-summary`, {
+      method: 'POST',
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
+      body: JSON.stringify({ about: trimmedAbout }),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Summary generation failed with status ${response.status}`
+    );
+  }
+
+  const generatedSummary = extractGeneratedSummary(payload);
+  if (!generatedSummary) {
+    throw new Error('Received an empty AI summary.');
+  }
+
+  return generatedSummary;
+}
+
+export async function generateCandidateProfileAutoSummary(accessToken: string): Promise<string> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const endpoint = `${CANDIDATE_API_BASE_URL}/profile/generate-summary`;
+  const requestSummary = (method: 'POST' | 'GET') =>
+    executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+      fetch(endpoint, {
+        method,
+        headers: getCandidateRequestHeaders(nextAccessToken),
+      })
+    );
+
+  let response = await requestSummary('POST');
+  if (response.status === 405) {
+    response = await requestSummary('GET');
+  }
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Summary generation failed with status ${response.status}`
+    );
+  }
+
+  const generatedSummary = extractGeneratedSummary(payload);
+  if (!generatedSummary) {
+    throw new Error('Received an empty AI summary.');
+  }
+
+  return generatedSummary;
+}
+
+export async function getCandidateProfileInsights(accessToken: string): Promise<CandidateProfileInsights> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/insights`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Profile insights fetch failed with status ${response.status}`
+    );
+  }
+
+  return normalizeProfileInsights(payload);
 }
 
 export async function updateJobPreferences(
@@ -584,6 +944,65 @@ export async function updateProfileExperience(
   }
 
   return responsePayload;
+}
+
+export async function refineProfileExperienceDescription(
+  accessToken: string,
+  experienceId: string
+): Promise<RefinedExperienceContent> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedExperienceId = experienceId.trim();
+  if (!trimmedExperienceId) {
+    throw new Error('Experience id is required.');
+  }
+
+  const endpoint = `${CANDIDATE_API_BASE_URL}/profile/experiences/${encodeURIComponent(trimmedExperienceId)}/refine`;
+  const requestRefinement = (method: 'POST' | 'GET') =>
+    executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+      fetch(endpoint, {
+        method,
+        headers: getCandidateRequestHeaders(nextAccessToken),
+      })
+    );
+
+  let response = await requestRefinement('POST');
+  if (response.status === 405) {
+    response = await requestRefinement('GET');
+  }
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || `Experience refinement failed with status ${response.status}`
+    );
+  }
+
+  const refined = extractRefinedExperienceContent(payload);
+  if (!refined.description && refined.achievements.length === 0) {
+    throw new Error('Received an empty refined experience response.');
+  }
+
+  return refined;
 }
 
 export async function deleteProfileExperience(accessToken: string, experienceId: string): Promise<void> {
