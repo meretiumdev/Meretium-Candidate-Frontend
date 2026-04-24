@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Building2, Edit3, GripVertical, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../redux/store';
-import { deleteProfileExperience } from '../../../services/profileApi';
+import { deleteProfileExperience, refineProfileExperienceDescription } from '../../../services/profileApi';
 import AddExperienceModal from './AddExperienceModal';
 import DeleteExperienceModal from './DeleteExperienceModal';
 
@@ -150,8 +150,7 @@ function getBullets(record: Record<string, unknown>): string[] {
     if (strings.length > 0) return strings;
   }
 
-  const description = readString(record, ['description', 'summary']);
-  return description ? [description] : [];
+  return [];
 }
 
 function normalizeExperiences(experiences: Array<Record<string, unknown>>): ExperienceItem[] {
@@ -188,7 +187,7 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
   const [isExperienceModalOpen, setExperienceModalOpen] = useState(false);
   const [editingExperience, setEditingExperience] = useState<ExperienceItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ExperienceItem | null>(null);
-  const [activeAIId, setActiveAIId] = useState<string | null>(null);
+  const [improvingExperienceId, setImprovingExperienceId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -252,8 +251,38 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
     }
   };
 
-  const handleAiImprove = () => {
-    setToast({ id: Date.now(), message: 'AI improvement is not available yet.', type: 'error' });
+  const handleAiImprove = async (experience: ExperienceItem) => {
+    if (!accessToken) {
+      setToast({ id: Date.now(), message: 'You are not authenticated. Please log in again.', type: 'error' });
+      return;
+    }
+
+    if (!experience.experienceId) {
+      setToast({ id: Date.now(), message: 'Experience id is missing. Please refresh and try again.', type: 'error' });
+      return;
+    }
+
+    setImprovingExperienceId(experience.id);
+    setToast(null);
+
+    try {
+      const refined = await refineProfileExperienceDescription(accessToken, experience.experienceId);
+
+      setEditingExperience({
+        ...experience,
+        description: refined.description,
+        bullets: refined.achievements,
+      });
+      setExperienceModalOpen(true);
+      setToast({ id: Date.now(), message: 'AI description generated. Review and save changes.', type: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error && error.message.trim()
+        ? error.message
+        : 'Failed to improve description with AI.';
+      setToast({ id: Date.now(), message, type: 'error' });
+    } finally {
+      setImprovingExperienceId(null);
+    }
   };
 
   return (
@@ -319,8 +348,13 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
                         <Edit3 size={18} />
                       </button>
                       <button
-                        onClick={() => setActiveAIId(activeAIId === exp.id ? null : exp.id)}
-                        className={`transition-colors cursor-pointer ${activeAIId === exp.id ? 'text-[#FF6934]' : 'text-[#FF6934] hover:text-[#f96029]'}`}
+                        onClick={() => { void handleAiImprove(exp); }}
+                        disabled={improvingExperienceId === exp.id}
+                        className={`transition-colors ${
+                          improvingExperienceId === exp.id
+                            ? 'text-[#FDB69D] cursor-not-allowed'
+                            : 'text-[#FF6934] hover:text-[#f96029] cursor-pointer'
+                        }`}
                         aria-label={`AI improve ${exp.role}`}
                       >
                         <Sparkles size={18} />
@@ -335,39 +369,20 @@ export default function ExperienceSection({ experiences, onExperienceAdded }: Ex
                     </div>
                   </div>
 
+                  {exp.description && (
+                    <p className="mt-5 text-[14px] text-[#475467] font-medium leading-relaxed whitespace-pre-wrap">
+                      {exp.description}
+                    </p>
+                  )}
+
                   {exp.bullets.length > 0 && (
-                    <div className="mt-5 space-y-3">
+                    <div className="mt-4 space-y-3">
                       {exp.bullets.map((b, i) => (
                         <div key={`${exp.id}-${i}`} className="flex flex-row items-start gap-2">
                           <div className="size-[5px] rounded-full bg-[#FF6934] shrink-0 mt-[8px]"></div>
                           <p className="text-[14px] text-[#475467] font-medium leading-relaxed">{b}</p>
                         </div>
                       ))}
-                    </div>
-                  )}
-
-                  {activeAIId === exp.id && (
-                    <div className="mt-6 bg-[#FFF8F5] border border-[#FF693415] rounded-xl p-5 shadow-sm animate-in slide-in-from-top-2 duration-300">
-                      <div className="flex items-center gap-2 mb-3 text-[#FF6934] font-medium text-[15px]">
-                        <Sparkles size={18} className="text-[#FF6934]" /> AI Improvement
-                      </div>
-                      <p className="text-[14px] font-medium text-[#475467] mb-5 leading-relaxed">
-                        AI will analyze this role and suggest impactful achievements to highlight.
-                      </p>
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2">
-                        <button
-                          onClick={handleAiImprove}
-                          className="flex-1 sm:flex-none justify-center px-5 py-2 bg-[#FF6934] text-white rounded-[8px] text-[14px] font-medium hover:opacity-90 transition-opacity cursor-pointer shadow-sm flex items-center gap-2"
-                        >
-                          <Sparkles size={16} /> Improve now
-                        </button>
-                        <button
-                          onClick={() => setActiveAIId(null)}
-                          className="flex-1 sm:flex-none justify-center px-4 py-2 text-[#475467] rounded-[8px] text-[14px] font-medium hover:bg-gray-50 transition-colors cursor-pointer text-center"
-                        >
-                          Cancel
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>

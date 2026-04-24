@@ -58,9 +58,46 @@ export interface CandidateDashboardResponse {
   profile_strength: number;
 }
 
+export interface CandidateDashboardRecommendationCompany {
+  name: string;
+  logo_url: string;
+  is_verified: boolean;
+}
+
+export interface CandidateDashboardRecommendationJob {
+  id: string;
+  title: string;
+  company: CandidateDashboardRecommendationCompany;
+  location: string;
+  job_type: string;
+  min_salary: number | null;
+  max_salary: number | null;
+  currency: string;
+  required_skills: string[];
+  posted_at: string;
+  description: string;
+  match_percentage: number | null;
+  is_saved: boolean;
+  recommendation_reason: string;
+}
+
+export interface CandidateDashboardRecommendationsResponse {
+  items: CandidateDashboardRecommendationJob[];
+  total: number | null;
+}
+
+export interface GetCandidateRecommendationsParams {
+  top_n?: number;
+}
+
 function asRecord(input: unknown): Record<string, unknown> | null {
   if (typeof input !== 'object' || input === null) return null;
   return input as Record<string, unknown>;
+}
+
+function asString(input: unknown): string {
+  if (typeof input !== 'string') return '';
+  return input.trim();
 }
 
 function asNumber(input: unknown): number {
@@ -70,6 +107,16 @@ function asNumber(input: unknown): number {
     if (Number.isFinite(parsed)) return parsed;
   }
   return 0;
+}
+
+function asNullableNumber(input: unknown): number | null {
+  if (input === null || input === undefined || input === '') return null;
+  if (typeof input === 'number' && Number.isFinite(input)) return input;
+  if (typeof input === 'string') {
+    const parsed = Number(input);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function asBoolean(input: unknown): boolean {
@@ -84,6 +131,14 @@ function asBoolean(input: unknown): boolean {
     if (input === 0) return false;
   }
   return false;
+}
+
+function asStringArray(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
 function getApiMessage(payload: unknown): string | null {
@@ -143,6 +198,65 @@ function normalizeDashboardResponse(payload: unknown): CandidateDashboardRespons
   };
 }
 
+function normalizeRecommendationJob(raw: unknown): CandidateDashboardRecommendationJob | null {
+  const root = asRecord(raw);
+  if (!root) return null;
+
+  const companyRecord = asRecord(root.company) || {};
+  const companyName = asString(companyRecord.name) || asString(root.company_name) || asString(root.company);
+  const companyLogoUrl = asString(companyRecord.logo_url) || asString(root.company_logo_url);
+  const companyVerified = asBoolean(companyRecord.is_verified) || asBoolean(root.is_company_verified);
+  const recommendationReason = asString(root.recommendation_reason)
+    || asString(root.why_recommended)
+    || asString(root.match_reason);
+
+  return {
+    id: asString(root.id),
+    title: asString(root.title),
+    company: {
+      name: companyName,
+      logo_url: companyLogoUrl,
+      is_verified: companyVerified,
+    },
+    location: asString(root.location),
+    job_type: asString(root.job_type),
+    min_salary: asNullableNumber(root.min_salary),
+    max_salary: asNullableNumber(root.max_salary),
+    currency: asString(root.currency),
+    required_skills: asStringArray(root.required_skills),
+    posted_at: asString(root.posted_at),
+    description: asString(root.description),
+    match_percentage: asNullableNumber(root.match_percentage),
+    is_saved: asBoolean(root.is_saved),
+    recommendation_reason: recommendationReason,
+  };
+}
+
+function normalizeRecommendationsResponse(payload: unknown): CandidateDashboardRecommendationsResponse {
+  let itemsRaw: unknown[] = [];
+  let total: number | null = null;
+
+  if (Array.isArray(payload)) {
+    itemsRaw = payload;
+  } else {
+    const root = asRecord(payload) || {};
+    if (Array.isArray(root.items)) itemsRaw = root.items;
+    else if (Array.isArray(root.data)) itemsRaw = root.data;
+    else if (Array.isArray(root.results)) itemsRaw = root.results;
+    else if (Array.isArray(root.recommendations)) itemsRaw = root.recommendations;
+    total = asNullableNumber(root.total);
+  }
+
+  const items = itemsRaw
+    .map((item) => normalizeRecommendationJob(item))
+    .filter((item): item is CandidateDashboardRecommendationJob => item !== null);
+
+  return {
+    items,
+    total: total === null ? null : Math.max(0, Math.trunc(total)),
+  };
+}
+
 export async function getCandidateDashboard(accessToken: string): Promise<CandidateDashboardResponse> {
   if (!CANDIDATE_API_BASE_URL) {
     throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
@@ -176,4 +290,48 @@ export async function getCandidateDashboard(accessToken: string): Promise<Candid
   }
 
   return normalizeDashboardResponse(payload);
+}
+
+export async function getCandidateRecommendations(
+  accessToken: string,
+  params: GetCandidateRecommendationsParams = {}
+): Promise<CandidateDashboardRecommendationsResponse> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const rawTopN = Number(params.top_n);
+  const topN = Number.isFinite(rawTopN) ? Math.max(1, Math.trunc(rawTopN)) : 10;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('top_n', String(topN));
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/recommendations?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `Recommendations fetch failed with status ${response.status}`);
+  }
+
+  return normalizeRecommendationsResponse(payload);
 }

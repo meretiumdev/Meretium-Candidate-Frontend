@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import Header from './components/Header';
@@ -34,8 +34,18 @@ export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [job, setJob] = useState<CandidateJobDetailResponse | null>(null);
+  const [liveMatchPercentage, setLiveMatchPercentage] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleLiveMatchUpdated = useCallback((nextMatch: number | null) => {
+    setLiveMatchPercentage((previousMatch) => {
+      if (typeof nextMatch !== 'number') return nextMatch;
+      const normalizedNextMatch = Math.max(0, Math.min(100, Math.round(nextMatch)));
+      if (previousMatch === normalizedNextMatch) return previousMatch;
+      return normalizedNextMatch;
+    });
+  }, []);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -44,6 +54,7 @@ export default function JobDetail() {
   useEffect(() => {
     if (!id || !accessToken?.trim()) {
       setJob(null);
+      setLiveMatchPercentage(null);
       setErrorMessage(null);
       setLoading(false);
       return;
@@ -54,11 +65,15 @@ export default function JobDetail() {
     const loadJobDetail = async () => {
       setLoading(true);
       setJob(null);
+      setLiveMatchPercentage(null);
       try {
         setErrorMessage(null);
         const response = await getCandidateJobDetail(accessToken, id);
         if (!isActive) return;
         setJob(response);
+        if (typeof response.match_percentage === 'number') {
+          setLiveMatchPercentage(Math.max(0, Math.min(100, Math.round(response.match_percentage))));
+        }
       } catch (error: unknown) {
         if (!isActive) return;
         setErrorMessage(getErrorMessage(error));
@@ -111,8 +126,11 @@ export default function JobDetail() {
           </div>
 
           <div className="lg:col-span-4 flex flex-col gap-6">
-            <SidebarActions job={job} />
-            <HowYouMatch job={job} />
+            <SidebarActions job={job} matchPercentageOverride={liveMatchPercentage} />
+            <HowYouMatch
+              job={job}
+              onMatchUpdated={handleLiveMatchUpdated}
+            />
           </div>
         </div>
       )}

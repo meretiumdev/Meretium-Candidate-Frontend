@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../redux/store';
 import { getCandidateJobDetail, type CandidateJobScreeningQuestion } from '../services/jobsApi';
 import { getCandidateCvs, uploadCandidateCv, type CandidateCvItem } from '../services/cvApi';
-import { applyToCandidateJob } from '../services/applicationsApi';
+import { applyToCandidateJob, generateCandidateCoverLetter } from '../services/applicationsApi';
 import { formatJobTypeLabel } from '../utils/formatJobTypeLabel';
 
 export interface QuickApplyModalJob {
@@ -76,6 +76,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cvsRequestRef = useRef(0);
   const jobDetailRequestRef = useRef(0);
+  const coverLetterRequestRef = useRef(0);
 
   const jobId = useMemo(() => {
     if (!job || job.id === undefined || job.id === null) return '';
@@ -177,6 +178,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     if (!isOpen || !job) {
       cvsRequestRef.current += 1;
       jobDetailRequestRef.current += 1;
+      coverLetterRequestRef.current += 1;
       return;
     }
 
@@ -196,20 +198,12 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     setCvsError(null);
     setQuestionsError(null);
     setIsSubmitting(false);
+    coverLetterRequestRef.current += 1;
     clearErrors();
 
     void loadCvs();
     void loadJobDetailData();
   }, [isOpen, job, loadCvs, loadJobDetailData]);
-
-  useEffect(() => {
-    if (!isGenerating || hasGenerated) return;
-    const timer = window.setTimeout(() => {
-      setIsGenerating(false);
-      setHasGenerated(true);
-    }, 2000);
-    return () => window.clearTimeout(timer);
-  }, [isGenerating, hasGenerated]);
 
   useEffect(() => {
     if (cvs.length === 0) {
@@ -406,6 +400,43 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     }
   };
 
+  const handleGenerateCoverLetter = async () => {
+    clearErrors();
+
+    if (!accessToken?.trim()) {
+      setStepError('You are not authenticated. Please log in again.');
+      return;
+    }
+
+    if (!jobId) {
+      setStepError('Invalid job selected.');
+      return;
+    }
+
+    const requestId = ++coverLetterRequestRef.current;
+    setIsGenerating(true);
+    setHasGenerated(false);
+
+    try {
+      const response = await generateCandidateCoverLetter(accessToken, jobId);
+      if (requestId !== coverLetterRequestRef.current) return;
+
+      const generatedCoverLetter = response.cover_letter.trim();
+      if (!generatedCoverLetter) {
+        throw new Error('Received an empty cover letter.');
+      }
+
+      setCoverLetter(generatedCoverLetter);
+      setHasGenerated(true);
+    } catch (error: unknown) {
+      if (requestId !== coverLetterRequestRef.current) return;
+      setStepError(getErrorMessage(error, 'Unable to generate cover letter right now.'));
+    } finally {
+      if (requestId !== coverLetterRequestRef.current) return;
+      setIsGenerating(false);
+    }
+  };
+
   const handleNext = async () => {
     clearErrors();
 
@@ -444,6 +475,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
         return;
       }
       if (isGenerating) {
+        coverLetterRequestRef.current += 1;
         setIsGenerating(false);
         return;
       }
@@ -747,8 +779,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
             <button
               type="button"
               onClick={() => {
-                clearErrors();
-                setIsGenerating(true);
+                void handleGenerateCoverLetter();
               }}
               className="bg-[#FF6934] text-white px-8 py-3.5 rounded-[12px] font-semibold text-[16px] shadow-lg shadow-orange-100 flex items-center gap-3 hover:opacity-90 transition-all cursor-pointer group"
             >
