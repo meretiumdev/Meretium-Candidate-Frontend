@@ -11,6 +11,7 @@ export default function JobsPage() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<JobsFilters>(DEFAULT_JOBS_FILTERS);
   const [allJobsCount, setAllJobsCount] = useState(0);
+  const [alertToast, setAlertToast] = useState<{ id: number; message: string } | null>(null);
 
   useEffect(() => {
     if (!isMobileFiltersOpen) return undefined;
@@ -41,8 +42,26 @@ export default function JobsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!alertToast) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setAlertToast(null);
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [alertToast]);
+
   return (
     <div className="max-w-full mx-auto px-2 sm:px-12 py-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      {alertToast && (
+        <div className="fixed top-4 right-4 z-[140] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]">
+          {alertToast.message}
+        </div>
+      )}
+
       <Header onCreateAlert={() => setIsAlertModalOpen(true)} />
       <Tabs allJobsCount={allJobsCount} />
 
@@ -83,7 +102,8 @@ export default function JobsPage() {
 
       <CreateJobAlertModal 
         isOpen={isAlertModalOpen} 
-        onClose={() => setIsAlertModalOpen(false)} 
+        onClose={() => setIsAlertModalOpen(false)}
+        onCreated={(jobRole) => setAlertToast({ id: Date.now(), message: `Job alert created for ${jobRole}.` })}
       />
     </div>
   );

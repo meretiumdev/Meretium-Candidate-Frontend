@@ -38,7 +38,7 @@ export type CandidateCompanyJobsSortBy = 'most_relevant' | 'highest_salary' | 'm
 
 export interface CandidateCompanyStats {
   jobs_posted: number | null;
-  applicants: number | null;
+  applicants_count: number | null;
   response_rate: string;
   last_active: string;
 }
@@ -104,6 +104,23 @@ function asRecord(input: unknown): Record<string, unknown> | null {
 function asString(input: unknown): string {
   if (typeof input !== 'string') return '';
   return input.trim();
+}
+
+function asResponseRate(input: unknown): string {
+  if (typeof input === 'number' && Number.isFinite(input)) {
+    return `${input}%`;
+  }
+
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+    if (trimmed.endsWith('%')) return trimmed;
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) return `${parsed}%`;
+    return trimmed;
+  }
+
+  return '';
 }
 
 function asBoolean(input: unknown): boolean {
@@ -203,10 +220,16 @@ function normalizeCompanyDetail(payload: unknown): CandidateCompanyDetail {
     banner_url: asString(companyRaw.banner_url) || asString(companyRaw.cover_image_url),
     is_verified: asBoolean(companyRaw.is_verified),
     stats: {
-      jobs_posted: asNullableNumber(statsRaw.jobs_posted),
-      applicants: asNullableNumber(statsRaw.applicants),
-      response_rate: asString(statsRaw.response_rate),
-      last_active: asString(statsRaw.last_active),
+      jobs_posted: asNullableNumber(statsRaw.jobs_posted) ?? asNullableNumber(companyRaw.jobs_posted),
+      applicants_count:
+        asNullableNumber(statsRaw.applicants_count)
+        ?? asNullableNumber(companyRaw.applicants_count)
+        ?? asNullableNumber(statsRaw.applicants),
+      response_rate: asResponseRate(statsRaw.response_rate ?? companyRaw.response_rate),
+      last_active: asString(statsRaw.last_active)
+        || asString(statsRaw.last_active_at)
+        || asString(companyRaw.last_active)
+        || asString(companyRaw.last_active_at),
     },
     social_links: socialLinks,
   };

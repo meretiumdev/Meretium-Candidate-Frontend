@@ -1,5 +1,8 @@
 import { Book, ChevronUp, ChevronDown, Search, ChevronRight, ArrowLeft, ThumbsUp, ThumbsDown, Lightbulb } from 'lucide-react';
 import React from 'react';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../../../redux/store';
+import { submitArticleFeedback } from '../../../../services/articleFeedbackApi';
 
 interface HelpCenterSectionProps {
   expanded: boolean;
@@ -10,16 +13,37 @@ interface HelpCenterSectionProps {
 }
 
 const topics = [
-  { title: 'Managing your CV', category: 'Getting Started' },
-  { title: 'Applying for jobs', category: 'Applications' },
-  { title: 'AI match score explained', category: 'AI Features' },
-  { title: 'Profile visibility', category: 'Privacy' },
-  { title: 'Understanding job recommendations', category: 'AI Features' },
+  { id: '04d1acfd-7ef1-4445-ac64-7004dc9b806a', title: 'Managing your CV', category: 'Getting Started' },
+  { id: '8cfe3f63-6b55-4dd7-a784-2367f64165bf', title: 'Applying for jobs', category: 'Applications' },
+  { id: '06b52272-4e5b-4027-a706-73bca4f58e30', title: 'AI match score explained', category: 'AI Features' },
+  { id: '0fa8aa70-5b89-4e43-85c3-cf7ad6152fd0', title: 'Profile visibility', category: 'Privacy' },
+  { id: 'f1d77988-c7d2-4fdf-9de7-2d1c858403ba', title: 'Understanding job recommendations', category: 'AI Features' },
 ];
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return 'Failed to submit feedback. Please try again.';
+}
+
 export default function HelpCenterSection({ expanded, onToggle, onSelectArticle, selectedArticle, onBackToTopics }: HelpCenterSectionProps) {
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = React.useState(false);
+  const [feedbackSelection, setFeedbackSelection] = React.useState<boolean | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = React.useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = React.useState<string | null>(null);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const selectedTopic = React.useMemo(
+    () => topics.find((topic) => topic.title === selectedArticle) || null,
+    [selectedArticle]
+  );
+
+  React.useEffect(() => {
+    setFeedbackSelection(null);
+    setFeedbackMessage(null);
+    setFeedbackError(null);
+  }, [selectedArticle]);
+
   const filteredTopics = React.useMemo(() => {
     if (!normalizedSearchQuery) return topics;
 
@@ -28,6 +52,34 @@ export default function HelpCenterSection({ expanded, onToggle, onSelectArticle,
       || topic.category.toLowerCase().includes(normalizedSearchQuery)
     ));
   }, [normalizedSearchQuery]);
+
+  const handleFeedbackSubmit = async (isHelpful: boolean) => {
+    if (isSubmittingFeedback) return;
+    if (!selectedTopic) return;
+
+    if (!accessToken?.trim()) {
+      setFeedbackError('You are not authenticated. Please log in again.');
+      setFeedbackMessage(null);
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+    setFeedbackError(null);
+    setFeedbackMessage(null);
+
+    try {
+      const responseMessage = await submitArticleFeedback(accessToken, {
+        article_id: selectedTopic.id,
+        is_helpful: isHelpful,
+      });
+      setFeedbackSelection(isHelpful);
+      setFeedbackMessage(responseMessage || 'Thanks for your feedback.');
+    } catch (error: unknown) {
+      setFeedbackError(getErrorMessage(error));
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
   
   const renderArticleContent = () => (
     <div className="space-y-6 font-manrope animate-in fade-in slide-in-from-left-4 duration-300 bg-white">
@@ -63,13 +115,35 @@ export default function HelpCenterSection({ expanded, onToggle, onSelectArticle,
           <div className="pt-8 border-t border-gray-100 mt-10">
             <p className="font-semibold text-[#101828] mb-4">Was this helpful?</p>
             <div className="flex gap-3">
-              <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-[10px] hover:bg-gray-50 transition-colors cursor-pointer text-[14px] font-medium text-[#344054]">
+              <button
+                onClick={() => { void handleFeedbackSubmit(true); }}
+                disabled={isSubmittingFeedback}
+                className={`flex items-center gap-2 px-4 py-2 border rounded-[10px] transition-colors text-[14px] font-medium ${
+                  feedbackSelection === true
+                    ? 'border-[#12B76A] bg-[#ECFDF3] text-[#027A48]'
+                    : 'border-gray-200 hover:bg-gray-50 text-[#344054]'
+                } ${isSubmittingFeedback ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
                 <ThumbsUp size={16} /> Yes
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-[10px] hover:bg-gray-50 transition-colors cursor-pointer text-[14px] font-medium text-[#344054]">
+              <button
+                onClick={() => { void handleFeedbackSubmit(false); }}
+                disabled={isSubmittingFeedback}
+                className={`flex items-center gap-2 px-4 py-2 border rounded-[10px] transition-colors text-[14px] font-medium ${
+                  feedbackSelection === false
+                    ? 'border-[#FDA29B] bg-[#FEF3F2] text-[#B42318]'
+                    : 'border-gray-200 hover:bg-gray-50 text-[#344054]'
+                } ${isSubmittingFeedback ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
                 <ThumbsDown size={16} /> No
               </button>
             </div>
+            {feedbackMessage && (
+              <p className="mt-3 text-[13px] text-[#027A48] font-medium">{feedbackMessage}</p>
+            )}
+            {feedbackError && (
+              <p className="mt-3 text-[13px] text-[#B42318] font-medium">{feedbackError}</p>
+            )}
           </div>
         </div>
       </div>

@@ -29,6 +29,39 @@ function formatNumber(value: number | null): string {
   return value.toLocaleString();
 }
 
+function formatLastActive(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return 'N/A';
+
+  const parsedDate = new Date(trimmed);
+  if (Number.isNaN(parsedDate.getTime())) return trimmed;
+
+  const diffMs = Date.now() - parsedDate.getTime();
+  if (diffMs <= 0) return 'just now';
+
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+  const monthMs = 30 * dayMs;
+
+  if (diffMs < minuteMs) return 'just now';
+  if (diffMs < hourMs) {
+    const minutes = Math.floor(diffMs / minuteMs);
+    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  }
+  if (diffMs < dayMs) {
+    const hours = Math.floor(diffMs / hourMs);
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  }
+  if (diffMs < monthMs) {
+    const days = Math.floor(diffMs / dayMs);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  }
+
+  const months = Math.floor(diffMs / monthMs);
+  return `${months} month${months === 1 ? '' : 's'} ago`;
+}
+
 export default function CompanySidebar({ company, onViewJobs }: CompanySidebarProps) {
   const companyName = company?.name || 'Company';
   const tagline = company?.tagline || 'No company tagline available';
@@ -105,7 +138,7 @@ export default function CompanySidebar({ company, onViewJobs }: CompanySidebarPr
           <div className="flex items-center justify-between">
             <span className="text-[14px] text-[#98A2B3]">Applicants</span>
             <span className="text-[14px] font-semibold text-[#101828]">
-              {formatNumber(company?.stats.applicants ?? null)}
+              {formatNumber(company?.stats.applicants_count ?? null)}
             </span>
           </div>
 
@@ -119,7 +152,7 @@ export default function CompanySidebar({ company, onViewJobs }: CompanySidebarPr
           <div className="flex items-center justify-between">
             <span className="text-[14px] text-[#98A2B3]">Last active</span>
             <span className="text-[14px] font-semibold text-[#101828]">
-              {company?.stats.last_active || 'N/A'}
+              {formatLastActive(company?.stats.last_active || '')}
             </span>
           </div>
         </div>

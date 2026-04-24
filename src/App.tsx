@@ -20,6 +20,7 @@ import CompanyProfile from './containers/CompanyProfile';
 import CompanyJobs from './containers/CompanyJobs';
 import { getCandidateProfile } from './services/profileApi';
 import { setProfile } from './redux/store';
+import { attachCandidateSocket, connectCandidateSocket, detachCandidateSocket } from './utils/candidateSocketConnection';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -29,6 +30,22 @@ function getIsOnboarded(user: unknown): boolean | null {
   if (typeof user !== 'object' || user === null) return null;
   const value = (user as { is_onboarded?: unknown }).is_onboarded;
   return typeof value === 'boolean' ? value : null;
+}
+
+function getUserId(user: unknown): string | null {
+  if (typeof user !== 'object' || user === null) return null;
+
+  const rawUserId = (user as { user_id?: unknown }).user_id ?? (user as { id?: unknown }).id;
+  if (typeof rawUserId === 'string') {
+    const trimmed = rawUserId.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (typeof rawUserId === 'number' && Number.isFinite(rawUserId)) {
+    return String(rawUserId);
+  }
+
+  return null;
 }
 
 function AuthGuard({ children }: AuthGuardProps) {
@@ -48,6 +65,7 @@ function OnboardingAccessGuard({ children }: AuthGuardProps) {
 function App() {
   const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const user = useSelector((state: RootState) => state.auth.user);
   const profile = useSelector((state: RootState) => state.auth.profile);
 
   React.useEffect(() => {
@@ -75,6 +93,44 @@ function App() {
     };
   }, [accessToken, dispatch, profile]);
 
+  React.useEffect(() => {
+    const trimmedAccessToken = accessToken?.trim() || '';
+    const profileUserId = profile?.user_id?.trim() || '';
+    const resolvedUserId = getUserId(user) || profileUserId;
+
+    if (!trimmedAccessToken || !resolvedUserId) return undefined;
+
+    let socket: WebSocket;
+
+    try {
+      socket = connectCandidateSocket({
+        userId: resolvedUserId,
+        accessToken: trimmedAccessToken,
+        onOpen: () => {
+          console.info('[candidate-socket] connected');
+        },
+        onError: () => {
+          console.error('[candidate-socket] connection error');
+        },
+        onClose: (event) => {
+          console.info(`[candidate-socket] closed (code ${event.code})`);
+        },
+      });
+      attachCandidateSocket(socket);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to initialize socket connection.';
+      console.error('[candidate-socket] initialization failed:', message);
+      return undefined;
+    }
+
+    return () => {
+      detachCandidateSocket(socket);
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(1000, 'Socket cleanup');
+      }
+    };
+  }, [accessToken, profile, user]);
+
   console.log("App Version: 1.0.1 - Deployment Triggered at " + new Date().toLocaleTimeString());
   return (
     <Router>
@@ -98,7 +154,6 @@ function App() {
         <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
         <Route path="/company/:id/jobs" element={<AuthGuard><CompanyJobs /></AuthGuard>} />
         <Route path="/company/:id" element={<AuthGuard><CompanyProfile /></AuthGuard>} />
-        <Route path="/company" element={<AuthGuard><CompanyProfile /></AuthGuard>} />
         
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

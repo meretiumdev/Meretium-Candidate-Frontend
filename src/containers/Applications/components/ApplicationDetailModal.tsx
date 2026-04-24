@@ -326,8 +326,12 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
       colorClass: app?.statusColor || 'bg-gray-50 text-gray-600 border border-gray-100',
     };
   }, [app?.status, app?.statusColor, resolvedStatusCode]);
+  const resolvedJobTitle = detail?.job_title_snapshot?.trim() || app?.title || 'Application details';
+  const resolvedCompanyName = detail?.company_name_snapshot?.trim() || app?.company || 'Company not available';
+  const resolvedLocation = detail?.location_snapshot?.trim() || app?.location || 'Location not specified';
 
   const hasDynamicContent = shouldLoadDynamicDetail && !isDetailLoading && !detailError && !!detail;
+  const headerTitle = hasDynamicContent ? resolvedJobTitle : 'Application details';
   const showInterviewNotice = hasDynamicContent && resolvedStatusCode === 'INTERVIEW';
   const showOfferNotice = hasDynamicContent && resolvedStatusCode === 'OFFERED';
   const showHiredNotice = hasDynamicContent && resolvedStatusCode === 'HIRED';
@@ -372,7 +376,7 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
     }
 
     try {
-      downloadCoverLetterAsPdf(detail.cover_letter, app?.title || 'application');
+      downloadCoverLetterAsPdf(detail.cover_letter, resolvedJobTitle || 'application');
     } catch {
       showToast('Unable to download cover letter right now.');
     }
@@ -510,13 +514,13 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
     <>
       <div className="fixed inset-0 z-[100] bg-transparent animate-in fade-in duration-300" onClick={onClose} />
 
-      <div className="fixed top-0 right-0 z-[110] h-full flex items-start justify-end pointer-events-none pt-19 p-4 sm:p-6">
+      <div className="fixed top-[76px] right-0 bottom-0 left-0 z-[110] flex items-stretch justify-end pointer-events-none px-4 sm:px-6">
         <div
-          className="pointer-events-auto w-[410px] md:w-[420px] bg-white mt-12.5 -mr-6 shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
+          className="pointer-events-auto w-[410px] md:w-[420px] max-w-full bg-white shadow-2xl overflow-hidden h-full flex flex-col"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-start justify-between p-6 pb-2 shrink-0">
-            <h2 className="text-[20px] md:text-[22px] font-semibold text-[#111827] leading-tight pr-6">{app.title}</h2>
+            <h2 className="text-[20px] md:text-[22px] font-semibold text-[#111827] leading-tight pr-6">{headerTitle}</h2>
             <button
               type="button"
               onClick={onClose}
@@ -536,22 +540,24 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
               }
             `}</style>
 
-            <div className="flex flex-col gap-3.5 mb-8">
-              <div className="flex items-center gap-2.5 text-[14px] text-[#4B5563] font-medium">
-                <Building2 size={16} className="text-[#6B7280]" /> {app.company}
+            {hasDynamicContent && (
+              <div className="flex flex-col gap-3.5 mb-8">
+                <div className="flex items-center gap-2.5 text-[14px] text-[#4B5563] font-medium">
+                  <Building2 size={16} className="text-[#6B7280]" /> {resolvedCompanyName}
+                </div>
+                <div className="flex items-center gap-2.5 text-[14px] text-[#4B5563] font-medium">
+                  <MapPin size={16} className="text-[#6B7280]" /> {resolvedLocation}
+                </div>
+                <div className="mt-1">
+                  <span className={`px-4 py-1.5 rounded-full text-[12px] font-medium ${resolvedStatusPill.colorClass}`}>
+                    {resolvedStatusPill.label}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-2.5 text-[14px] text-[#4B5563] font-medium">
-                <MapPin size={16} className="text-[#6B7280]" /> {app.location}
-              </div>
-              <div className="mt-1">
-                <span className={`px-4 py-1.5 rounded-full text-[12px] font-medium ${resolvedStatusPill.colorClass}`}>
-                  {resolvedStatusPill.label}
-                </span>
-              </div>
-            </div>
+            )}
 
             {shouldLoadDynamicDetail && isDetailLoading && (
-              <div className="bg-[#F9FAFB] border border-gray-200 rounded-xl p-8 mb-6 flex flex-col items-center justify-center gap-3">
+              <div className="min-h-[260px] bg-[#F9FAFB] border border-gray-200 rounded-xl p-8 mb-6 flex flex-col items-center justify-center gap-3">
                 <Loader2 size={20} className="animate-spin text-[#FF6934]" />
                 <p className="text-[13px] text-[#475467] font-medium">Loading application details...</p>
               </div>
@@ -881,7 +887,7 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
               </p>
               <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3.5 py-3 mb-4">
                 <div className="text-[12px] text-[#344054]">Role</div>
-                <div className="text-[14px] font-semibold text-[#101828] mb-2">{app.title}</div>
+                <div className="text-[14px] font-semibold text-[#101828] mb-2">{resolvedJobTitle}</div>
                 <div className="text-[12px] text-[#344054]">Date</div>
                 <div className="text-[13px] font-medium text-[#101828] mb-2">
                   {formatDateValue(detail?.interview_details?.date || '')}
@@ -1072,7 +1078,7 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
                 <div className="space-y-2 text-[#05603A]">
                   <div>
                     <p className="text-[12px]">Role</p>
-                    <p className="text-[16px] font-semibold">{app.title}</p>
+                    <p className="text-[16px] font-semibold">{resolvedJobTitle}</p>
                   </div>
                   <div>
                     <p className="text-[12px]">Salary</p>
