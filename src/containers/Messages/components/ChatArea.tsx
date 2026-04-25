@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, ExternalLink, Paperclip, Send, ChevronLeft, CheckCircle, Calendar, Loader2 } from 'lucide-react';
+import { MessageSquare, ExternalLink, Paperclip, Send, ChevronLeft, CheckCircle, Calendar, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ChatMenu from './ChatMenu';
 import type { CandidateConversationMessage, CandidateConversationSummary } from '../../../services/messagingApi';
@@ -71,14 +71,16 @@ function isCandidateMessage(message: CandidateConversationMessage, candidateUser
   return message.sender_role.trim().toLowerCase() === 'candidate';
 }
 
+function getLatestScrollTop(element: HTMLElement): number {
+  return Math.max(0, element.scrollHeight - element.clientHeight);
+}
+
 function isAtLatestPosition(element: HTMLElement): boolean {
-  return Math.abs(element.scrollTop) <= 24;
+  return getLatestScrollTop(element) - element.scrollTop <= 24;
 }
 
 function isNearOlderMessagesEdge(element: HTMLElement): boolean {
-  const maxScrollableOffset = Math.max(0, element.scrollHeight - element.clientHeight);
-  const currentOffset = Math.abs(element.scrollTop);
-  return maxScrollableOffset - currentOffset <= 80;
+  return element.scrollTop <= 80;
 }
 
 function formatStatusCode(status: string): string {
@@ -120,23 +122,50 @@ export default function ChatArea({
 }: ChatAreaProps) {
   const navigate = useNavigate();
   const [draftMessage, setDraftMessage] = React.useState('');
+  const [isStatusCardExpanded, setIsStatusCardExpanded] = React.useState(false);
   const messagesContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const statusActionCardRef = React.useRef<HTMLDivElement | null>(null);
+  const conversationId = conversation?.id || '';
   const pendingOlderMessagesRestoreRef = React.useRef<{
     conversationId: string;
     scrollHeight: number;
     scrollTop: number;
   } | null>(null);
+  const isAtLatestRef = React.useRef(true);
+  const latestAnchorStateRef = React.useRef<{
+    conversationId: string | null;
+    latestMessageId: string | null;
+  }>({
+    conversationId: null,
+    latestMessageId: null,
+  });
+  const shouldAnchorToSentMessageRef = React.useRef(false);
 
-  const displayMessages = messages;
+  const displayMessages = React.useMemo(() => {
+    if (messages.length < 2) return messages;
+
+    const firstTimestamp = Date.parse(messages[0].created_at);
+    const lastTimestamp = Date.parse(messages[messages.length - 1].created_at);
+    const isDescending = Number.isFinite(firstTimestamp)
+      && Number.isFinite(lastTimestamp)
+      && firstTimestamp >= lastTimestamp;
+
+    return isDescending ? [...messages].reverse() : messages;
+  }, [messages]);
+  const conversationStatusCode = conversation ? formatStatusCode(conversation.application_status) : '';
+  const hasStatusActionCard = conversationStatusCode === 'OFFERED' || conversationStatusCode === 'INTERVIEW';
 
   const reportBottomState = React.useCallback(() => {
-    if (!onBottomStateChange) return;
     const container = messagesContainerRef.current;
     if (!container) {
-      onBottomStateChange(true);
+      isAtLatestRef.current = true;
+      if (onBottomStateChange) onBottomStateChange(true);
       return;
     }
-    onBottomStateChange(isAtLatestPosition(container));
+
+    const isAtLatest = isAtLatestPosition(container);
+    isAtLatestRef.current = isAtLatest;
+    if (onBottomStateChange) onBottomStateChange(isAtLatest);
   }, [onBottomStateChange]);
 
   const anchorToLatestMessage = React.useCallback(() => {
@@ -144,12 +173,13 @@ export default function ChatArea({
     if (!container) return;
 
     pendingOlderMessagesRestoreRef.current = null;
-    container.scrollTop = 0;
+    container.scrollTop = getLatestScrollTop(container);
+    isAtLatestRef.current = true;
     if (onBottomStateChange) onBottomStateChange(true);
   }, [onBottomStateChange]);
 
   const triggerLoadOlderMessages = React.useCallback(() => {
-    if (!conversation?.id) return;
+    if (!conversationId) return;
     if (!onLoadOlderMessages) return;
     if (isLoadingMessages || isLoadingOlderMessages || !hasMoreOlderMessages) return;
 
@@ -157,14 +187,14 @@ export default function ChatArea({
     if (!container || !isNearOlderMessagesEdge(container)) return;
 
     pendingOlderMessagesRestoreRef.current = {
-      conversationId: conversation.id,
+      conversationId,
       scrollHeight: container.scrollHeight,
       scrollTop: container.scrollTop,
     };
 
     void onLoadOlderMessages();
   }, [
-    conversation?.id,
+    conversationId,
     hasMoreOlderMessages,
     isLoadingMessages,
     isLoadingOlderMessages,
@@ -178,17 +208,19 @@ export default function ChatArea({
 
   React.useEffect(() => {
     pendingOlderMessagesRestoreRef.current = null;
-  }, [conversation?.id]);
+    isAtLatestRef.current = true;
+    setIsStatusCardExpanded(false);
+  }, [conversationId]);
 
   React.useEffect(() => {
     reportBottomState();
-  }, [conversation?.id, displayMessages.length, isLoadingMessages, reportBottomState]);
+  }, [conversationId, displayMessages.length, isLoadingMessages, reportBottomState]);
 
   React.useLayoutEffect(() => {
     const pendingRestore = pendingOlderMessagesRestoreRef.current;
     if (!pendingRestore) return;
 
-    if (!conversation?.id || pendingRestore.conversationId !== conversation.id) {
+    if (!conversationId || pendingRestore.conversationId !== conversationId) {
       pendingOlderMessagesRestoreRef.current = null;
       return;
     }
@@ -199,13 +231,75 @@ export default function ChatArea({
     if (!container) return;
 
     const heightDelta = container.scrollHeight - pendingRestore.scrollHeight;
-    const previousOffset = Math.abs(pendingRestore.scrollTop);
-    const nextOffset = previousOffset + heightDelta;
-    const direction = pendingRestore.scrollTop < 0 ? -1 : 1;
-    container.scrollTop = direction * nextOffset;
+    container.scrollTop = pendingRestore.scrollTop + heightDelta;
     pendingOlderMessagesRestoreRef.current = null;
     reportBottomState();
-  }, [conversation?.id, displayMessages.length, isLoadingOlderMessages, reportBottomState]);
+  }, [conversationId, displayMessages.length, isLoadingOlderMessages, reportBottomState]);
+
+  React.useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    if (pendingOlderMessagesRestoreRef.current) return;
+
+    const activeConversationId = conversationId || null;
+    const latestMessageId = displayMessages.length > 0
+      ? displayMessages[displayMessages.length - 1].id
+      : null;
+    const previousAnchorState = latestAnchorStateRef.current;
+    const conversationChanged = previousAnchorState.conversationId !== activeConversationId;
+    const latestMessageChanged = previousAnchorState.latestMessageId !== latestMessageId;
+
+    if (conversationChanged || (latestMessageChanged && isAtLatestRef.current)) {
+      anchorToLatestMessage();
+    } else if (latestMessageChanged && shouldAnchorToSentMessageRef.current) {
+      const latestMessage = displayMessages[displayMessages.length - 1];
+      if (latestMessage && isCandidateMessage(latestMessage, candidateUserId)) {
+        anchorToLatestMessage();
+      }
+    }
+
+    if (latestMessageChanged) {
+      shouldAnchorToSentMessageRef.current = false;
+    }
+
+    latestAnchorStateRef.current = {
+      conversationId: activeConversationId,
+      latestMessageId,
+    };
+  }, [anchorToLatestMessage, candidateUserId, conversationId, displayMessages]);
+
+  React.useLayoutEffect(() => {
+    if (!hasStatusActionCard || !isAtLatestRef.current) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (isAtLatestRef.current) anchorToLatestMessage();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [
+    anchorToLatestMessage,
+    applicationDetail,
+    hasStatusActionCard,
+    isLoadingApplicationDetail,
+    statusActionError,
+  ]);
+
+  React.useLayoutEffect(() => {
+    if (!hasStatusActionCard) return undefined;
+    const statusActionCard = statusActionCardRef.current;
+    if (!statusActionCard || typeof ResizeObserver === 'undefined') return undefined;
+
+    const observer = new ResizeObserver(() => {
+      if (isAtLatestRef.current) anchorToLatestMessage();
+    });
+    observer.observe(statusActionCard);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [anchorToLatestMessage, hasStatusActionCard]);
 
   if (!conversation) {
     return (
@@ -227,7 +321,7 @@ export default function ChatArea({
   const companyName = conversation.company_name_snapshot || 'Company';
   const jobTitle = conversation.job_title_snapshot || 'Opportunity';
   const statusLabel = formatConversationStatus(conversation.application_status);
-  const statusCode = formatStatusCode(conversation.application_status);
+  const statusCode = conversationStatusCode;
   const showOfferCard = statusCode === 'OFFERED';
   const showInterviewCard = statusCode === 'INTERVIEW';
   const showStatusActionCard = showOfferCard || showInterviewCard;
@@ -241,6 +335,10 @@ export default function ChatArea({
   const interviewTime = applicationDetail?.interview_details?.time?.trim() || 'To be confirmed';
   const interviewMode = applicationDetail?.interview_details?.location?.trim()
     || (applicationDetail?.interview_details?.link?.trim() ? 'Video call' : 'To be confirmed');
+  const statusActionCardTitle = showOfferCard ? 'Job Offer' : 'Interview Invitation';
+  const statusActionCardSummary = showOfferCard
+    ? 'Review your offer and respond'
+    : `${interviewDate} - ${interviewTime}`;
   const offerCardDescription = (
     `We're excited to offer you the ${jobTitle} position at ${companyName}. `
     + 'Review the full offer details including compensation, equity, and benefits.'
@@ -261,17 +359,19 @@ export default function ChatArea({
     if (!trimmedDraft || isSendingMessage) return;
 
     try {
+      shouldAnchorToSentMessageRef.current = true;
       await onSendMessage(trimmedDraft);
       setDraftMessage('');
     } catch {
+      shouldAnchorToSentMessageRef.current = false;
       // Error is surfaced through parent state.
     }
   };
 
   return (
     <div className="flex-1 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col h-full shadow-sm relative font-manrope">
-      <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between bg-white z-10">
-        <div className="flex items-center gap-4">
+      <div className="px-4 py-3.5 lg:px-5 xl:px-8 xl:py-4 border-b border-gray-50 flex items-center justify-between bg-white z-10">
+        <div className="flex items-center gap-3 xl:gap-4">
           {onBack && (
             <button 
               onClick={onBack}
@@ -280,18 +380,18 @@ export default function ChatArea({
               <ChevronLeft size={20} />
             </button>
           )}
-          <div className="size-10 md:size-12 rounded-full bg-[#FF6934] flex items-center justify-center text-white text-lg shrink-0 shadow-sm border border-black/5">
+          <div className="size-10 xl:size-12 rounded-full bg-[#FF6934] flex items-center justify-center text-white text-base xl:text-lg shrink-0 shadow-sm border border-black/5">
             {recruiterName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <h3 className="text-[18px] font-semibold text-gray-900 font-heading truncate pr-2 leading-none mb-1">{recruiterName}</h3>
+            <h3 className="text-[17px] xl:text-[18px] font-semibold text-gray-900 font-heading truncate pr-2 leading-none mb-1">{recruiterName}</h3>
             <p className="text-[12px] font-medium text-gray-400 font-body truncate leading-none">{companyName}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 md:gap-3 shrink-0">
+        <div className="flex items-center gap-2 xl:gap-3 shrink-0">
           <button 
             onClick={openApplicationDetails}
-            className="px-3 md:px-4 py-1.5 border border-[#E4E7EC] rounded-lg text-[14px] md:text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors DM_Sans cursor-pointer flex items-center gap-2"
+            className="px-3 xl:px-4 py-1.5 border border-[#E4E7EC] rounded-lg text-[13px] xl:text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors DM_Sans cursor-pointer flex items-center gap-2"
           >
             <span className="hidden sm:inline">View application</span>
             <ExternalLink size={16} className="sm:hidden text-[#E4E7EC]" />
@@ -300,19 +400,19 @@ export default function ChatArea({
         </div>
       </div>
 
-      <div className="mx-4 md:mx-6 mt-4 p-4 bg-[#F9FAFB] rounded-[12px] flex items-start sm:items-center justify-between gap-3">
-        <div className="flex flex-col gap-3 flex-1 min-w-0">
-          <div className="text-[14px] md:text-[15px] text-[#475467] font-medium font-body break-words">
+      <div className="mx-4 mt-2.5 p-2.5 lg:mx-5 2xl:mx-8 2xl:mt-4 2xl:p-5 bg-[#F9FAFB] rounded-[12px] flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 2xl:flex-col 2xl:items-start 2xl:gap-3 flex-1 min-w-0">
+          <div className="text-[13px] xl:text-[14px] 2xl:text-[15px] text-[#475467] font-medium font-body break-words">
             You applied for <span className="text-[#FF6934]">{jobTitle}</span> at {companyName}
           </div>
           <div className="shrink-0">
-            <span className="bg-[#EFF8FF] text-[#175CD3] text-[13px] font-medium px-2.5 py-1 rounded-[10px]">{statusLabel}</span>
+            <span className="bg-[#EFF8FF] text-[#175CD3] text-[12px] 2xl:text-[13px] font-medium px-2.5 py-0.5 2xl:py-1 rounded-[10px]">{statusLabel}</span>
           </div>
         </div>
         <ExternalLink
-          size={20}
+          size={18}
           onClick={openApplicationDetails}
-          className="text-[#475467] cursor-pointer hover:text-gray-900 transition-colors self-start shrink-0 mt-1 sm:mt-0"
+          className="text-[#475467] cursor-pointer hover:text-gray-900 transition-colors shrink-0 2xl:size-5"
         />
       </div>
 
@@ -326,7 +426,7 @@ export default function ChatArea({
         key={conversation.id}
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-3 md:px-8 md:pt-8 md:pb-4 scrollbar-hide bg-white/50"
+        className="flex-1 min-h-[96px] overflow-y-auto px-4 pt-3 pb-2 lg:px-6 lg:pt-4 xl:px-10 xl:pt-8 xl:pb-4 2xl:px-12 scrollbar-hide bg-white/50"
       >
         {isLoadingOlderMessages && (
           <div className="sticky top-0 z-10 flex justify-center pb-2">
@@ -336,7 +436,9 @@ export default function ChatArea({
           </div>
         )}
 
-        <div className="min-h-full flex flex-col-reverse">
+        <div className="min-h-full flex flex-col">
+          <div className="mt-auto" aria-hidden="true" />
+
           {isLoadingMessages && (
             <p className="text-sm text-gray-500">Loading messages...</p>
           )}
@@ -349,7 +451,7 @@ export default function ChatArea({
           const normalizedMessageType = message.message_type.trim().toLowerCase();
           const systemMessage = normalizedMessageType === 'system' || normalizedMessageType === 'status_event';
           const candidateMessage = isCandidateMessage(message, candidateUserId);
-          const isNewestMessage = index === 0;
+          const isNewestMessage = index === displayMessages.length - 1;
 
             if (systemMessage) {
               return (
@@ -362,12 +464,12 @@ export default function ChatArea({
             }
 
             return (
-              <div key={message.id} className={`flex items-start gap-3 ${candidateMessage ? 'flex-row-reverse' : ''} ${isNewestMessage ? 'mb-1' : 'mb-8'}`}>
+              <div key={message.id} className={`flex items-start gap-3 ${candidateMessage ? 'flex-row-reverse' : ''} ${isNewestMessage ? 'mb-1' : 'mb-6 xl:mb-8'}`}>
                 <div className="size-8 rounded-full flex items-center justify-center text-white text-xs shrink-0 bg-[#FF6934]">
                   {candidateMessage ? 'Y' : recruiterName.charAt(0).toUpperCase()}
                 </div>
-                <div className="max-w-[85%] md:max-w-[75%]">
-                  <div className={`p-4 rounded-2xl text-[14px] leading-relaxed font-medium font-body shadow-sm ${
+                <div className="max-w-[85%] md:max-w-[70%] xl:max-w-[46rem]">
+                  <div className={`p-3.5 xl:p-4 rounded-2xl text-[14px] leading-relaxed font-medium font-body shadow-sm ${
                     candidateMessage
                       ? 'bg-orange-50 text-gray-800 rounded-tr-none border border-orange-100/50'
                       : 'bg-gray-50 text-gray-800 rounded-tl-none border border-gray-100'
@@ -382,6 +484,7 @@ export default function ChatArea({
               </div>
             );
           })}
+          <div className={`${showStatusActionCard ? 'h-5 xl:h-6' : 'h-1'} shrink-0`} aria-hidden="true" />
         </div>
       </div>
 
@@ -398,19 +501,43 @@ export default function ChatArea({
       )}
 
       {showStatusActionCard && (
-        <div className="shrink-0 px-4 md:px-6 pb-3 md:pb-4 bg-white border-t border-gray-100">
-          <div className="rounded-[12px] border border-gray-200 bg-[#F8FAFC] p-4">
+        <div ref={statusActionCardRef} className="relative shrink-0 px-4 lg:px-5 2xl:px-8 pb-2.5 2xl:pb-4 bg-white border-t border-gray-100">
+          <button
+            type="button"
+            onClick={() => setIsStatusCardExpanded((current) => !current)}
+            className="2xl:hidden w-full rounded-[12px] border border-gray-200 bg-[#F8FAFC] px-3 py-2.5 text-left flex items-center justify-between gap-3 cursor-pointer hover:bg-[#F3F6FA] transition-colors"
+            aria-expanded={isStatusCardExpanded}
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              {showOfferCard ? (
+                <CheckCircle size={16} className="text-[#12B76A] shrink-0" />
+              ) : (
+                <Calendar size={16} className="text-[#7A5AF8] shrink-0" />
+              )}
+              <span className="min-w-0">
+                <span className="block text-[14px] font-semibold text-[#101828] truncate">{statusActionCardTitle}</span>
+                <span className="block text-[12px] font-medium text-[#667085] truncate">{statusActionCardSummary}</span>
+              </span>
+            </span>
+            {isStatusCardExpanded ? (
+              <ChevronUp size={16} className="text-[#667085] shrink-0" />
+            ) : (
+              <ChevronDown size={16} className="text-[#667085] shrink-0" />
+            )}
+          </button>
+
+          <div className={`${isStatusCardExpanded ? 'block absolute left-4 right-4 bottom-full z-30 mb-2 max-h-[min(360px,calc(100vh-260px))] overflow-y-auto scrollbar-hide shadow-xl' : 'hidden'} 2xl:block 2xl:static 2xl:mb-0 2xl:max-h-none 2xl:overflow-visible 2xl:shadow-none rounded-[12px] border border-gray-200 bg-[#F8FAFC] p-3 2xl:p-5`}>
             {isLoadingApplicationDetail ? (
               <div className="h-20 animate-pulse rounded-lg bg-white/70 border border-gray-100" />
             ) : (
               <>
                 {showOfferCard && (
                   <>
-                    <div className="flex items-center gap-2 mb-3 text-[#101828]">
+                    <div className="flex items-center gap-2 mb-2 2xl:mb-3 text-[#101828]">
                       <CheckCircle size={17} className="text-[#12B76A]" />
-                      <span className="text-[18px] font-semibold">Job Offer</span>
+                      <span className="text-[17px] 2xl:text-[18px] font-semibold">Job Offer</span>
                     </div>
-                    <p className="text-[14px] text-[#475467] leading-relaxed mb-4">
+                    <p className="text-[13px] 2xl:text-[14px] text-[#475467] leading-relaxed mb-2.5 2xl:mb-4">
                       {offerCardDescription}
                     </p>
                     {showOfferActionButtons && (
@@ -418,7 +545,7 @@ export default function ChatArea({
                         <button
                           type="button"
                           onClick={openApplicationDetails}
-                          className="h-11 rounded-[10px] bg-[#FF6934] text-white text-[14px] font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+                          className="h-9 2xl:h-11 rounded-[10px] bg-[#FF6934] text-white text-[14px] font-semibold hover:opacity-90 transition-opacity cursor-pointer"
                         >
                           View offer
                         </button>
@@ -426,7 +553,7 @@ export default function ChatArea({
                           type="button"
                           onClick={onOfferAccept}
                           disabled={isStatusActionSubmitting}
-                          className="h-11 rounded-[10px] border border-[#FDB08F] bg-white text-[#FF6934] text-[14px] font-semibold hover:bg-[#FFF6F2] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                          className="h-9 2xl:h-11 rounded-[10px] border border-[#FDB08F] bg-white text-[#FF6934] text-[14px] font-semibold hover:bg-[#FFF6F2] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                         >
                           {isStatusActionSubmitting && <Loader2 size={14} className="animate-spin" />}
                           Accept
@@ -435,7 +562,7 @@ export default function ChatArea({
                           type="button"
                           onClick={onOfferDecline}
                           disabled={isStatusActionSubmitting}
-                          className="h-11 rounded-[10px] border border-gray-200 bg-white text-[#344054] text-[14px] font-semibold hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="h-9 2xl:h-11 rounded-[10px] border border-gray-200 bg-white text-[#344054] text-[14px] font-semibold hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           Decline
                         </button>
@@ -451,11 +578,11 @@ export default function ChatArea({
 
                 {showInterviewCard && (
                   <>
-                    <div className="flex items-center gap-2 mb-3 text-[#101828]">
+                    <div className="flex items-center gap-2 mb-2 2xl:mb-3 text-[#101828]">
                       <Calendar size={17} className="text-[#7A5AF8]" />
-                      <span className="text-[18px] font-semibold">Interview Invitation</span>
+                      <span className="text-[17px] 2xl:text-[18px] font-semibold">Interview Invitation</span>
                     </div>
-                    <div className="grid grid-cols-[92px_1fr] gap-y-1 text-[14px] mb-4">
+                    <div className="grid grid-cols-[92px_1fr] gap-y-0.5 2xl:gap-y-1 text-[13px] 2xl:text-[14px] mb-2.5 2xl:mb-4">
                       <span className="text-[#667085]">Date:</span>
                       <span className="text-[#344054] text-right">{interviewDate}</span>
                       <span className="text-[#667085]">Time:</span>
@@ -469,7 +596,7 @@ export default function ChatArea({
                           type="button"
                           onClick={onInterviewAccept}
                           disabled={isStatusActionSubmitting}
-                          className="h-11 rounded-[10px] bg-[#FF6934] text-white text-[14px] font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                          className="h-9 2xl:h-11 rounded-[10px] bg-[#FF6934] text-white text-[14px] font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                         >
                           {isStatusActionSubmitting && <Loader2 size={14} className="animate-spin" />}
                           Accept
@@ -478,7 +605,7 @@ export default function ChatArea({
                           type="button"
                           onClick={openApplicationDetails}
                           disabled={isStatusActionSubmitting}
-                          className="h-11 rounded-[10px] border border-gray-200 bg-white text-[#344054] text-[14px] font-semibold hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="h-9 2xl:h-11 rounded-[10px] border border-gray-200 bg-white text-[#344054] text-[14px] font-semibold hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           Reschedule
                         </button>
@@ -500,8 +627,8 @@ export default function ChatArea({
         </div>
       )}
 
-      <div className="shrink-0 p-4 md:p-6 border-t border-gray-100 bg-white">
-        <div className="flex items-center gap-3 md:gap-4 bg-[#F9FAFB] border border-gray-100 rounded-[12px] md:rounded-[14px] px-4 md:px-6 py-2.5 md:py-3 shadow-inner focus-within:ring-2 focus-within:ring-[#FF6934]/20 transition-all">
+      <div className="shrink-0 p-3.5 lg:px-5 lg:py-3.5 xl:px-8 xl:py-6 border-t border-gray-100 bg-white">
+        <div className="flex items-center gap-3 xl:gap-4 bg-[#F9FAFB] border border-gray-100 rounded-[12px] xl:rounded-[14px] px-4 xl:px-6 py-2 xl:py-3 shadow-inner focus-within:ring-2 focus-within:ring-[#FF6934]/20 transition-all">
           <Paperclip size={20} className="text-gray-400" />
           <input
             type="text"
@@ -520,7 +647,7 @@ export default function ChatArea({
           <button
             onClick={() => { void handleSubmit(); }}
             disabled={isSendingMessage || !draftMessage.trim()}
-            className="size-10 bg-[#FF6934]/10 text-[#FF6934] rounded-xl flex items-center justify-center hover:bg-[#FF6934] hover:text-white transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            className="size-9 xl:size-10 bg-[#FF6934]/10 text-[#FF6934] rounded-xl flex items-center justify-center hover:bg-[#FF6934] hover:text-white transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Send size={18} fill="currentColor" strokeWidth={0} />
           </button>

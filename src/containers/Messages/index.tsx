@@ -702,9 +702,9 @@ export default function Messages() {
   };
 
   return (
-    <div className="max-w-full mx-auto px-2 sm:px-12 py-6 bg-[#F9FAFB] h-[calc(100vh-76px)] overflow-hidden">
-      <div className="flex gap-0 md:gap-6 h-full min-h-0 relative">
-        <div className={`w-full md:w-96 shrink-0 ${view === 'chat' ? 'hidden md:block' : 'block'}`}>
+    <div className="mx-auto max-w-[1840px] px-2 py-4 sm:px-5 md:px-4 lg:px-5 xl:px-10 2xl:px-12 sm:py-5 xl:py-6 bg-[#F9FAFB] h-[calc(100vh-76px)] overflow-hidden">
+      <div className="flex gap-0 md:gap-4 lg:gap-5 xl:gap-7 h-full min-h-0 relative">
+        <div className={`w-full md:w-[320px] lg:w-[340px] xl:w-[380px] 2xl:w-[400px] shrink-0 ${view === 'chat' ? 'hidden md:block' : 'block'}`}>
           <Sidebar
             selectedConversationId={selectedConversationId}
             conversations={conversations}

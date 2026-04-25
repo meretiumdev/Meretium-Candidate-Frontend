@@ -55,9 +55,9 @@ export default function Sidebar({
 }: SidebarProps) {
 
   return (
-    <div className="w-full md:w-[380px] bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col h-full shadow-sm font-manrope transition-all duration-300">
-      <div className="p-6 pb-4">
-        <h1 className="text-[24px] font-semibold text-gray-900  mb-6">Messages</h1>
+    <div className="w-full h-full bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col shadow-sm font-manrope transition-all duration-300">
+      <div className="p-4 pb-3 lg:p-5 lg:pb-4 xl:p-6 xl:pb-4">
+        <h1 className="text-[22px] lg:text-[24px] xl:text-[26px] font-semibold text-gray-900 mb-4 xl:mb-6">Messages</h1>
         <div className="relative">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#10182880]" />
           <input 
@@ -65,7 +65,7 @@ export default function Sidebar({
             placeholder="Search by company or recruiter" 
             value={searchValue}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="w-full bg-gray-50/50 border border-[#E4E7EC] rounded-[10px] py-3 pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 transition-all font-body"
+            className="w-full bg-gray-50/50 border border-[#E4E7EC] rounded-[10px] py-2.5 xl:py-3 pl-10 xl:pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 transition-all font-body"
           />
         </div>
       </div>
@@ -95,7 +95,7 @@ export default function Sidebar({
             <div 
               key={conversation.id}
               onClick={() => onSelect(conversation.id)}
-              className={`p-5 cursor-pointer transition-colors relative border-b border-gray-50 last:border-b-0 ${
+              className={`p-3.5 lg:p-4 xl:p-5 cursor-pointer transition-colors relative border-b border-gray-50 last:border-b-0 ${
                 isSelected
                   ? 'bg-[#FFF9F4]'
                   : hasUnread
@@ -106,8 +106,8 @@ export default function Sidebar({
               {isSelected && (
                 <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#FF6934] shadow-sm shadow-[#FF6934]/40"></div>
               )}
-              <div className="flex gap-4">
-                <div className="size-12 rounded-full bg-[#FF6934] flex items-center justify-center text-white text-[18px] shrink-0 border border-white/20 shadow-sm overflow-hidden">
+              <div className="flex gap-3 xl:gap-4">
+                <div className="size-10 lg:size-11 xl:size-12 rounded-full bg-[#FF6934] flex items-center justify-center text-white text-[16px] xl:text-[18px] shrink-0 border border-white/20 shadow-sm overflow-hidden">
                   {getInitial(recruiterName)}
                 </div>
                 <div className="flex-1 min-w-0">
