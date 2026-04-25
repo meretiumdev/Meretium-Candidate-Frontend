@@ -155,15 +155,15 @@ export default function FiltersSidebar({
             <h3 className="text-sm font-medium text-[#101828] mb-4">Job type</h3>
             <div className="space-y-3">
               {JOB_TYPE_OPTIONS.map((option) => (
-                <label key={option} className="flex items-center gap-3 cursor-pointer group">
-                  <FilterCheck checked={filters.jobType === option} />
-                  <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
+                <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
+                  <FilterCheck checked={filters.jobType === option.value} />
+                  <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option.label}</span>
                   <input
                     type="radio"
                     className="sr-only"
                     readOnly
-                    checked={filters.jobType === option}
-                    onClick={() => setFilters({ jobType: filters.jobType === option ? null : option })}
+                    checked={filters.jobType === option.value}
+                    onClick={() => setFilters({ jobType: filters.jobType === option.value ? null : option.value })}
                   />
                 </label>
               ))}
@@ -174,15 +174,15 @@ export default function FiltersSidebar({
             <h3 className="text-sm font-medium text-[#101828] mb-4">Experience level</h3>
             <div className="space-y-3">
               {EXPERIENCE_LEVEL_OPTIONS.map((option) => (
-                <label key={option} className="flex items-center gap-3 cursor-pointer group">
-                  <FilterCheck checked={filters.experienceLevel === option} />
-                  <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option}</span>
+                <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
+                  <FilterCheck checked={filters.experienceLevel === option.value} />
+                  <span className="text-sm text-[#475467] font-regular group-hover:text-gray-900 transition-colors">{option.label}</span>
                   <input
                     type="radio"
                     className="sr-only"
                     readOnly
-                    checked={filters.experienceLevel === option}
-                    onClick={() => setFilters({ experienceLevel: filters.experienceLevel === option ? null : option })}
+                    checked={filters.experienceLevel === option.value}
+                    onClick={() => setFilters({ experienceLevel: filters.experienceLevel === option.value ? null : option.value })}
                   />
                 </label>
               ))}

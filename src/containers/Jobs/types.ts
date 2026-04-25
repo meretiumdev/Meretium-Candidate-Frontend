@@ -7,19 +7,19 @@ export const DATE_POSTED_OPTIONS = [
 ] as const;
 
 export const JOB_TYPE_OPTIONS = [
-  'Full-time',
-  'Part-time',
-  'Contract',
-  'Internship',
-  'Graduate Scheme',
-  'Apprenticeship',
+  { label: 'Full-time', value: 'FULL_TIME' },
+  { label: 'Part-time', value: 'PART_TIME' },
+  { label: 'Contract', value: 'CONTRACT' },
+  { label: 'Internship', value: 'INTERNSHIP' },
+  { label: 'Graduate Scheme', value: 'GRADUATE_SCHEME' },
+  { label: 'Apprenticeship', value: 'APPRENTICESHIP' },
 ] as const;
 
 export const EXPERIENCE_LEVEL_OPTIONS = [
-  'Entry Level',
-  'Mid-Level',
-  'Senior Level',
-  'Lead / Principal',
+  { label: 'Entry Level', value: 'ENTRY' },
+  { label: 'Mid-Level', value: 'MID' },
+  { label: 'Senior Level', value: 'SENIOR' },
+  { label: 'Lead / Principal', value: 'LEAD' },
 ] as const;
 
 export const WORK_MODE_OPTIONS = [
@@ -39,8 +39,8 @@ export const SALARY_CURRENCY_OPTIONS = [
 ] as const;
 
 export type DatePostedFilter = (typeof DATE_POSTED_OPTIONS)[number]['value'];
-export type JobTypeFilter = (typeof JOB_TYPE_OPTIONS)[number];
-export type ExperienceLevelFilter = (typeof EXPERIENCE_LEVEL_OPTIONS)[number];
+export type JobTypeFilter = (typeof JOB_TYPE_OPTIONS)[number]['value'];
+export type ExperienceLevelFilter = (typeof EXPERIENCE_LEVEL_OPTIONS)[number]['value'];
 export type WorkModeFilter = (typeof WORK_MODE_OPTIONS)[number]['value'];
 export type SalaryCurrencyFilter = (typeof SALARY_CURRENCY_OPTIONS)[number]['value'];
 

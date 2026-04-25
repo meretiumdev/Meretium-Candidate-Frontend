@@ -21,10 +21,25 @@ interface ToastState {
   type: 'success' | 'error';
 }
 
-const WORK_MODE_OPTIONS = ['REMOTE', 'HYBRID', 'ON_SITE', 'WORK_FROM_ANYWHERE'] as const;
-const JOB_TYPE_OPTIONS = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Graduate Scheme', 'Apprenticeship'] as const;
+const WORK_MODE_OPTIONS = [
+  { value: 'REMOTE', label: 'Remote' },
+  { value: 'HYBRID', label: 'Hybrid' },
+  { value: 'ON_SITE', label: 'On-site' },
+  { value: 'WORK_FROM_ANYWHERE', label: 'Work from anywhere' },
+] as const;
+const JOB_TYPE_OPTIONS = [
+  { value: 'FULL_TIME', label: 'Full-time' },
+  { value: 'PART_TIME', label: 'Part-time' },
+  { value: 'CONTRACT', label: 'Contract' },
+  { value: 'INTERNSHIP', label: 'Internship' },
+  { value: 'GRADUATE_SCHEME', label: 'Graduate Scheme' },
+  { value: 'APPRENTICESHIP', label: 'Apprenticeship' },
+] as const;
 
-function normalizeWorkMode(value: string): (typeof WORK_MODE_OPTIONS)[number] {
+type WorkModeValue = (typeof WORK_MODE_OPTIONS)[number]['value'];
+type JobTypeValue = (typeof JOB_TYPE_OPTIONS)[number]['value'];
+
+function normalizeWorkMode(value: string): WorkModeValue {
   const normalized = value.trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '');
 
   if (normalized === 'remote') return 'REMOTE';
@@ -34,16 +49,26 @@ function normalizeWorkMode(value: string): (typeof WORK_MODE_OPTIONS)[number] {
   return 'WORK_FROM_ANYWHERE';
 }
 
-function normalizeJobType(value: string): (typeof JOB_TYPE_OPTIONS)[number] {
+function formatWorkMode(value: string): string {
+  const normalized = normalizeWorkMode(value);
+  return WORK_MODE_OPTIONS.find((option) => option.value === normalized)?.label || 'Work from anywhere';
+}
+
+function normalizeJobType(value: string): JobTypeValue {
   const normalized = value.trim().toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
 
-  if (normalized === 'full time' || normalized === 'fulltime') return 'Full-time';
-  if (normalized === 'part time' || normalized === 'parttime') return 'Part-time';
-  if (normalized === 'contract') return 'Contract';
-  if (normalized === 'internship') return 'Internship';
-  if (normalized === 'graduate scheme' || normalized === 'graduatescheme') return 'Graduate Scheme';
-  if (normalized === 'apprenticeship') return 'Apprenticeship';
-  return 'Full-time';
+  if (normalized === 'full time' || normalized === 'fulltime') return 'FULL_TIME';
+  if (normalized === 'part time' || normalized === 'parttime') return 'PART_TIME';
+  if (normalized === 'contract') return 'CONTRACT';
+  if (normalized === 'internship') return 'INTERNSHIP';
+  if (normalized === 'graduate scheme' || normalized === 'graduatescheme') return 'GRADUATE_SCHEME';
+  if (normalized === 'apprenticeship') return 'APPRENTICESHIP';
+  return 'FULL_TIME';
+}
+
+function formatJobType(value: string): string {
+  const normalized = normalizeJobType(value);
+  return JOB_TYPE_OPTIONS.find((option) => option.value === normalized)?.label || 'Full-time';
 }
 
 function formatSalary(preferences: CandidateJobPreferences | null): string {
@@ -101,8 +126,8 @@ export default function JobPreferences({ preferences, onUpdated }: JobPreference
     () => [
       { key: 'roles' as const, label: 'Preferred roles', value: preferences?.roles || [], isPill: true },
       { key: 'locations' as const, label: 'Preferred locations', value: preferences?.locations || [], isPill: true },
-      { key: 'work_mode' as const, label: 'Work mode', value: preferences ? normalizeWorkMode(preferences.work_mode) : 'Not set', isPill: false },
-      { key: 'job_type' as const, label: 'Job type', value: preferences ? normalizeJobType(preferences.job_type) : 'Not set', isPill: false },
+      { key: 'work_mode' as const, label: 'Work mode', value: preferences ? formatWorkMode(preferences.work_mode) : 'Not set', isPill: false },
+      { key: 'job_type' as const, label: 'Job type', value: preferences ? formatJobType(preferences.job_type) : 'Not set', isPill: false },
       { key: 'salary' as const, label: 'Salary expectation', value: formatSalary(preferences), isPill: false },
       { key: 'notice_period' as const, label: 'Notice period', value: preferences?.notice_period?.trim() || 'Not set', isPill: false },
     ],
@@ -138,7 +163,7 @@ export default function JobPreferences({ preferences, onUpdated }: JobPreference
       return;
     }
     if (field === 'job_type') {
-      setJobTypeDraft(normalizeJobType(preferences?.job_type || 'Full-time'));
+      setJobTypeDraft(normalizeJobType(preferences?.job_type || 'FULL_TIME'));
       return;
     }
     if (field === 'salary') {
@@ -218,8 +243,8 @@ export default function JobPreferences({ preferences, onUpdated }: JobPreference
     }
 
     if (editingField === 'job_type') {
-      const nextJobType = normalizeJobType(jobTypeDraft || 'Full-time');
-      const currentJobType = normalizeJobType(preferences?.job_type || 'Full-time');
+      const nextJobType = normalizeJobType(jobTypeDraft || 'FULL_TIME');
+      const currentJobType = normalizeJobType(preferences?.job_type || 'FULL_TIME');
       if (nextJobType === currentJobType) {
         setEditingField(null);
         return;
@@ -322,7 +347,7 @@ export default function JobPreferences({ preferences, onUpdated }: JobPreference
                       className="w-full border border-gray-200 rounded-[8px] px-3 py-2 text-[14px] outline-none focus:border-[#FF6934]"
                     >
                       {WORK_MODE_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
                   )}
@@ -333,7 +358,7 @@ export default function JobPreferences({ preferences, onUpdated }: JobPreference
                       className="w-full border border-gray-200 rounded-[8px] px-3 py-2 text-[14px] outline-none focus:border-[#FF6934]"
                     >
                       {JOB_TYPE_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
                   )}
