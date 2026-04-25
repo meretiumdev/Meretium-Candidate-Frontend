@@ -1,6 +1,7 @@
 import type { CandidateApplicationStatus } from '../../services/applicationsApi';
 
 export type ApplicationStatusFilter = 'ALL' | CandidateApplicationStatus;
+export type ApplicationSortOption = 'recently_applied' | 'oldest';
 
 export interface ApplicationsUiStats {
   total: number;

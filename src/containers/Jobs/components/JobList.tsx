@@ -8,6 +8,7 @@ import {
   getCandidateJobs,
   saveCandidateJob,
   type CandidateJobsApiJob,
+  type CandidateJobsSortBy,
 } from '../../../services/jobsApi';
 import type { RootState } from '../../../redux/store';
 import type { JobsFilters } from '../types';
@@ -35,6 +36,11 @@ const FALLBACK_MATCHES = [92, 88, 85, 90, 83, 83];
 const FALLBACK_TAGS = ['TypeScript', 'React', 'Node.js', 'Figma', 'Design Systems'];
 const FALLBACK_DESCRIPTION = 'Role details will be available soon. Please check back in a moment.';
 const JOBS_PAGE_CACHE_KEY = 'candidate-jobs-page-cache-v1';
+const JOB_SORT_OPTIONS: Array<{ label: string; value: CandidateJobsSortBy }> = [
+  { label: 'Most relevant', value: 'most_relevant' },
+  { label: 'Most recent', value: 'most_recent' },
+  { label: 'Highest salary', value: 'highest_salary' },
+];
 let reloadCacheResetHandled = false;
 
 interface JobsPageCache {
@@ -239,7 +245,7 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
   const navigate = useNavigate();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [activeFilters, setActiveFilters] = useState<JobsFilters>(filters);
-  const [sortBy, setSortBy] = useState<'Most relevant' | 'Most recent' | 'Highest salary'>('Most relevant');
+  const [sortBy, setSortBy] = useState<CandidateJobsSortBy>('most_relevant');
   const [selectedJob, setSelectedJob] = useState<JobListItem | null>(null);
   const [savedJobsMap, setSavedJobsMap] = useState<Record<string, boolean>>({});
   const [savingJobsMap, setSavingJobsMap] = useState<Record<string, boolean>>({});
@@ -257,7 +263,11 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
   const cacheReadyRef = useRef(false);
   const scrollSaveTimeoutRef = useRef<number | null>(null);
   const requestVersionRef = useRef(0);
-  const filtersSignature = useMemo(() => JSON.stringify(activeFilters), [activeFilters]);
+  const activeSortOption = useMemo(
+    () => JOB_SORT_OPTIONS.find((option) => option.value === sortBy) ?? JOB_SORT_OPTIONS[0],
+    [sortBy]
+  );
+  const filtersSignature = useMemo(() => JSON.stringify({ activeFilters, sortBy }), [activeFilters, sortBy]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -334,6 +344,7 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
       const response = await getCandidateJobs(accessToken, {
         skip: requestSkip,
         limit: PAGE_LIMIT,
+        sort_by: sortBy,
         date_posted: activeFilters.datePosted,
         job_type: activeFilters.jobType,
         experience_level: activeFilters.experienceLevel,
@@ -385,7 +396,7 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
       setIsLoadingMore(false);
       isFetchingRef.current = false;
     }
-  }, [accessToken, activeFilters.datePosted, activeFilters.experienceLevel, activeFilters.jobType, activeFilters.maxSalary, activeFilters.minSalary, activeFilters.salaryCurrency, activeFilters.workMode]);
+  }, [accessToken, activeFilters.datePosted, activeFilters.experienceLevel, activeFilters.jobType, activeFilters.maxSalary, activeFilters.minSalary, activeFilters.salaryCurrency, activeFilters.workMode, sortBy]);
 
   const persistJobsCache = useCallback((scrollY?: number) => {
     if (!cacheReadyRef.current) return;
@@ -582,17 +593,17 @@ export default function JobList({ filters, onOpenFilters, onJobsCountChange }: J
         <div className="lg:mt-0 flex items-center justify-between lg:justify-end gap-3">
           <div className="relative w-[160px] md:w-[200px] lg:w-full lg:max-w-[220px]">
             <div className="h-[40px] md:h-[50px] lg:h-10 w-fit rounded-[10px] border border-[#E5E7EB] bg-white px-3 text-[14px] md:text-[16px] lg:text-[14px] font-medium text-[#475467] flex items-center gap-2 focus-within:outline-none focus-within:ring-2 focus-within:ring-[#FF6934]/20">
-              <span className="pointer-events-none text-[#475467]">{sortBy}</span>
+              <span className="pointer-events-none text-[#475467]">{activeSortOption.label}</span>
               <ChevronDown size={20} className="pointer-events-none text-[#475467]" />
               <select
                 aria-label="Sort jobs"
                 value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as 'Most relevant' | 'Most recent' | 'Highest salary')}
+                onChange={(event) => setSortBy(event.target.value as CandidateJobsSortBy)}
                 className="absolute inset-0 opacity-0 cursor-pointer"
               >
-                <option value="Most relevant">Most relevant</option>
-                <option value="Most recent">Most recent</option>
-                <option value="Highest salary">Highest salary</option>
+                {JOB_SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
           </div>

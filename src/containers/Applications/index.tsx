@@ -9,6 +9,7 @@ import {
   getCandidateApplications,
   type CandidateApplicationItem,
   type CandidateApplicationStatus,
+  type CandidateApplicationsSortBy,
 } from '../../services/applicationsApi';
 import type { RootState } from '../../redux/store';
 import type { ApplicationListItem, ApplicationsUiStats, ApplicationStatusFilter } from './types';
@@ -168,6 +169,7 @@ export default function Applications() {
   const navigate = useNavigate();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [activeStatus, setActiveStatus] = useState<ApplicationStatusFilter>('ALL');
+  const [sortBy, setSortBy] = useState<CandidateApplicationsSortBy>('recently_applied');
   const [currentPage, setCurrentPage] = useState(1);
   const [stats, setStats] = useState<ApplicationsUiStats>(DEFAULT_STATS);
   const [applications, setApplications] = useState<ApplicationListItem[]>([]);
@@ -202,6 +204,7 @@ export default function Applications() {
         skip,
         limit: PAGE_LIMIT,
         application_status: activeStatus === 'ALL' ? null : activeStatus,
+        sort_by: sortBy,
       });
 
       setApplications(response.applications.map(mapApplicationItem));
@@ -222,7 +225,7 @@ export default function Applications() {
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken, activeStatus, currentPage]);
+  }, [accessToken, activeStatus, currentPage, sortBy]);
 
   useEffect(() => {
     void loadApplications();
@@ -240,6 +243,11 @@ export default function Applications() {
 
   const handleStatusChange = (status: ApplicationStatusFilter) => {
     setActiveStatus(status);
+    setCurrentPage(1);
+  };
+
+  const handleSortChange = (value: CandidateApplicationsSortBy) => {
+    setSortBy(value);
     setCurrentPage(1);
   };
 
@@ -261,7 +269,7 @@ export default function Applications() {
 
   return (
     <div className="max-w-full mx-auto px-2 sm:px-12 py-6 space-y-6 bg-[#F9FAFB] min-h-screen">
-      <Header />
+      <Header sortBy={sortBy} onSortChange={handleSortChange} disabled={isLoading} />
       <StatCards stats={stats} />
       <StatusTabs activeStatus={activeStatus} stats={stats} onChange={handleStatusChange} />
       <ApplicationsList

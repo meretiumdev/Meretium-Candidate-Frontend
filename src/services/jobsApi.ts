@@ -44,7 +44,9 @@ export interface CandidateJobsListResponse {
   total: number | null;
 }
 
+export type CandidateJobsSortBy = 'most_relevant' | 'most_recent' | 'highest_salary';
 export type CandidateSavedJobStatus = 'ACTIVE' | 'APPLIED' | 'CLOSED';
+export type CandidateSavedJobsSortBy = 'recently_saved' | 'oldest';
 
 export interface CandidateSavedJobItem {
   id: string;
@@ -111,12 +113,14 @@ export interface CandidateJobMatchImprovementSkill {
   id: string;
   name: string;
   impact: string;
+  appears_in_jobs: number | null;
 }
 
 export interface CandidateJobMatchImprovementExperience {
   id: string;
   title: string;
   issue: string;
+  description: string;
   impact: string;
 }
 
@@ -130,6 +134,8 @@ export interface CandidateJobMatchImprovementSuggestion {
 export interface CandidateJobMatchImprovement {
   current_match: number | null;
   potential_match: number | null;
+  gap_pct: number | null;
+  jobs_evaluated: number | null;
   missing_skills: CandidateJobMatchImprovementSkill[];
   experience_suggestions: CandidateJobMatchImprovementExperience[];
   suggested_additions: CandidateJobMatchImprovementSuggestion[];
@@ -151,6 +157,7 @@ export interface CandidateJobAutoImproveResponse {
 export interface GetCandidateJobsParams {
   skip?: number;
   limit?: number;
+  sort_by?: CandidateJobsSortBy | null;
   date_posted?: string | null;
   job_type?: string | null;
   experience_level?: string | null;
@@ -163,7 +170,7 @@ export interface GetCandidateJobsParams {
 export interface GetCandidateSavedJobsParams {
   page?: number;
   page_size?: number;
-  sort_by?: string | null;
+  sort_by?: CandidateSavedJobsSortBy | null;
   status?: CandidateSavedJobStatus | null;
 }
 
@@ -483,6 +490,7 @@ function normalizeImprovementSkill(raw: unknown, index: number): CandidateJobMat
       id: `skill-${index + 1}`,
       name,
       impact: '',
+      appears_in_jobs: null,
     };
   }
 
@@ -501,6 +509,7 @@ function normalizeImprovementSkill(raw: unknown, index: number): CandidateJobMat
       || formatImpact(root.match_impact)
       || formatImpact(root.match_boost)
       || formatImpact(root.impact_pct),
+    appears_in_jobs: asNullableNumber(root.appears_in_jobs),
   };
 }
 
@@ -512,6 +521,7 @@ function normalizeImprovementExperience(raw: unknown): CandidateJobMatchImprovem
   const company = asString(root.company);
   const combinedRoleTitle = roleTitle && company ? `${roleTitle} at ${company}` : '';
   const title = asString(root.title)
+    || asString(root.label)
     || asString(root.role)
     || asString(root.experience_title)
     || combinedRoleTitle
@@ -522,6 +532,7 @@ function normalizeImprovementExperience(raw: unknown): CandidateJobMatchImprovem
     id: asString(root.id) || asString(root.experience_id),
     title,
     issue: asString(root.issue) || asString(root.gap) || asString(root.reason) || asString(root.weakness_label),
+    description: asString(root.description),
     impact: formatImpact(root.impact)
       || formatImpact(root.match_impact)
       || formatImpact(root.match_boost)
@@ -565,6 +576,9 @@ function normalizeJobMatchImprovement(payload: unknown): CandidateJobMatchImprov
     ?? asNullableNumber(root.potential_match_percentage)
     ?? asNullableNumber(data.potential_match_percentage);
 
+  const gapPctRaw = asNullableNumber(root.gap_pct) ?? asNullableNumber(data.gap_pct);
+  const jobsEvaluatedRaw = asNullableNumber(root.jobs_evaluated) ?? asNullableNumber(data.jobs_evaluated);
+
   const currentMatch = typeof currentMatchRaw === 'number'
     ? Math.max(0, Math.min(100, Math.round(currentMatchRaw)))
     : null;
@@ -602,6 +616,8 @@ function normalizeJobMatchImprovement(payload: unknown): CandidateJobMatchImprov
   return {
     current_match: currentMatch,
     potential_match: potentialMatch,
+    gap_pct: typeof gapPctRaw === 'number' ? Math.max(0, Math.round(gapPctRaw)) : null,
+    jobs_evaluated: typeof jobsEvaluatedRaw === 'number' ? Math.max(0, Math.round(jobsEvaluatedRaw)) : null,
     missing_skills: skillsRaw
       .map((item, index) => normalizeImprovementSkill(item, index))
       .filter((item): item is CandidateJobMatchImprovementSkill => item !== null),
@@ -707,6 +723,10 @@ export async function getCandidateJobs(
   const queryParams = new URLSearchParams();
   queryParams.set('skip', String(skip));
   queryParams.set('limit', String(limit));
+
+  if (typeof params.sort_by === 'string' && params.sort_by.trim()) {
+    queryParams.set('sort_by', params.sort_by.trim());
+  }
 
   if (typeof params.date_posted === 'string' && params.date_posted.trim()) {
     queryParams.set('date_posted', params.date_posted.trim());

@@ -164,10 +164,13 @@ export interface CandidateApplicationsListResponse {
   total: number;
 }
 
+export type CandidateApplicationsSortBy = 'recently_applied' | 'oldest';
+
 export interface GetCandidateApplicationsParams {
   skip?: number;
   limit?: number;
   application_status?: CandidateApplicationStatus | null;
+  sort_by?: CandidateApplicationsSortBy | null;
 }
 
 export interface CandidateApplyJobPayload {
@@ -525,6 +528,10 @@ export async function getCandidateApplications(
 
   if (typeof params.application_status === 'string' && params.application_status.trim()) {
     queryParams.set('application_status', params.application_status.trim());
+  }
+
+  if (typeof params.sort_by === 'string' && params.sort_by.trim()) {
+    queryParams.set('sort_by', params.sort_by.trim());
   }
 
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>

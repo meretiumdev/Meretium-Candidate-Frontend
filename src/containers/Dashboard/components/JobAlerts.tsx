@@ -13,6 +13,15 @@ function formatMatchCount(count: number): string {
   return `${normalized} new job${normalized === 1 ? '' : 's'}`;
 }
 
+function getAlertMessage(alert: CandidateJobAlertCountItem): string {
+  const normalizedCount = Math.max(0, Math.trunc(alert.new_matches_count));
+  if (normalizedCount === 0) {
+    return `No new jobs matched your ${alert.job_role} alert yet.`;
+  }
+
+  return `${formatMatchCount(normalizedCount)} match your ${alert.job_role} alert`;
+}
+
 export default function JobAlerts({ alerts, errorMessage, onRetry }: JobAlertsProps) {
   const navigate = useNavigate();
   const hasAlerts = alerts.length > 0;
@@ -42,9 +51,7 @@ export default function JobAlerts({ alerts, errorMessage, onRetry }: JobAlertsPr
                 <Bell className="text-[#FF6934] size-5" />
               </div>
               <div>
-                <p className="text-[14px] text-gray-500 font-semibold leading-[19px]">
-                  <span className="font-bold text-[14px] text-gray-900">{formatMatchCount(alert.new_matches_count)}</span> match your {alert.job_role} alert
-                </p>
+                <p className="text-[14px] text-gray-500 font-semibold leading-[19px]">{getAlertMessage(alert)}</p>
               </div>
             </div>
           ))}

@@ -13,6 +13,7 @@ interface SidebarStatsProps {
   strengths?: string[];
   areasToImprove?: string[];
   topRoleMatches?: CandidateProfileInsightRoleMatch[];
+  onProfileUpdated?: () => Promise<void> | void;
 }
 
 const AI_SUMMARY_PREVIEW_LIMIT = 260;
@@ -22,6 +23,7 @@ export default function SidebarStats({
   strengths = [],
   areasToImprove = [],
   topRoleMatches = [],
+  onProfileUpdated,
 }: SidebarStatsProps) {
   const [selectedRole, setSelectedRole] = useState<RoleMatch | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
@@ -301,7 +303,9 @@ export default function SidebarStats({
         isOpen={!!selectedRole}
         onClose={() => setSelectedRole(null)}
         role={selectedRole?.role ?? ''}
-        currentMatch={selectedRole?.match ?? 0}
+        currentMatch={null}
+        source="profile"
+        onProfileUpdated={onProfileUpdated}
       />
     </>
   );

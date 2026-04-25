@@ -1,7 +1,7 @@
 import type { CandidateSavedJobStatus } from '../../services/jobsApi';
 
 export type SavedStatusFilter = 'ALL' | CandidateSavedJobStatus;
-export type SavedSortOption = 'recently_saved' | 'oldest_first' | 'expiring_soon';
+export type SavedSortOption = 'recently_saved' | 'oldest';
 
 export interface SavedUiStats {
   total: number;

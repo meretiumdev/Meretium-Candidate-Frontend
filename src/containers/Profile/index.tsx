@@ -265,6 +265,7 @@ export default function Profile() {
             strengths={profileInsights.strengths}
             areasToImprove={profileInsights.areas_to_improve}
             topRoleMatches={profileInsights.top_role_matches}
+            onProfileUpdated={refreshProfileSilently}
           />
         </div>
       </div>
