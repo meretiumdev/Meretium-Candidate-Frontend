@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from '../../redux/store';
 import Header from './components/Header';
@@ -36,6 +36,82 @@ function ProfileCardSkeleton({ heightClass }: { heightClass: string }) {
   );
 }
 
+interface ProfileAiSnapshot {
+  summary: string;
+  insights: CandidateProfileInsights;
+}
+
+const EMPTY_PROFILE_INSIGHTS: CandidateProfileInsights = {
+  top_role_matches: [],
+  strengths: [],
+  areas_to_improve: [],
+};
+
+const profileAiCache = new Map<string, ProfileAiSnapshot>();
+const profileAiRequests = new Map<string, Promise<ProfileAiSnapshot>>();
+const profileAiVersions = new Map<string, number>();
+const profileDataCache = new Map<string, CandidateProfileResponse>();
+const profileDataRequests = new Map<string, Promise<CandidateProfileResponse>>();
+
+function getProfileCacheKey(accessToken: string): string {
+  return accessToken.trim();
+}
+
+function getProfileAiCacheKey(accessToken: string): string {
+  const cacheKey = getProfileCacheKey(accessToken);
+  const version = profileAiVersions.get(cacheKey) || 0;
+  return `${cacheKey}:${version}`;
+}
+
+function invalidateProfileAiSnapshot(accessToken: string): void {
+  const cacheKey = getProfileCacheKey(accessToken);
+  profileAiVersions.set(cacheKey, (profileAiVersions.get(cacheKey) || 0) + 1);
+}
+
+async function loadProfileAiSnapshot(accessToken: string): Promise<ProfileAiSnapshot> {
+  const cacheKey = getProfileAiCacheKey(accessToken);
+  const cached = profileAiCache.get(cacheKey);
+  if (cached) return cached;
+
+  const inFlight = profileAiRequests.get(cacheKey);
+  if (inFlight) return inFlight;
+
+  const request = Promise.all([
+    generateCandidateProfileAutoSummary(accessToken).catch(() => ''),
+    getCandidateProfileInsights(accessToken).catch(() => EMPTY_PROFILE_INSIGHTS),
+  ]).then(([summary, insights]) => {
+    const snapshot = { summary, insights };
+    profileAiCache.set(cacheKey, snapshot);
+    return snapshot;
+  }).finally(() => {
+    profileAiRequests.delete(cacheKey);
+  });
+
+  profileAiRequests.set(cacheKey, request);
+  return request;
+}
+
+async function loadProfileDataSnapshot(accessToken: string, useCache: boolean): Promise<CandidateProfileResponse> {
+  const cacheKey = getProfileCacheKey(accessToken);
+  const cached = useCache ? profileDataCache.get(cacheKey) : null;
+  if (cached) return cached;
+
+  const inFlight = useCache ? profileDataRequests.get(cacheKey) : null;
+  if (inFlight) return inFlight;
+
+  const request = getCandidateProfile(accessToken)
+    .then((response) => {
+      profileDataCache.set(cacheKey, response);
+      return response;
+    })
+    .finally(() => {
+      profileDataRequests.delete(cacheKey);
+    });
+
+  profileDataRequests.set(cacheKey, request);
+  return request;
+}
+
 export default function Profile() {
   const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
@@ -48,8 +124,19 @@ export default function Profile() {
   });
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const requestSeqRef = useRef(0);
 
-  const loadProfile = useCallback(async ({ showPageLoading = true }: { showPageLoading?: boolean } = {}) => {
+  const loadProfile = useCallback(async ({
+    showPageLoading = true,
+    includeAiData = true,
+    useProfileCache = true,
+    refreshAiData = false,
+  }: {
+    showPageLoading?: boolean;
+    includeAiData?: boolean;
+    useProfileCache?: boolean;
+    refreshAiData?: boolean;
+  } = {}) => {
     if (!accessToken) {
       setErrorMessage('You are not authenticated. Please log in again.');
       setProfileSummary('');
@@ -57,34 +144,41 @@ export default function Profile() {
       return;
     }
 
+    const requestSeq = requestSeqRef.current + 1;
+    requestSeqRef.current = requestSeq;
+
     if (showPageLoading) {
       setIsPageLoading(true);
       setErrorMessage(null);
     }
 
     try {
-      const [response, summary, insights] = await Promise.all([
-        getCandidateProfile(accessToken),
-        generateCandidateProfileAutoSummary(accessToken).catch(() => ''),
-        getCandidateProfileInsights(accessToken).catch(() => ({
-          top_role_matches: [],
-          strengths: [],
-          areas_to_improve: [],
-        })),
+      if (includeAiData && refreshAiData) {
+        invalidateProfileAiSnapshot(accessToken);
+      }
+
+      const [response, aiSnapshot] = await Promise.all([
+        loadProfileDataSnapshot(accessToken, useProfileCache),
+        includeAiData ? loadProfileAiSnapshot(accessToken) : Promise.resolve(null),
       ]);
 
+      if (requestSeqRef.current !== requestSeq) return;
       setProfileData(response);
-      setProfileSummary(summary);
-      setProfileInsights(insights);
+      if (aiSnapshot) {
+        setProfileSummary(aiSnapshot.summary);
+        setProfileInsights(aiSnapshot.insights);
+      }
       dispatch(setProfile(response.profile));
       if (showPageLoading) {
         setErrorMessage(null);
       }
     } catch (error: unknown) {
+      if (requestSeqRef.current !== requestSeq) return;
       if (showPageLoading) {
         setErrorMessage(getErrorMessage(error));
       }
     } finally {
+      if (requestSeqRef.current !== requestSeq) return;
       if (showPageLoading) {
         setIsPageLoading(false);
       }
@@ -96,7 +190,12 @@ export default function Profile() {
   }, [loadProfile]);
 
   const refreshProfileSilently = async () => {
-    await loadProfile({ showPageLoading: false });
+    await loadProfile({
+      showPageLoading: false,
+      includeAiData: true,
+      useProfileCache: false,
+      refreshAiData: true,
+    });
   };
 
   if (isPageLoading && !profileData) {
