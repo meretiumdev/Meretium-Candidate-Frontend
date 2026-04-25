@@ -1,5 +1,5 @@
 import { Building2, MapPin, Calendar, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ApplicationDetailModal from './ApplicationDetailModal';
 import type { ApplicationListItem } from '../types';
 
@@ -10,6 +10,8 @@ interface ApplicationsListProps {
   errorMessage: string | null;
   currentPage: number;
   totalPages: number;
+  externalOpenApplicationId?: string | null;
+  onExternalOpenHandled?: () => void;
   onRetry: () => void;
   onPageChange: (page: number) => void;
 }
@@ -62,10 +64,48 @@ export default function ApplicationsList({
   errorMessage,
   currentPage,
   totalPages,
+  externalOpenApplicationId,
+  onExternalOpenHandled,
   onRetry,
   onPageChange,
 }: ApplicationsListProps) {
   const [selectedApp, setSelectedApp] = useState<ApplicationListItem | null>(null);
+  const lastExternalOpenIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!externalOpenApplicationId?.trim()) {
+      lastExternalOpenIdRef.current = null;
+      return;
+    }
+
+    const requestedId = externalOpenApplicationId?.trim() || '';
+    if (requestedId === lastExternalOpenIdRef.current) return;
+
+    const matchedApplication = applications.find((application) => application.id === requestedId);
+    if (matchedApplication) {
+      setSelectedApp(matchedApplication);
+    } else {
+      setSelectedApp({
+        id: requestedId,
+        title: 'Application details',
+        company: '',
+        location: '',
+        appliedAtLabel: 'Applied recently',
+        appliedAtRaw: '',
+        stage: 1,
+        status: 'In Review',
+        statusCode: 'IN_REVIEW',
+        statusColor: 'bg-gray-50 text-gray-600 border border-gray-100',
+        showProgress: true,
+        coverLetter: '',
+        screeningAnswers: [],
+        statusHistory: [],
+      });
+    }
+
+    lastExternalOpenIdRef.current = requestedId;
+    onExternalOpenHandled?.();
+  }, [applications, externalOpenApplicationId, onExternalOpenHandled]);
 
   if (isLoading && applications.length === 0) {
     return (

@@ -8,6 +8,47 @@ import { logout } from '../redux/store';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../redux/store';
 import { logoutUser } from '../services/authApi';
+import { subscribeCandidateSocketMessages } from '../utils/candidateSocketConnection';
+import { getCandidateUnreadCounts } from '../services/notificationsApi';
+
+const UNREAD_COUNTS_REFRESH_EVENT = 'candidate:refresh-unread-counts';
+
+function getRecordValue(input: unknown): Record<string, unknown> | null {
+  if (typeof input !== 'object' || input === null) return null;
+  return input as Record<string, unknown>;
+}
+
+function getNumberValue(input: unknown): number | null {
+  if (typeof input === 'number' && Number.isFinite(input)) return input;
+  if (typeof input === 'string') {
+    const parsed = Number(input);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function getBadgeUpdateCounts(payload: unknown): { unreadMessages: number; unreadNotifications: number } | null {
+  const payloadRecord = getRecordValue(payload);
+  if (!payloadRecord) return null;
+
+  const typeValue = (typeof payloadRecord.type === 'string' ? payloadRecord.type : '').trim().toLowerCase();
+  if (typeValue !== 'badge_update') return null;
+
+  const dataRecord = getRecordValue(payloadRecord.data);
+  const source = dataRecord || payloadRecord;
+
+  const unreadMessages = getNumberValue(source.unread_messages);
+  const unreadNotifications = getNumberValue(source.unread_notifications);
+
+  return {
+    unreadMessages: Math.max(0, unreadMessages ?? 0),
+    unreadNotifications: Math.max(0, unreadNotifications ?? 0),
+  };
+}
+
+function formatBadgeCount(count: number): string {
+  return count > 99 ? '99+' : String(count);
+}
 
 function getUserEmail(user: unknown): string {
   if (typeof user !== 'object' || user === null) return 'Email not available';
@@ -48,10 +89,53 @@ export default function Navbar() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const hasSocketBadgeUpdateRef = useRef(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const userEmail = getUserEmail(user);
   const userName = getUserName(user);
   const userInitial = getUserInitial(userName);
+
+  const refreshUnreadCounts = useRef(async (force = false) => {
+    const trimmedAccessToken = accessToken?.trim() || '';
+    if (!trimmedAccessToken) {
+      setUnreadMessagesCount(0);
+      setUnreadNotificationsCount(0);
+      return;
+    }
+
+    try {
+      const counts = await getCandidateUnreadCounts(trimmedAccessToken);
+      if (!force && hasSocketBadgeUpdateRef.current) return;
+
+      setUnreadMessagesCount(Math.max(0, counts.unread_messages_count));
+      setUnreadNotificationsCount(Math.max(0, counts.unread_notifications_count));
+    } catch {
+      // Keep current values if this fetch fails.
+    }
+  });
+
+  useEffect(() => {
+    refreshUnreadCounts.current = async (force = false) => {
+      const trimmedAccessToken = accessToken?.trim() || '';
+      if (!trimmedAccessToken) {
+        setUnreadMessagesCount(0);
+        setUnreadNotificationsCount(0);
+        return;
+      }
+
+      try {
+        const counts = await getCandidateUnreadCounts(trimmedAccessToken);
+        if (!force && hasSocketBadgeUpdateRef.current) return;
+
+        setUnreadMessagesCount(Math.max(0, counts.unread_messages_count));
+        setUnreadNotificationsCount(Math.max(0, counts.unread_notifications_count));
+      } catch {
+        // Keep current values if this fetch fails.
+      }
+    };
+  }, [accessToken]);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -98,6 +182,43 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = subscribeCandidateSocketMessages((payload) => {
+      const badgeCounts = getBadgeUpdateCounts(payload);
+      if (!badgeCounts) return;
+      hasSocketBadgeUpdateRef.current = true;
+
+      setUnreadMessagesCount(badgeCounts.unreadMessages);
+      setUnreadNotificationsCount(badgeCounts.unreadNotifications);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const trimmedAccessToken = accessToken?.trim() || '';
+    if (!trimmedAccessToken) {
+      setUnreadMessagesCount(0);
+      setUnreadNotificationsCount(0);
+      hasSocketBadgeUpdateRef.current = false;
+      return;
+    }
+
+    hasSocketBadgeUpdateRef.current = false;
+    void refreshUnreadCounts.current(false);
+  }, [accessToken]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      void refreshUnreadCounts.current(true);
+    };
+
+    window.addEventListener(UNREAD_COUNTS_REFRESH_EVENT, handleRefresh);
+    return () => {
+      window.removeEventListener(UNREAD_COUNTS_REFRESH_EVENT, handleRefresh);
+    };
+  }, []);
+
   return (
     <nav className="w-full bg-[#FDF7E9] h-[76px] sticky top-0 z-50 px-4 md:px-10">
       <div className="flex items-center justify-between w-full h-full md:gap-8">
@@ -142,19 +263,28 @@ export default function Navbar() {
               className="relative cursor-pointer text-gray-500 hover:text-gray-800 transition-colors"
             >
               <MessageSquare size={20} className="md:w-[22px] md:h-[22px]" />
-              <span className="absolute -top-1.5 -right-1.5 bg-[#FF6934] text-white text-[9px] md:text-[10px] font-bold size-4 md:size-4.5 flex items-center justify-center rounded-full border-2 border-[#FCF8F1]">3</span>
+              {unreadMessagesCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#FF6934] text-white text-[9px] md:text-[10px] font-bold min-w-4 h-4 px-1 flex items-center justify-center rounded-full border-2 border-[#FCF8F1]">
+                  {formatBadgeCount(unreadMessagesCount)}
+                </span>
+              )}
             </div>
             <div 
               onClick={() => setIsNotificationsOpen(true)}
               className="relative cursor-pointer text-gray-500 hover:text-gray-800 transition-colors"
             >
               <Bell size={20} className="md:w-[22px] md:h-[22px]" />
-              <span className="absolute -top-1.5 -right-1.5 bg-[#FF6934] text-white text-[9px] md:text-[10px] font-bold size-4 md:size-4.5 flex items-center justify-center rounded-full border-2 border-[#FCF8F1]">5</span>
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#FF6934] text-white text-[9px] md:text-[10px] font-bold min-w-4 h-4 px-1 flex items-center justify-center rounded-full border-2 border-[#FCF8F1]">
+                  {formatBadgeCount(unreadNotificationsCount)}
+                </span>
+              )}
             </div>
             
             <NotificationsModal 
               isOpen={isNotificationsOpen} 
-              onClose={() => setIsNotificationsOpen(false)} 
+              onClose={() => setIsNotificationsOpen(false)}
+              onUnreadCountChange={setUnreadNotificationsCount}
             />
             
             {/* Profile Avatar & Dropdown */}

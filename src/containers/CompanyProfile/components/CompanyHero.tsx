@@ -15,6 +15,8 @@ export default function CompanyHero({ onViewJobs, activeTab, company }: CompanyH
   const website = company?.website || '';
   const logoUrl = company?.logo_url || '';
   const bannerUrl = company?.banner_url || '';
+  const showViewJobsButton = activeTab !== 'jobs';
+  const showActions = showViewJobsButton || Boolean(website);
 
   return (
     <div className="bg-white border border-gray-200 rounded-[10px] overflow-hidden shadow-sm font-manrope">
@@ -72,26 +74,30 @@ export default function CompanyHero({ onViewJobs, activeTab, company }: CompanyH
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={onViewJobs}
-              className={`${activeTab === 'jobs' ? 'bg-[#e55a2b]' : 'bg-[#FF6934]'} hover:bg-[#e55a2b] text-white px-5 py-2.5 rounded-[10px] text-[14px] font-semibold transition-colors cursor-pointer shadow-sm shadow-orange-100 min-w-[140px]`}
-            >
-              View Open Jobs
-            </button>
-            {website ? (
-              <a
-                href={website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-[#344054] px-5 py-2.5 rounded-[10px] text-[14px] font-semibold transition-colors cursor-pointer"
-              >
-                <Globe size={15} />
-                Visit Website
-              </a>
-            ) : null}
-          </div>
+          {showActions ? (
+            <div className="flex items-center gap-3 shrink-0">
+              {showViewJobsButton ? (
+                <button
+                  type="button"
+                  onClick={onViewJobs}
+                  className="bg-[#FF6934] hover:bg-[#e55a2b] text-white px-5 py-2.5 rounded-[10px] text-[14px] font-semibold transition-colors cursor-pointer shadow-sm shadow-orange-100 min-w-[140px]"
+                >
+                  View Open Jobs
+                </button>
+              ) : null}
+              {website ? (
+                <a
+                  href={website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-[#344054] px-5 py-2.5 rounded-[10px] text-[14px] font-semibold transition-colors cursor-pointer"
+                >
+                  <Globe size={15} />
+                  Visit Website
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

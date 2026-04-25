@@ -1,13 +1,81 @@
-import { X, Bell } from 'lucide-react';
-import { useState } from 'react';
+import { X, Bell, Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../redux/store';
+import { createCandidateJobAlert, type CandidateJobAlertFrequency } from '../services/jobAlertsApi';
 
 interface CreateJobAlertModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreated?: (jobRole: string) => void;
 }
 
-export default function CreateJobAlertModal({ isOpen, onClose }: CreateJobAlertModalProps) {
-  const [frequency, setFrequency] = useState<'daily' | 'weekly'>('weekly');
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return 'Unable to create job alert. Please try again.';
+}
+
+const WORK_MODE_OPTIONS = [
+  { label: 'Remote', value: 'REMOTE' },
+  { label: 'On-site', value: 'ON_SITE' },
+  { label: 'Hybrid', value: 'HYBRID' },
+] as const;
+
+export default function CreateJobAlertModal({ isOpen, onClose, onCreated }: CreateJobAlertModalProps) {
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const [jobRole, setJobRole] = useState('');
+  const [location, setLocation] = useState('');
+  const [workMode, setWorkMode] = useState('');
+  const [frequency, setFrequency] = useState<CandidateJobAlertFrequency>('weekly');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setJobRole('');
+    setLocation('');
+    setWorkMode('');
+    setFrequency('weekly');
+    setIsSubmitting(false);
+    setErrorMessage(null);
+  }, [isOpen]);
+
+  const isCreateDisabled = useMemo(
+    () => isSubmitting || jobRole.trim().length === 0,
+    [isSubmitting, jobRole]
+  );
+
+  const handleCreate = async () => {
+    const trimmedJobRole = jobRole.trim();
+
+    if (!accessToken?.trim()) {
+      setErrorMessage('You are not authenticated. Please log in again.');
+      return;
+    }
+
+    if (!trimmedJobRole) {
+      setErrorMessage('Job role is required.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      await createCandidateJobAlert(accessToken, {
+        job_role: trimmedJobRole,
+        location: location.trim() || null,
+        work_mode: workMode || null,
+        frequency,
+      });
+      onCreated?.(trimmedJobRole);
+      onClose();
+    } catch (error: unknown) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -45,6 +113,8 @@ export default function CreateJobAlertModal({ isOpen, onClose }: CreateJobAlertM
             <input 
               type="text" 
               placeholder="e.g. Product Designer"
+              value={jobRole}
+              onChange={(event) => setJobRole(event.target.value)}
               className="w-full px-4 py-3 rounded-[12px] border border-[#D0D5DD] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 focus:border-[#FF6934] transition-all placeholder:text-[#98A2B3] text-sm"
             />
           </div>
@@ -55,6 +125,8 @@ export default function CreateJobAlertModal({ isOpen, onClose }: CreateJobAlertM
             <input 
               type="text" 
               placeholder="e.g. London, UK"
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
               className="w-full px-4 py-3 rounded-[12px] border border-[#D0D5DD] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 focus:border-[#FF6934] transition-all placeholder:text-[#98A2B3] text-sm"
             />
           </div>
@@ -63,12 +135,14 @@ export default function CreateJobAlertModal({ isOpen, onClose }: CreateJobAlertM
           <div>
             <label className="block text-sm font-medium text-[#344054] mb-2">Work mode</label>
             <select 
+              value={workMode}
+              onChange={(event) => setWorkMode(event.target.value)}
               className="w-full px-4 py-3 rounded-[12px] border border-[#D0D5DD] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/20 focus:border-[#FF6934] transition-all bg-white text-sm appearance-none"
             >
               <option value="">Select work mode</option>
-              <option value="remote">Remote</option>
-              <option value="onsite">On-site</option>
-              <option value="hybrid">Hybrid</option>
+              {WORK_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </div>
 
@@ -77,12 +151,14 @@ export default function CreateJobAlertModal({ isOpen, onClose }: CreateJobAlertM
             <label className="block text-sm font-medium text-[#344054] mb-4">Frequency *</label>
             <div className="flex bg-[#F9FAFB] p-1 rounded-[12px] gap-1">
               <button 
+                type="button"
                 onClick={() => setFrequency('daily')}
                 className={`flex-1 py-2.5 rounded-[10px] text-sm font-medium transition-all cursor-pointer ${frequency === 'daily' ? 'bg-[#FF6934] text-white shadow-sm' : 'text-[#667085] hover:text-[#101828]'}`}
               >
                 Daily
               </button>
               <button 
+                type="button"
                 onClick={() => setFrequency('weekly')}
                 className={`flex-1 py-2.5 rounded-[10px] text-sm font-medium transition-all cursor-pointer ${frequency === 'weekly' ? 'bg-[#FF6934] text-white shadow-sm' : 'text-[#667085] hover:text-[#101828]'}`}
               >
@@ -90,6 +166,10 @@ export default function CreateJobAlertModal({ isOpen, onClose }: CreateJobAlertM
               </button>
             </div>
           </div>
+
+          {errorMessage && (
+            <p className="text-[13px] text-[#B42318]">{errorMessage}</p>
+          )}
         </div>
 
         {/* Footer */}
@@ -101,9 +181,18 @@ export default function CreateJobAlertModal({ isOpen, onClose }: CreateJobAlertM
             Cancel
           </button>
           <button 
-            className="px-6 py-2.5 bg-[#FF6934] opacity-50 hover:opacity-100 text-white font-medium text-sm rounded-[10px] shadow-sm transition-all cursor-pointer"
+            onClick={() => { void handleCreate(); }}
+            disabled={isCreateDisabled}
+            className="px-6 py-2.5 bg-[#FF6934] text-white font-medium text-sm rounded-[10px] shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
           >
-            Create alert
+            {isSubmitting ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin" />
+                Creating...
+              </span>
+            ) : (
+              'Create alert'
+            )}
           </button>
         </div>
       </div>

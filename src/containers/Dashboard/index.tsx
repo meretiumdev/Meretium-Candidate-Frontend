@@ -9,10 +9,11 @@ import QuickApplyModal from '../../components/QuickApplyModal';
 import type { QuickApplyModalJob } from '../../components/QuickApplyModal';
 import type { RootState } from '../../redux/store';
 import { getCandidateDashboard, type CandidateDashboardResponse } from '../../services/dashboardApi';
+import { getCandidateJobAlertsCount, type CandidateJobAlertCountItem } from '../../services/jobAlertsApi';
 
-function getErrorMessage(error: unknown): string {
+function getErrorMessage(error: unknown, fallback = 'Failed to load dashboard. Please try again.'): string {
   if (error instanceof Error && error.message.trim()) return error.message;
-  return 'Failed to load dashboard. Please try again.';
+  return fallback;
 }
 
 function DashboardCardSkeleton({ heightClass }: { heightClass: string }) {
@@ -34,6 +35,8 @@ export default function MainDashboard() {
   const [selectedJob, setSelectedJob] = useState<QuickApplyModalJob | null>(null);
   const [applyToast, setApplyToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
   const [dashboardData, setDashboardData] = useState<CandidateDashboardResponse | null>(null);
+  const [jobAlerts, setJobAlerts] = useState<CandidateJobAlertCountItem[]>([]);
+  const [jobAlertsError, setJobAlertsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -51,15 +54,29 @@ export default function MainDashboard() {
 
     setLoading(true);
     setErrorMessage(null);
+    setJobAlertsError(null);
 
-    try {
-      const response = await getCandidateDashboard(accessToken);
-      setDashboardData(response);
-    } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error));
-    } finally {
-      setLoading(false);
+    const [dashboardResult, jobAlertsResult] = await Promise.allSettled([
+      getCandidateDashboard(accessToken),
+      getCandidateJobAlertsCount(accessToken),
+    ]);
+
+    if (dashboardResult.status === 'fulfilled') {
+      setDashboardData(dashboardResult.value);
+    } else {
+      setDashboardData(null);
+      setErrorMessage(getErrorMessage(dashboardResult.reason));
     }
+
+    if (jobAlertsResult.status === 'fulfilled') {
+      setJobAlerts(jobAlertsResult.value);
+      setJobAlertsError(null);
+    } else {
+      setJobAlerts([]);
+      setJobAlertsError(getErrorMessage(jobAlertsResult.reason, 'Failed to load job alerts.'));
+    }
+
+    setLoading(false);
   }, [accessToken]);
 
   useEffect(() => {
@@ -145,7 +162,17 @@ export default function MainDashboard() {
         </div>
 
         <div className="lg:col-span-4">
-          {loading ? <DashboardCardSkeleton heightClass="min-h-[420px]" /> : <JobAlerts />}
+          {loading ? (
+            <DashboardCardSkeleton heightClass="min-h-[420px]" />
+          ) : (
+            <JobAlerts
+              alerts={jobAlerts}
+              errorMessage={jobAlertsError}
+              onRetry={() => {
+                void loadDashboard();
+              }}
+            />
+          )}
         </div>
       </div>
 

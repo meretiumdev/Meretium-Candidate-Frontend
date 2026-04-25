@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Header from './components/Header';
 import StatCards from './components/StatCards';
 import StatusTabs from './components/StatusTabs';
@@ -152,7 +153,19 @@ function getErrorMessage(error: unknown): string {
   return 'Failed to load applications. Please try again.';
 }
 
+function getNotificationOpenApplicationId(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null) return null;
+
+  const value = (state as { openApplicationId?: unknown }).openApplicationId;
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export default function Applications() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [activeStatus, setActiveStatus] = useState<ApplicationStatusFilter>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
@@ -161,6 +174,9 @@ export default function Applications() {
   const [totalApplications, setTotalApplications] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [externalOpenApplicationId, setExternalOpenApplicationId] = useState<string | null>(
+    () => getNotificationOpenApplicationId(location.state)
+  );
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(Math.max(0, totalApplications) / PAGE_LIMIT)),
@@ -218,6 +234,10 @@ export default function Applications() {
     }
   }, [currentPage, totalPages]);
 
+  useEffect(() => {
+    setExternalOpenApplicationId(getNotificationOpenApplicationId(location.state));
+  }, [location.state]);
+
   const handleStatusChange = (status: ApplicationStatusFilter) => {
     setActiveStatus(status);
     setCurrentPage(1);
@@ -234,6 +254,11 @@ export default function Applications() {
     void loadApplications();
   };
 
+  const handleExternalOpenHandled = () => {
+    setExternalOpenApplicationId(null);
+    navigate(location.pathname, { replace: true, state: null });
+  };
+
   return (
     <div className="max-w-full mx-auto px-2 sm:px-12 py-6 space-y-6 bg-[#F9FAFB] min-h-screen">
       <Header />
@@ -246,6 +271,8 @@ export default function Applications() {
         errorMessage={errorMessage}
         currentPage={currentPage}
         totalPages={totalPages}
+        externalOpenApplicationId={externalOpenApplicationId}
+        onExternalOpenHandled={handleExternalOpenHandled}
         onRetry={handleRetry}
         onPageChange={handlePageChange}
       />
