@@ -87,14 +87,14 @@ export default function HowYouMatch({ job, onMatchUpdated }: HowYouMatchProps) {
   }, []);
 
   const matchingSkills = useMemo(() => {
-    if (analysis?.matching_skills?.length) return analysis.matching_skills;
-    return job?.required_skills || [];
-  }, [analysis?.matching_skills, job?.required_skills]);
+    return analysis?.matching_skills || [];
+  }, [analysis?.matching_skills]);
 
   const missingSkills = useMemo(() => {
-    if (analysis?.missing_skills?.length) return analysis.missing_skills;
-    return job?.preferred_skills || [];
-  }, [analysis?.missing_skills, job?.preferred_skills]);
+    return analysis?.missing_skills || [];
+  }, [analysis?.missing_skills]);
+
+  const hasAnalysisResponse = analysis !== null;
 
   const currentMatch = useMemo(() => {
     if (typeof localMatchPercentage === 'number') return localMatchPercentage;
@@ -125,9 +125,9 @@ export default function HowYouMatch({ job, onMatchUpdated }: HowYouMatchProps) {
               </span>
             ))}
           </div>
-        ) : (
+        ) : hasAnalysisResponse ? (
           <p className="text-[13px] text-[#475467]">No matched skills available right now.</p>
-        )}
+        ) : null}
       </div>
 
       <div className="mb-6">
@@ -147,9 +147,9 @@ export default function HowYouMatch({ job, onMatchUpdated }: HowYouMatchProps) {
               </span>
             ))}
           </div>
-        ) : (
+        ) : hasAnalysisResponse ? (
           <p className="text-[13px] text-[#475467]">No missing skills identified.</p>
-        )}
+        ) : null}
       </div>
 
       {analysisError && (

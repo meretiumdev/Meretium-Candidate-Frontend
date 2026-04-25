@@ -244,6 +244,20 @@ function asTextArray(input: unknown): string[] {
     .filter((item) => item.length > 0);
 }
 
+function getFirstTextArrayField(
+  sources: Record<string, unknown>[],
+  fieldNames: string[]
+): string[] {
+  for (const source of sources) {
+    for (const fieldName of fieldNames) {
+      const value = source[fieldName];
+      if (Array.isArray(value)) return asTextArray(value);
+    }
+  }
+
+  return [];
+}
+
 function normalizeScreeningQuestion(raw: unknown): CandidateJobScreeningQuestion | null {
   const root = asRecord(raw);
   if (!root) return null;
@@ -428,21 +442,14 @@ function normalizeJobMatchAnalysis(payload: unknown): CandidateJobMatchAnalysis 
   const root = asRecord(payload) || {};
   const data = asRecord(root.data) || {};
 
-  const matchingSkills = asTextArray(root.matching_skills).length > 0
-    ? asTextArray(root.matching_skills)
-    : asTextArray(data.matching_skills).length > 0
-      ? asTextArray(data.matching_skills)
-      : asTextArray(root.matched_skills).length > 0
-        ? asTextArray(root.matched_skills)
-        : asTextArray(data.matched_skills);
-
-  const missingSkills = asTextArray(root.missing_skills).length > 0
-    ? asTextArray(root.missing_skills)
-    : asTextArray(data.missing_skills).length > 0
-      ? asTextArray(data.missing_skills)
-      : asTextArray(root.gap_skills).length > 0
-        ? asTextArray(root.gap_skills)
-        : asTextArray(data.gap_skills);
+  const matchingSkills = getFirstTextArrayField(
+    [root, data],
+    ['matching_skills', 'matched_skills']
+  );
+  const missingSkills = getFirstTextArrayField(
+    [root, data],
+    ['missing_skills', 'gap_skills']
+  );
 
   const matchPercentageRaw = asNullableNumber(root.match_percentage) ?? asNullableNumber(data.match_percentage);
   const matchPercentage = typeof matchPercentageRaw === 'number'

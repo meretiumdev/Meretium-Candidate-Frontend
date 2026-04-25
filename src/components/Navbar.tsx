@@ -141,27 +141,24 @@ export default function Navbar() {
     if (isLoggingOut) return;
 
     setLogoutError(null);
+    setIsLoggingOut(true);
+
+    const finishLocalLogout = () => {
+      setIsProfileMenuOpen(false);
+      dispatch(logout());
+      navigate('/auth', { replace: true });
+    };
 
     try {
       const trimmedAccessToken = accessToken?.trim() || '';
       const trimmedRefreshToken = refreshToken?.trim() || '';
-      if (!trimmedAccessToken || !trimmedRefreshToken) {
-        setLogoutError('Unable to logout. Missing authentication token.');
-        return;
+      if (trimmedAccessToken && trimmedRefreshToken) {
+        await logoutUser(trimmedAccessToken, { refresh_token: trimmedRefreshToken });
       }
-
-      setIsLoggingOut(true);
-      await logoutUser(trimmedAccessToken, { refresh_token: trimmedRefreshToken });
-      setIsProfileMenuOpen(false);
-      dispatch(logout());
-      navigate('/auth', { replace: true });
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message.trim()) {
-        setLogoutError(error.message);
-      } else {
-        setLogoutError('Unable to logout. Please try again.');
-      }
-      setIsLoggingOut(false);
+    } catch {
+      // Logout must not be blocked by an expired, invalid, or otherwise rejected token.
+    } finally {
+      finishLocalLogout();
     }
   };
 
