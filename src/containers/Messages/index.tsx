@@ -23,6 +23,7 @@ import {
 } from '../../utils/candidateSocketConnection';
 
 const UNREAD_COUNTS_REFRESH_EVENT = 'candidate:refresh-unread-counts';
+const MESSAGES_PAGE_SIZE = 30;
 
 function getUserId(input: unknown): string | null {
   if (typeof input !== 'object' || input === null) return null;
@@ -126,6 +127,40 @@ function isMessagesDescending(messages: CandidateConversationMessage[]): boolean
   return firstTimestamp >= lastTimestamp;
 }
 
+function appendOlderMessages(
+  current: CandidateConversationMessage[],
+  olderBatch: CandidateConversationMessage[]
+): CandidateConversationMessage[] {
+  if (olderBatch.length === 0) return current;
+
+  const existingIds = new Set(current.map((item) => item.id));
+  const uniqueOlder = olderBatch.filter((item) => item.id && !existingIds.has(item.id));
+  if (uniqueOlder.length === 0) return current;
+
+  if (isMessagesDescending(current)) {
+    return [...current, ...uniqueOlder];
+  }
+
+  return [...uniqueOlder, ...current];
+}
+
+function mergeLatestMessages(
+  current: CandidateConversationMessage[],
+  latestBatch: CandidateConversationMessage[]
+): CandidateConversationMessage[] {
+  if (latestBatch.length === 0) return current;
+  if (current.length === 0) return latestBatch;
+
+  const latestIds = new Set(latestBatch.map((item) => item.id));
+  const remainder = current.filter((item) => !latestIds.has(item.id));
+
+  if (isMessagesDescending(current)) {
+    return [...latestBatch, ...remainder];
+  }
+
+  return [...remainder, ...latestBatch];
+}
+
 function buildConversationFromSocketPayload(
   payload: unknown,
   incomingMessage: CandidateConversationMessage,
@@ -199,14 +234,18 @@ export default function Messages() {
   const [messages, setMessages] = React.useState<CandidateConversationMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = React.useState(false);
   const [messagesError, setMessagesError] = React.useState<string | null>(null);
+  const [messagesTotal, setMessagesTotal] = React.useState(0);
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = React.useState(false);
   const [isSendingMessage, setIsSendingMessage] = React.useState(false);
   const [isChatAtLatestPosition, setIsChatAtLatestPosition] = React.useState(true);
+  const [unseenNewMessagesCount, setUnseenNewMessagesCount] = React.useState(0);
   const [pendingMarkReadConversationId, setPendingMarkReadConversationId] = React.useState<string | null>(null);
   const [selectedApplicationDetail, setSelectedApplicationDetail] = React.useState<CandidateApplicationDetail | null>(null);
   const [isSelectedApplicationDetailLoading, setIsSelectedApplicationDetailLoading] = React.useState(false);
   const [isStatusActionSubmitting, setIsStatusActionSubmitting] = React.useState(false);
   const [statusActionError, setStatusActionError] = React.useState<string | null>(null);
   const backgroundRefreshInFlightRef = React.useRef(false);
+  const selectedConversationIdRef = React.useRef<string | null>(null);
 
   const trimmedAccessToken = accessToken?.trim() || '';
   const candidateUserId = getUserId(user) || (profileUserId?.trim() || null);
@@ -214,6 +253,11 @@ export default function Messages() {
   const selectedConversationStatusCode = selectedConversation?.application_status?.trim().toUpperCase() || '';
   const shouldShowStatusActionCard = selectedConversationStatusCode === 'OFFERED' || selectedConversationStatusCode === 'INTERVIEW';
   const selectedApplicationId = selectedConversation?.application_id?.trim() || '';
+  const hasMoreOlderMessages = messagesTotal > 0 && messages.length < messagesTotal;
+
+  React.useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId;
+  }, [selectedConversationId]);
 
   React.useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -277,6 +321,9 @@ export default function Messages() {
       setMessages([]);
       setMessagesError(null);
       setMessagesLoading(false);
+      setMessagesTotal(0);
+      setIsLoadingOlderMessages(false);
+      setUnseenNewMessagesCount(0);
       setPendingMarkReadConversationId(null);
       return;
     }
@@ -285,21 +332,26 @@ export default function Messages() {
     setMessagesLoading(true);
     setMessagesError(null);
     setMessages([]);
+    setMessagesTotal(0);
+    setIsLoadingOlderMessages(false);
+    setUnseenNewMessagesCount(0);
     setPendingMarkReadConversationId(null);
 
     void (async () => {
       try {
         const response = await getCandidateConversationMessages(trimmedAccessToken, selectedConversationId, {
           skip: 0,
-          limit: 30,
+          limit: MESSAGES_PAGE_SIZE,
         });
 
         if (isCancelled) return;
         setMessages(response.messages);
+        setMessagesTotal(Math.max(response.total, response.messages.length));
       } catch (error) {
         if (isCancelled) return;
         setMessages([]);
         setMessagesError(getErrorMessage(error));
+        setMessagesTotal(0);
       } finally {
         if (!isCancelled) {
           setMessagesLoading(false);
@@ -311,6 +363,12 @@ export default function Messages() {
       isCancelled = true;
     };
   }, [selectedConversationId, trimmedAccessToken]);
+
+  React.useEffect(() => {
+    if (isChatAtLatestPosition) {
+      setUnseenNewMessagesCount(0);
+    }
+  }, [isChatAtLatestPosition, selectedConversationId]);
 
   React.useEffect(() => {
     if (!trimmedAccessToken || !selectedApplicationId || !shouldShowStatusActionCard) {
@@ -391,10 +449,11 @@ export default function Messages() {
     try {
       const response = await getCandidateConversationMessages(trimmedAccessToken, selectedConversationId, {
         skip: 0,
-        limit: 30,
+        limit: MESSAGES_PAGE_SIZE,
       });
 
-      setMessages(response.messages);
+      setMessages((prev) => mergeLatestMessages(prev, response.messages));
+      setMessagesTotal(Math.max(response.total, response.messages.length));
 
       const latestMessage = response.messages.length > 0 ? response.messages[0] : null;
       setConversations((prev) => applyConversationDetailUpdate(
@@ -409,6 +468,43 @@ export default function Messages() {
       backgroundRefreshInFlightRef.current = false;
     }
   }, [selectedConversationId, trimmedAccessToken]);
+
+  const handleLoadOlderMessages = React.useCallback(async () => {
+    if (!trimmedAccessToken || !selectedConversationId) return;
+    if (messagesLoading || isLoadingOlderMessages) return;
+    if (messagesTotal > 0 && messages.length >= messagesTotal) return;
+
+    const requestConversationId = selectedConversationId;
+    const skip = messages.length;
+
+    setIsLoadingOlderMessages(true);
+
+    try {
+      const response = await getCandidateConversationMessages(trimmedAccessToken, requestConversationId, {
+        skip,
+        limit: MESSAGES_PAGE_SIZE,
+      });
+
+      if (selectedConversationIdRef.current !== requestConversationId) return;
+
+      setMessages((prev) => appendOlderMessages(prev, response.messages));
+      setMessagesTotal((prev) => Math.max(prev, response.total, skip + response.messages.length));
+    } catch (error) {
+      if (selectedConversationIdRef.current !== requestConversationId) return;
+      setMessagesError(getErrorMessage(error));
+    } finally {
+      if (selectedConversationIdRef.current === requestConversationId) {
+        setIsLoadingOlderMessages(false);
+      }
+    }
+  }, [
+    isLoadingOlderMessages,
+    messages.length,
+    messagesLoading,
+    messagesTotal,
+    selectedConversationId,
+    trimmedAccessToken,
+  ]);
 
   React.useEffect(() => {
     if (!selectedConversationId) return;
@@ -500,13 +596,21 @@ export default function Messages() {
 
       if (!isSelectedConversation) return;
 
+      let didInsertIncomingMessage = false;
       setMessages((prev) => {
         if (hasMessageId(prev, incomingMessage.id)) return prev;
+        didInsertIncomingMessage = true;
         if (isMessagesDescending(prev)) {
           return [incomingMessage, ...prev];
         }
         return [...prev, incomingMessage];
       });
+      if (didInsertIncomingMessage) {
+        setMessagesTotal((prev) => (prev > 0 ? prev + 1 : prev));
+        if (!isFromCandidate && !isChatAtLatestPosition) {
+          setUnseenNewMessagesCount((prev) => prev + 1);
+        }
+      }
 
       if (!isFromCandidate) {
         setPendingMarkReadConversationId(incomingMessage.conversation_id);
@@ -519,11 +623,13 @@ export default function Messages() {
     });
 
     return unsubscribe;
-  }, [candidateUserId, refreshSelectedConversationInBackground, selectedConversationId]);
+  }, [candidateUserId, isChatAtLatestPosition, refreshSelectedConversationInBackground, selectedConversationId]);
 
   const handleSelectConversation = (conversationId: string) => {
     setSelectedConversationId(conversationId);
     setMessagesError(null);
+    setUnseenNewMessagesCount(0);
+    setIsChatAtLatestPosition(true);
     setView('chat');
     setPendingMarkReadConversationId(null);
     setConversations((prev) => prev.map((conversation) => (
@@ -574,13 +680,18 @@ export default function Messages() {
         });
 
         updateConversationPreview(sentMessage.created_at || new Date().toISOString());
+        let didInsertSentMessage = false;
         setMessages((prev) => {
           if (hasMessageId(prev, sentMessage.id)) return prev;
+          didInsertSentMessage = true;
           if (isMessagesDescending(prev)) {
             return [sentMessage, ...prev];
           }
           return [...prev, sentMessage];
         });
+        if (didInsertSentMessage) {
+          setMessagesTotal((prev) => (prev > 0 ? prev + 1 : prev));
+        }
       } catch (apiError) {
         setMessagesError(getErrorMessage(apiError));
         throw apiError;
@@ -622,6 +733,10 @@ export default function Messages() {
             error={messagesError}
             onSendMessage={handleSendMessage}
             onBottomStateChange={setIsChatAtLatestPosition}
+            onLoadOlderMessages={handleLoadOlderMessages}
+            hasMoreOlderMessages={hasMoreOlderMessages}
+            isLoadingOlderMessages={isLoadingOlderMessages}
+            unseenNewMessagesCount={unseenNewMessagesCount}
             onBack={handleBack}
           />
         </div>

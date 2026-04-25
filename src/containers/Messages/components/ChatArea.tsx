@@ -17,10 +17,14 @@ interface ChatAreaProps {
   onInterviewAccept: () => void;
   candidateUserId: string | null;
   isLoadingMessages: boolean;
+  isLoadingOlderMessages?: boolean;
+  hasMoreOlderMessages?: boolean;
+  unseenNewMessagesCount?: number;
   isSendingMessage: boolean;
   error: string | null;
   onSendMessage: (content: string) => Promise<void>;
   onBottomStateChange?: (isAtBottom: boolean) => void;
+  onLoadOlderMessages?: () => Promise<void> | void;
   onBack?: () => void;
 }
 
@@ -68,8 +72,13 @@ function isCandidateMessage(message: CandidateConversationMessage, candidateUser
 }
 
 function isAtLatestPosition(element: HTMLElement): boolean {
-  const distanceFromBottom = element.scrollHeight - (element.scrollTop + element.clientHeight);
-  return distanceFromBottom <= 24;
+  return Math.abs(element.scrollTop) <= 24;
+}
+
+function isNearOlderMessagesEdge(element: HTMLElement): boolean {
+  const maxScrollableOffset = Math.max(0, element.scrollHeight - element.clientHeight);
+  const currentOffset = Math.abs(element.scrollTop);
+  return maxScrollableOffset - currentOffset <= 80;
 }
 
 function formatStatusCode(status: string): string {
@@ -99,27 +108,26 @@ export default function ChatArea({
   onInterviewAccept,
   candidateUserId,
   isLoadingMessages,
+  isLoadingOlderMessages = false,
+  hasMoreOlderMessages = false,
+  unseenNewMessagesCount = 0,
   isSendingMessage,
   error,
   onSendMessage,
   onBottomStateChange,
+  onLoadOlderMessages,
   onBack,
 }: ChatAreaProps) {
   const navigate = useNavigate();
   const [draftMessage, setDraftMessage] = React.useState('');
   const messagesContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const pendingInitialAnchorConversationRef = React.useRef<string | null>(null);
+  const pendingOlderMessagesRestoreRef = React.useRef<{
+    conversationId: string;
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
 
-  const displayMessages = React.useMemo(() => {
-    if (messages.length < 2) return messages;
-
-    const firstTimestamp = Date.parse(messages[0].created_at);
-    const lastTimestamp = Date.parse(messages[messages.length - 1].created_at);
-
-    if (!Number.isFinite(firstTimestamp) || !Number.isFinite(lastTimestamp)) return messages;
-    if (firstTimestamp >= lastTimestamp) return messages;
-    return [...messages].reverse();
-  }, [messages]);
+  const displayMessages = messages;
 
   const reportBottomState = React.useCallback(() => {
     if (!onBottomStateChange) return;
@@ -135,48 +143,69 @@ export default function ChatArea({
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    container.scrollTop = container.scrollHeight;
+    pendingOlderMessagesRestoreRef.current = null;
+    container.scrollTop = 0;
     if (onBottomStateChange) onBottomStateChange(true);
   }, [onBottomStateChange]);
 
-  React.useEffect(() => {
-    pendingInitialAnchorConversationRef.current = conversation?.id || null;
-  }, [conversation?.id]);
-
-  React.useEffect(() => {
+  const triggerLoadOlderMessages = React.useCallback(() => {
     if (!conversation?.id) return;
-    if (isLoadingMessages) return;
-    if (pendingInitialAnchorConversationRef.current !== conversation.id) return;
+    if (!onLoadOlderMessages) return;
+    if (isLoadingMessages || isLoadingOlderMessages || !hasMoreOlderMessages) return;
 
-    const statusCode = conversation.application_status.trim().toUpperCase();
-    const hasStatusActionCard = statusCode === 'OFFERED' || statusCode === 'INTERVIEW';
-    if (hasStatusActionCard && isLoadingApplicationDetail) return;
+    const container = messagesContainerRef.current;
+    if (!container || !isNearOlderMessagesEdge(container)) return;
 
-    anchorToLatestMessage();
-    const rafId = window.requestAnimationFrame(() => {
-      anchorToLatestMessage();
-    });
-    const timeoutId = window.setTimeout(() => {
-      anchorToLatestMessage();
-    }, 120);
-
-    pendingInitialAnchorConversationRef.current = null;
-
-    return () => {
-      window.cancelAnimationFrame(rafId);
-      window.clearTimeout(timeoutId);
+    pendingOlderMessagesRestoreRef.current = {
+      conversationId: conversation.id,
+      scrollHeight: container.scrollHeight,
+      scrollTop: container.scrollTop,
     };
+
+    void onLoadOlderMessages();
   }, [
-    anchorToLatestMessage,
     conversation?.id,
-    conversation?.application_status,
+    hasMoreOlderMessages,
     isLoadingMessages,
-    isLoadingApplicationDetail,
+    isLoadingOlderMessages,
+    onLoadOlderMessages,
   ]);
+
+  const handleMessagesScroll = React.useCallback(() => {
+    reportBottomState();
+    triggerLoadOlderMessages();
+  }, [reportBottomState, triggerLoadOlderMessages]);
+
+  React.useEffect(() => {
+    pendingOlderMessagesRestoreRef.current = null;
+  }, [conversation?.id]);
 
   React.useEffect(() => {
     reportBottomState();
   }, [conversation?.id, displayMessages.length, isLoadingMessages, reportBottomState]);
+
+  React.useLayoutEffect(() => {
+    const pendingRestore = pendingOlderMessagesRestoreRef.current;
+    if (!pendingRestore) return;
+
+    if (!conversation?.id || pendingRestore.conversationId !== conversation.id) {
+      pendingOlderMessagesRestoreRef.current = null;
+      return;
+    }
+
+    if (isLoadingOlderMessages) return;
+
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const heightDelta = container.scrollHeight - pendingRestore.scrollHeight;
+    const previousOffset = Math.abs(pendingRestore.scrollTop);
+    const nextOffset = previousOffset + heightDelta;
+    const direction = pendingRestore.scrollTop < 0 ? -1 : 1;
+    container.scrollTop = direction * nextOffset;
+    pendingOlderMessagesRestoreRef.current = null;
+    reportBottomState();
+  }, [conversation?.id, displayMessages.length, isLoadingOlderMessages, reportBottomState]);
 
   if (!conversation) {
     return (
@@ -296,9 +325,17 @@ export default function ChatArea({
       <div
         key={conversation.id}
         ref={messagesContainerRef}
-        onScroll={reportBottomState}
+        onScroll={handleMessagesScroll}
         className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-3 md:px-8 md:pt-8 md:pb-4 scrollbar-hide bg-white/50"
       >
+        {isLoadingOlderMessages && (
+          <div className="sticky top-0 z-10 flex justify-center pb-2">
+            <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[12px] text-gray-600 shadow-sm">
+              Loading older messages...
+            </span>
+          </div>
+        )}
+
         <div className="min-h-full flex flex-col-reverse">
           {isLoadingMessages && (
             <p className="text-sm text-gray-500">Loading messages...</p>
@@ -347,6 +384,18 @@ export default function ChatArea({
           })}
         </div>
       </div>
+
+      {unseenNewMessagesCount > 0 && (
+        <div className="pointer-events-none absolute bottom-24 right-4 md:right-6 z-20">
+          <button
+            type="button"
+            onClick={anchorToLatestMessage}
+            className="pointer-events-auto rounded-full border border-[#FDB08F] bg-white px-4 py-2 text-[12px] font-semibold text-[#FF6934] shadow-md hover:bg-[#FFF6F2] transition-colors"
+          >
+            {unseenNewMessagesCount} new {unseenNewMessagesCount === 1 ? 'message' : 'messages'} - Jump to latest
+          </button>
+        </div>
+      )}
 
       {showStatusActionCard && (
         <div className="shrink-0 px-4 md:px-6 pb-3 md:pb-4 bg-white border-t border-gray-100">
