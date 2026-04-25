@@ -33,7 +33,7 @@ export default function SidebarStats({
     }))
     .filter((item) => item.role.length > 0);
 
-  const summaryText = aiSummary.trim() || 'AI summary is not available right now.';
+  const summaryText = aiSummary.trim() || 'Update your profile to generate an AI summary.';
   const isSummaryLong = summaryText.length > AI_SUMMARY_PREVIEW_LIMIT;
   const visibleSummaryText = isSummaryExpanded || !isSummaryLong
     ? summaryText
@@ -96,7 +96,7 @@ export default function SidebarStats({
             </ul>
           ) : (
             <p className="text-[14px] md:text-[15px] text-[#475467]">
-              Strength insights are not available right now.
+              Update your profile to generate strength insights.
             </p>
           )}
         </div>
@@ -122,7 +122,7 @@ export default function SidebarStats({
             </ul>
           ) : (
             <p className="text-[14px] md:text-[15px] text-[#475467]">
-              Improvement insights are not available right now.
+              Update your profile to generate areas to improve.
             </p>
           )}
         </div>
@@ -162,7 +162,7 @@ export default function SidebarStats({
             </>
           ) : (
             <p className="text-[14px] md:text-[15px] text-[#475467]">
-              Role match insights are not available right now.
+              Update your profile to generate top role matches.
             </p>
           )}
         </div>

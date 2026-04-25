@@ -14,6 +14,7 @@ import {
   sendCandidateSocketNotificationMarkAllRead,
   sendCandidateSocketNotificationMarkRead,
 } from '../utils/candidateSocketConnection';
+import ModalPortal from './ModalPortal';
 
 interface NotificationsModalProps {
   isOpen: boolean;
@@ -243,6 +244,7 @@ export default function NotificationsModal({ isOpen, onClose, onUnreadCountChang
   if (!isOpen) return null;
 
   return (
+    <ModalPortal lockScroll={false}>
     <div
       onClick={onClose}
       className="fixed inset-0 z-[100] flex items-start justify-center md:justify-end p-4 pt-16"
@@ -314,5 +316,6 @@ export default function NotificationsModal({ isOpen, onClose, onUnreadCountChang
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

@@ -58,12 +58,16 @@ export default function DangerZoneContent() {
   const runServerLogoutFlow = async () => {
     const trimmedAccessToken = accessToken?.trim() || '';
     const trimmedRefreshToken = refreshToken?.trim() || '';
-    if (!trimmedAccessToken || !trimmedRefreshToken) {
-      throw new Error('Unable to logout. Missing authentication token.');
-    }
 
-    await logoutUser(trimmedAccessToken, { refresh_token: trimmedRefreshToken });
-    runClientLogoutFlow();
+    try {
+      if (trimmedAccessToken && trimmedRefreshToken) {
+        await logoutUser(trimmedAccessToken, { refresh_token: trimmedRefreshToken });
+      }
+    } catch {
+      // Logout must not be blocked by an expired, invalid, or otherwise rejected token.
+    } finally {
+      runClientLogoutFlow();
+    }
   };
 
   const handleDeactivateConfirm = async () => {

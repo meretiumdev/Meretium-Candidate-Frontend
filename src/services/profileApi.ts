@@ -481,21 +481,31 @@ function normalizeProfileInsights(payload: unknown): CandidateProfileInsights {
       .filter((item): item is CandidateProfileInsightRoleMatch => item !== null);
   };
 
-  const topRoleMatches = normalizeRoleMatches(root.top_role_matches).length > 0
-    ? normalizeRoleMatches(root.top_role_matches)
-    : normalizeRoleMatches(data.top_role_matches);
+  const getFirstTextArrayField = (sources: Record<string, unknown>[], fieldNames: string[]): string[] => {
+    for (const source of sources) {
+      for (const fieldName of fieldNames) {
+        const value = source[fieldName];
+        if (Array.isArray(value)) return normalizeTextItems(value);
+      }
+    }
 
-  const strengths = normalizeTextItems(root.strengths).length > 0
-    ? normalizeTextItems(root.strengths)
-    : normalizeTextItems(data.strengths).length > 0
-      ? normalizeTextItems(data.strengths)
-      : normalizeTextItems(root.profile_strengths).length > 0
-        ? normalizeTextItems(root.profile_strengths)
-        : normalizeTextItems(data.profile_strengths);
+    return [];
+  };
 
-  const areasToImprove = normalizeTextItems(root.areas_to_improve).length > 0
-    ? normalizeTextItems(root.areas_to_improve)
-    : normalizeTextItems(data.areas_to_improve);
+  const getFirstRoleMatchesField = (sources: Record<string, unknown>[], fieldNames: string[]): CandidateProfileInsightRoleMatch[] => {
+    for (const source of sources) {
+      for (const fieldName of fieldNames) {
+        const value = source[fieldName];
+        if (Array.isArray(value)) return normalizeRoleMatches(value);
+      }
+    }
+
+    return [];
+  };
+
+  const topRoleMatches = getFirstRoleMatchesField([root, data], ['top_role_matches']);
+  const strengths = getFirstTextArrayField([root, data], ['strengths', 'profile_strengths']);
+  const areasToImprove = getFirstTextArrayField([root, data], ['areas_to_improve']);
 
   return {
     top_role_matches: topRoleMatches,

@@ -23,6 +23,7 @@ import {
   type CandidateApplicationDetail,
 } from '../../../services/applicationsApi';
 import { getCandidateCvDownloadUrl } from '../../../services/cvApi';
+import ModalPortal from '../../../components/ModalPortal';
 import type { ApplicationListItem } from '../types';
 
 interface ApplicationDetailModalProps {
@@ -511,12 +512,13 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
   if (!isOpen || !app) return null;
 
   return (
+    <ModalPortal>
     <>
-      <div className="fixed inset-0 z-[100] bg-transparent animate-in fade-in duration-300" onClick={onClose} />
+      <div className="fixed inset-0 z-[190] min-h-dvh bg-black/50 animate-in fade-in duration-300" onClick={onClose} />
 
-      <div className="fixed top-[76px] right-0 bottom-0 left-0 z-[110] flex items-stretch justify-end pointer-events-none px-4 sm:px-6">
+      <div className="fixed inset-y-0 right-0 z-[200] flex min-h-dvh items-stretch justify-end pointer-events-none">
         <div
-          className="pointer-events-auto w-[410px] md:w-[420px] max-w-full bg-white shadow-2xl overflow-hidden h-full flex flex-col"
+          className="pointer-events-auto h-dvh max-h-dvh w-[min(100vw,440px)] shrink-0 bg-white shadow-2xl border border-gray-100 overflow-hidden flex flex-col"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-start justify-between p-6 pb-2 shrink-0">
@@ -1127,5 +1129,6 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
         </div>
       )}
     </>
+    </ModalPortal>
   );
 }

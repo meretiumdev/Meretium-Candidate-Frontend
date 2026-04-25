@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { X, Sparkles, AlertCircle, Plus, ArrowRight, TrendingUp, Loader2 } from 'lucide-react';
+import ModalPortal from './ModalPortal';
 import {
   autoImproveCandidateJob,
   getCandidateJobMatchImprovement,
@@ -249,17 +250,18 @@ export default function MatchImprovementModal({
   if (!isOpen) return null;
 
   return (
+    <ModalPortal>
     <>
       <button
         type="button"
         aria-label="Close match improvement modal"
-        className="fixed inset-0 z-40 bg-black/50"
+        className="fixed inset-0 z-[190] min-h-dvh bg-black/50"
         onClick={onClose}
       />
 
-      <div className="fixed top-0 right-0 z-50 h-full flex items-start justify-end pointer-events-none pt-19 -mr-2.5 sm:-mr-0">
+      <div className="fixed inset-y-0 right-0 z-[200] flex min-h-dvh items-stretch justify-end pointer-events-none">
       <div
-        className="pointer-events-auto w-[410px] md:w-[420px] bg-white shadow-2xl border border-gray-100 overflow-hidden h-[85vh] max-h-[85vh] flex flex-col"
+        className="pointer-events-auto h-dvh max-h-dvh w-[min(100vw,440px)] shrink-0 bg-white shadow-2xl border border-gray-100 overflow-hidden flex flex-col"
         onClick={(event) => event.stopPropagation()}
       >
           <div className="flex items-center justify-between p-5 shrink-0">
@@ -437,5 +439,6 @@ export default function MatchImprovementModal({
         </div>
       </div>
     </>
+    </ModalPortal>
   );
 }
