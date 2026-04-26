@@ -20,6 +20,7 @@ interface NotificationsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUnreadCountChange?: (count: number) => void;
+  anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
 interface NotificationIconMeta {
@@ -29,6 +30,8 @@ interface NotificationIconMeta {
 }
 
 const NOTIFICATIONS_LIMIT = 30;
+const MODAL_WIDTH = 340;
+const MODAL_MARGIN = 16;
 
 function getStringValue(input: unknown): string {
   if (typeof input !== 'string') return '';
@@ -102,13 +105,38 @@ function getNotificationIconMeta(type: string): NotificationIconMeta {
   };
 }
 
-export default function NotificationsModal({ isOpen, onClose, onUnreadCountChange }: NotificationsModalProps) {
+function getAnchoredPosition(anchorElement: HTMLElement | null): React.CSSProperties {
+  if (!anchorElement || typeof window === 'undefined') return {};
+
+  const rect = anchorElement.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const width = Math.min(MODAL_WIDTH, viewportWidth - MODAL_MARGIN * 2);
+
+  const left = Math.min(
+    Math.max(MODAL_MARGIN, rect.right - width + 8),
+    Math.max(MODAL_MARGIN, viewportWidth - width - MODAL_MARGIN)
+  );
+
+  return {
+    position: 'fixed',
+    top: rect.bottom + 12,
+    left,
+    width,
+  };
+}
+
+export default function NotificationsModal({ isOpen, onClose, onUnreadCountChange, anchorRef }: NotificationsModalProps) {
   const navigate = useNavigate();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [notifications, setNotifications] = React.useState<CandidateNotificationItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isMarkAllSubmitting, setIsMarkAllSubmitting] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [modalPosition, setModalPosition] = React.useState<React.CSSProperties>({});
+
+  const updateModalPosition = React.useCallback(() => {
+    setModalPosition(getAnchoredPosition(anchorRef?.current ?? null));
+  }, [anchorRef]);
 
   const loadNotifications = React.useCallback(async () => {
     if (!accessToken?.trim()) {
@@ -137,6 +165,19 @@ export default function NotificationsModal({ isOpen, onClose, onUnreadCountChang
     if (!isOpen) return;
     void loadNotifications();
   }, [isOpen, loadNotifications]);
+
+  React.useLayoutEffect(() => {
+    if (!isOpen) return undefined;
+
+    updateModalPosition();
+    window.addEventListener('resize', updateModalPosition);
+    window.addEventListener('scroll', updateModalPosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updateModalPosition);
+      window.removeEventListener('scroll', updateModalPosition, true);
+    };
+  }, [isOpen, updateModalPosition]);
 
   const sendNotificationMarkRead = React.useCallback(async (notificationId: string) => {
     let socketSent = false;
@@ -247,11 +288,12 @@ export default function NotificationsModal({ isOpen, onClose, onUnreadCountChang
     <ModalPortal lockScroll={false}>
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[100] flex items-start justify-center md:justify-end p-4 pt-16"
+      className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16"
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        className="bg-white rounded-[20px] w-full max-w-[340px] shadow-2xl overflow-hidden animate-in zoom-in slide-in-from-top-4 duration-200 border border-gray-100 md:mr-20 mt-2"
+        style={modalPosition}
+        className="bg-white rounded-[20px] w-full max-w-[340px] shadow-2xl overflow-hidden animate-in zoom-in slide-in-from-top-4 duration-200 border border-gray-100 mt-2 md:mt-0"
       >
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0">
           <h2 className="text-[17px] font-bold text-gray-900 font-heading">Notifications</h2>
