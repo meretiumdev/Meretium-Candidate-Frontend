@@ -131,7 +131,7 @@ function normalizeSearchCompany(input: unknown): CandidateSearchCompany | null {
     location: asString(root.location),
   };
 }
-
+//
 function normalizeSearchSkill(input: unknown): CandidateSearchSkill | null {
   const root = asRecord(input);
   if (!root) return null;
