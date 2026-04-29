@@ -266,42 +266,8 @@ export default function CompanyJobsView({ companyId, companyName }: CompanyJobsV
   };
 
   const displayedJobsCount = totalJobs ?? jobs.length;
-
-  if (isInitialLoading && jobs.length === 0) {
-    return (
-      <div className="flex flex-col gap-6 mt-14 font-manrope">
-        <JobFilters value={filters} onChange={setFilters} disabled />
-        <div className="space-y-4">
-          {[1, 2, 3].map((item) => (
-            <div key={item} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm animate-pulse">
-              <div className="h-5 w-48 bg-gray-200 rounded-md mb-4"></div>
-              <div className="h-4 w-full bg-gray-100 rounded-md mb-2"></div>
-              <div className="h-4 w-[90%] bg-gray-100 rounded-md mb-2"></div>
-              <div className="h-4 w-[65%] bg-gray-100 rounded-md"></div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (errorMessage && jobs.length === 0) {
-    return (
-      <div className="flex flex-col gap-6 mt-14 font-manrope">
-        <JobFilters value={filters} onChange={setFilters} />
-        <div className="bg-white border border-[#FDA29B] rounded-xl p-6">
-          <p className="text-[#B42318] text-[14px] font-medium mb-4">{errorMessage}</p>
-          <button
-            type="button"
-            onClick={handleRetry}
-            className="bg-[#FF6934] text-white px-4 py-2 rounded-[8px] text-[14px] font-medium hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const showInitialSkeleton = isInitialLoading && jobs.length === 0;
+  const showEmptyError = !!errorMessage && jobs.length === 0 && !showInitialSkeleton;
 
   return (
     <div className="flex flex-col gap-6 mt-14 font-manrope">
@@ -317,7 +283,30 @@ export default function CompanyJobsView({ companyId, companyName }: CompanyJobsV
 
       <JobFilters value={filters} onChange={setFilters} />
 
-      <div className="bg-white border border-gray-200 rounded-[10px] p-6 md:p-8 shadow-sm">
+      {showInitialSkeleton ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((item) => (
+            <div key={item} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm animate-pulse">
+              <div className="h-5 w-48 bg-gray-200 rounded-md mb-4"></div>
+              <div className="h-4 w-full bg-gray-100 rounded-md mb-2"></div>
+              <div className="h-4 w-[90%] bg-gray-100 rounded-md mb-2"></div>
+              <div className="h-4 w-[65%] bg-gray-100 rounded-md"></div>
+            </div>
+          ))}
+        </div>
+      ) : showEmptyError ? (
+        <div className="bg-white border border-[#FDA29B] rounded-xl p-6">
+          <p className="text-[#B42318] text-[14px] font-medium mb-4">{errorMessage}</p>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="bg-[#FF6934] text-white px-4 py-2 rounded-[8px] text-[14px] font-medium hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-[10px] p-6 md:p-8 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <h2 className="text-[20px] font-bold text-[#101828]">
             Open positions at {companyName || 'this company'}
@@ -430,7 +419,8 @@ export default function CompanyJobsView({ companyId, companyName }: CompanyJobsV
         )}
 
         <div ref={sentinelRef} className="h-1" aria-hidden="true"></div>
-      </div>
+        </div>
+      )}
 
       <QuickApplyModal
         isOpen={!!selectedJob}

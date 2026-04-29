@@ -27,7 +27,7 @@ export default function JobFilters({ value, onChange, disabled = false }: JobFil
           onChange={(event) => onChange({ ...value, search: event.target.value })}
           placeholder="Search by job title..."
           disabled={disabled}
-          className="w-full pl-11 pr-4 py-2 text-[14px] border-none focus:ring-0 placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-400"
+          className="w-full pl-11 pr-4 py-2 text-[14px] border-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-400"
         />
       </div>
 
