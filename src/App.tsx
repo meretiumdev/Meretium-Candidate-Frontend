@@ -8,6 +8,7 @@ import Dashboard from './containers/Dashboard';
 import ExploreJobs from './containers/ExploreJobs';
 import JobsPage from './containers/Jobs';
 import Profile from './containers/Profile';
+import PublicView from './containers/Profile/PublicView';
 import JobDetail from './containers/JobDetail';
 import Applications from './containers/Applications';
 import Saved from './containers/Saved';
@@ -147,6 +148,7 @@ function App() {
         <Route path="/jobs/:id" element={<AuthGuard><JobDetail /></AuthGuard>} />
         <Route path="/job/:id" element={<AuthGuard><JobDetail /></AuthGuard>} />
         <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
+        <Route path="/profile/public-view" element={<AuthGuard><PublicView /></AuthGuard>} />
         <Route path="/job-detail" element={<AuthGuard><Navigate to="/jobs" replace /></AuthGuard>} />
         <Route path="/applications" element={<AuthGuard><Applications /></AuthGuard>} />
         <Route path="/saved" element={<AuthGuard><Saved /></AuthGuard>} />
