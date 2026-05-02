@@ -293,12 +293,12 @@ export default function NotificationsModal({ isOpen, onClose, onUnreadCountChang
       <div
         onClick={(event) => event.stopPropagation()}
         style={modalPosition}
-        className="bg-white rounded-[20px] w-full max-w-[340px] shadow-2xl overflow-hidden animate-in zoom-in slide-in-from-top-4 duration-200 border border-gray-100 mt-2 md:mt-0"
+        className="bg-white rounded-[4px] w-full max-w-[340px] shadow-2xl overflow-hidden animate-in zoom-in slide-in-from-top-4 duration-200 border border-gray-100 mt-2 md:mt-0"
       >
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0">
-          <h2 className="text-[17px] font-bold text-gray-900 font-heading">Notifications</h2>
-          <button onClick={onClose} className="text-gray-300 hover:text-gray-600 transition-colors cursor-pointer">
-            <X size={18} />
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0">
+          <h2 className="text-[18px] font-bold text-[#101828] font-heading">Notifications</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer p-1">
+            <X size={20} />
           </button>
         </div>
 
@@ -308,7 +308,17 @@ export default function NotificationsModal({ isOpen, onClose, onUnreadCountChang
           )}
 
           {!isLoading && notifications.length === 0 && (
-            <p className="px-5 py-4 text-[13px] text-gray-500 font-medium">No notifications yet.</p>
+            <div className="flex flex-col items-center justify-center min-h-[320px] py-12 px-8 text-center">
+              <div className="text-6xl mb-6 drop-shadow-sm transform hover:rotate-12 transition-transform duration-500 cursor-default">
+                🎉
+              </div>
+              <h3 className="text-[18px] font-bold text-[#101828] font-heading mb-2">
+                You're all caught up
+              </h3>
+              <p className="text-[14px] text-[#667085] font-body max-w-[200px] mx-auto">
+                No new notifications right now
+              </p>
+            </div>
           )}
 
           {!isLoading && notifications.map((notification) => {
@@ -347,15 +357,17 @@ export default function NotificationsModal({ isOpen, onClose, onUnreadCountChang
           )}
         </div>
 
-        <div className="px-5 py-3.5 border-t border-gray-100 bg-white flex items-center justify-center sticky bottom-0">
-          <button
-            onClick={() => { void handleMarkAllRead(); }}
-            disabled={isMarkAllSubmitting || isLoading || !notifications.some((notification) => !notification.is_read)}
-            className="text-[13px] font-bold text-[#FF6934] hover:opacity-80 transition-all font-body cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isMarkAllSubmitting ? 'Marking...' : 'Mark all as read'}
-          </button>
-        </div>
+        {notifications.length > 0 && (
+          <div className="px-5 py-3.5 border-t border-gray-100 bg-white flex items-center justify-center sticky bottom-0">
+            <button
+              onClick={() => { void handleMarkAllRead(); }}
+              disabled={isMarkAllSubmitting || isLoading || !notifications.some((notification) => !notification.is_read)}
+              className="text-[13px] font-bold text-[#FF6934] hover:opacity-80 transition-all font-body cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isMarkAllSubmitting ? 'Marking...' : 'Mark all as read'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
     </ModalPortal>

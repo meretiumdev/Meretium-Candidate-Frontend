@@ -138,7 +138,6 @@ function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/forget-password" element={<ForgotPassword />} />
         <Route path="/verify-email-change" element={<VerifyEmailChange />} />
-        
         <Route path="/" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />
         <Route path="/onboarding" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />
         <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
@@ -154,7 +153,6 @@ function App() {
         <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
         <Route path="/company/:id/jobs" element={<AuthGuard><CompanyJobs /></AuthGuard>} />
         <Route path="/company/:id" element={<AuthGuard><CompanyProfile /></AuthGuard>} />
-        
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
