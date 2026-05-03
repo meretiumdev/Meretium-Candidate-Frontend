@@ -136,6 +136,7 @@ export interface CandidateSettingsAccount {
   sign_method: string;
   phone_number: string;
   phone_verified: boolean;
+  is_two_factor_enabled: boolean | null;
 }
 
 export interface CandidateSettingsProfileAndVisibility {
@@ -246,6 +247,8 @@ function normalizeProfileVisibility(input: unknown): CandidateProfileVisibility 
   if (
     normalized === 'public'
     || normalized === 'open'
+    || normalized === 'open to opportunities'
+    || normalized === 'open_to_opportunities'
     || normalized === 'open_to_all'
     || normalized === 'open_to_all_recruiters'
   ) {
@@ -254,6 +257,9 @@ function normalizeProfileVisibility(input: unknown): CandidateProfileVisibility 
 
   if (
     normalized === 'matched'
+    || normalized === 'visible to matched recruiters'
+    || normalized === 'only matched recruiters'
+    || normalized === 'visible_to_matched_recruiters'
     || normalized === 'matched_only'
     || normalized === 'only_matched'
     || normalized === 'only_matched_recruiters'
@@ -330,6 +336,16 @@ function normalizeActiveSession(input: unknown): CandidateSettingsActiveSession 
   };
 }
 
+function readOptionalBoolean(input: Record<string, unknown>, keys: string[]): boolean | null {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(input, key)) {
+      return asBoolean(input[key]);
+    }
+  }
+
+  return null;
+}
+
 function normalizeSettingsResponse(payload: unknown): CandidateSettingsResponse {
   const root = asSettingsRoot(payload);
   const accountRaw = asRecord(root.account) || {};
@@ -347,9 +363,20 @@ function normalizeSettingsResponse(payload: unknown): CandidateSettingsResponse 
       sign_method: asString(accountRaw.sign_method),
       phone_number: asString(accountRaw.phone_number),
       phone_verified: asBoolean(accountRaw.phone_verified),
+      is_two_factor_enabled: readOptionalBoolean(accountRaw, [
+        'is_2fa_enabled',
+        'is2faenabled',
+        'two_factor_enabled',
+        'twoFactorEnabled',
+        'is_two_factor_enabled',
+      ]),
     },
     profile_and_visibility: {
-      profile_visibility: normalizeProfileVisibility(profileVisibilityRaw.profile_visibility),
+      profile_visibility: normalizeProfileVisibility(
+        profileVisibilityRaw.profile_visibility
+        || profileVisibilityRaw.open_to_work_status
+        || profileVisibilityRaw.visibility
+      ),
       allow_cv_download: asBoolean(profileVisibilityRaw.allow_cv_download, true),
       show_last_active: asBoolean(profileVisibilityRaw.show_last_active, true),
       is_open_to_work: asBoolean(profileVisibilityRaw.is_open_to_work, true),
@@ -448,7 +475,7 @@ function parseFileNameFromContentDisposition(contentDisposition: string | null):
     }
   }
 
-  const basicMatch = contentDisposition.match(/filename\s*=\s*"?([^\";]+)"?/i);
+  const basicMatch = contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
   if (!basicMatch?.[1]) return null;
   const cleaned = basicMatch[1].trim();
   return cleaned || null;

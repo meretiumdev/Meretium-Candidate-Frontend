@@ -1,11 +1,13 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { Shield, Smartphone, LogOut, Loader2 } from 'lucide-react';
-import type { RootState } from '../../../redux/store';
+import type { AppDispatch, RootState } from '../../../redux/store';
+import { setUserTwoFactorEnabled } from '../../../redux/store';
 import type { CandidateSettingsActiveSession } from '../../../services/settingsApi';
 import { deleteAuthSession } from '../../../services/sessionApi';
 import ChangePasswordModal from './ChangePasswordModal';
 import EnableTwoFactorModal from './EnableTwoFactorModal';
+import DisableTwoFactorModal from './DisableTwoFactorModal';
 import { isTwoFactorEnabled } from '../../../utils/twoFactor';
 
 interface SessionItemProps {
@@ -69,8 +71,11 @@ interface ToastState {
 
 interface SecurityContentProps {
   accountEmail?: string;
+  accountTwoFactorEnabled?: boolean | null;
   activeSessions?: CandidateSettingsActiveSession[];
   onSessionsRefresh?: () => Promise<void> | void;
+  onTwoFactorEnabled?: () => Promise<void> | void;
+  onTwoFactorDisabled?: () => Promise<void> | void;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -129,22 +134,29 @@ function formatRelativeTime(isoValue: string): string {
 
 export default function SecurityContent({
   accountEmail = '',
+  accountTwoFactorEnabled = null,
   activeSessions = [],
   onSessionsRefresh,
+  onTwoFactorEnabled,
+  onTwoFactorDisabled,
 }: SecurityContentProps) {
+  const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const authUser = useSelector((state: RootState) => state.auth.user);
+  const authUserTwoFactorEnabled = isTwoFactorEnabled(authUser);
+  const resolvedTwoFactorEnabled = accountTwoFactorEnabled ?? authUserTwoFactorEnabled;
   const [isChangePasswordOpen, setIsChangePasswordOpen] = React.useState(false);
   const [isEnableTwoFactorOpen, setIsEnableTwoFactorOpen] = React.useState(false);
-  const [isTwoFactorActive, setIsTwoFactorActive] = React.useState(isTwoFactorEnabled(authUser));
+  const [isDisableTwoFactorOpen, setIsDisableTwoFactorOpen] = React.useState(false);
+  const [isTwoFactorActive, setIsTwoFactorActive] = React.useState(resolvedTwoFactorEnabled);
   const [sessions, setSessions] = React.useState<CandidateSettingsActiveSession[]>(() => sortSessions(activeSessions));
   const [pendingSessionIds, setPendingSessionIds] = React.useState<Record<string, boolean>>({});
   const [toast, setToast] = React.useState<ToastState | null>(null);
-  const requiresTwoFactorVerification = isTwoFactorEnabled(authUser) || isTwoFactorActive;
+  const requiresTwoFactorVerification = resolvedTwoFactorEnabled || isTwoFactorActive;
 
   React.useEffect(() => {
-    setIsTwoFactorActive(isTwoFactorEnabled(authUser));
-  }, [authUser]);
+    setIsTwoFactorActive(resolvedTwoFactorEnabled);
+  }, [resolvedTwoFactorEnabled]);
 
   React.useEffect(() => {
     setSessions(sortSessions(activeSessions));
@@ -239,28 +251,44 @@ export default function SecurityContent({
                 <Smartphone className="text-[#FF6934]" size={24} />
               </div>
               <div>
-                <h3 className="text-[16px] font-semibold text-[#101828]">Two-factor authentication</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-[16px] font-semibold text-[#101828]">Two-factor authentication</h3>
+                  {/* {isTwoFactorActive && (
+                    <span className="inline-flex rounded-full bg-[#ECFDF3] px-2.5 py-0.5 text-[12px] font-semibold text-[#027A48] border border-[#ABEFC6]">
+                      Enabled
+                    </span>
+                  )} */}
+                </div>
                 <p className="text-[14px] text-[#667085]">
                   {isTwoFactorActive ? 'Authenticator app protection is enabled' : 'Add extra security to your account'}
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => {
-                if (!accountEmail.trim()) {
-                  showErrorToast('Account email is missing. Please refresh settings and try again.');
-                  return;
-                }
-                setIsEnableTwoFactorOpen(true);
-              }}
-              className={`px-6 py-2.5 rounded-[10px] text-[14px] font-medium whitespace-nowrap cursor-pointer transition-opacity shadow-sm ${
-                isTwoFactorActive
-                  ? 'bg-[#ECFDF3] text-[#027A48] border border-[#ABEFC6] hover:opacity-90'
-                  : 'bg-[#FF6934] text-white hover:opacity-90'
-              }`}
-            >
-              {isTwoFactorActive ? '2FA Enabled' : 'Enable 2FA'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!accountEmail.trim()) {
+                    showErrorToast('Account email is missing. Please refresh settings and try again.');
+                    return;
+                  }
+
+                  if (isTwoFactorActive) {
+                    setIsDisableTwoFactorOpen(true);
+                    return;
+                  }
+
+                  setIsEnableTwoFactorOpen(true);
+                }}
+                className={`px-6 py-2.5 rounded-[10px] text-[14px] font-medium whitespace-nowrap cursor-pointer transition-opacity shadow-sm ${
+                  isTwoFactorActive
+                    ? 'bg-white text-[#B42318] border border-[#FDA29B] hover:bg-[#FEF3F2]'
+                    : 'bg-[#FF6934] text-white hover:opacity-90'
+                }`}
+              >
+                {isTwoFactorActive ? 'Disable 2FA' : 'Enable 2FA'}
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm transition-all duration-300">
@@ -304,6 +332,26 @@ export default function SecurityContent({
         onClose={() => setIsEnableTwoFactorOpen(false)}
         onSuccess={(message) => {
           setIsTwoFactorActive(true);
+          dispatch(setUserTwoFactorEnabled(true));
+          if (onTwoFactorEnabled) {
+            void onTwoFactorEnabled();
+          }
+          showSuccessToast(message);
+        }}
+        onError={showErrorToast}
+      />
+
+      <DisableTwoFactorModal
+        isOpen={isDisableTwoFactorOpen}
+        accessToken={accessToken}
+        email={accountEmail}
+        onClose={() => setIsDisableTwoFactorOpen(false)}
+        onSuccess={(message) => {
+          setIsTwoFactorActive(false);
+          dispatch(setUserTwoFactorEnabled(false));
+          if (onTwoFactorDisabled) {
+            void onTwoFactorDisabled();
+          }
           showSuccessToast(message);
         }}
         onError={showErrorToast}

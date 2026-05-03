@@ -86,7 +86,7 @@ export default function CompanySidebar({ company, onViewJobs }: CompanySidebarPr
       label: 'Website',
       icon: <ExternalLink size={20} />,
     },
-  ].filter((item) => item.href);
+  ]
 
   return (
     <div className="bg-white border border-gray-200 rounded-[10px] p-6 shadow-sm font-manrope">
@@ -161,7 +161,6 @@ export default function CompanySidebar({ company, onViewJobs }: CompanySidebarPr
       {socialLinks.length > 0 && (
         <>
           <div className="h-[1px] bg-gray-100 w-full mb-6" />
-
           <div className="mb-6">
             <h3 className="text-[16px] font-bold text-[#101828] mb-6">Social Links</h3>
             <div className="flex items-center gap-3">
@@ -195,6 +194,10 @@ export default function CompanySidebar({ company, onViewJobs }: CompanySidebarPr
             <div className="flex items-center gap-3">
               <CheckCircle size={18} className="text-[#12B76A] shrink-0" />
               <span className="text-[14px] text-[#475467] font-semibold">Company profile verified</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <CheckCircle size={18} className="text-[#12B76A] shrink-0" />
+              <span className="text-[14px] text-[#475467] font-semibold">Address verified</span>
             </div>
           </div>
         ) : (

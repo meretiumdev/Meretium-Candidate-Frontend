@@ -6,6 +6,7 @@ import { getCandidateJobDetail, type CandidateJobScreeningQuestion } from '../se
 import { getCandidateCvs, uploadCandidateCv, type CandidateCvItem } from '../services/cvApi';
 import { applyToCandidateJob, generateCandidateCoverLetter } from '../services/applicationsApi';
 import { formatJobTypeLabel } from '../utils/formatJobTypeLabel';
+import ModalPortal from './ModalPortal';
 
 export interface QuickApplyModalJob {
   id?: string | number;
@@ -77,6 +78,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
   const cvsRequestRef = useRef(0);
   const jobDetailRequestRef = useRef(0);
   const coverLetterRequestRef = useRef(0);
+  const coverLetterTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const jobId = useMemo(() => {
     if (!job || job.id === undefined || job.id === null) return '';
@@ -143,8 +145,9 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       setCvs([]);
       setCvsError(getErrorMessage(error, 'Unable to load CV list.'));
     } finally {
-      if (requestId !== cvsRequestRef.current) return;
-      setIsLoadingCvs(false);
+      if (requestId === cvsRequestRef.current) {
+        setIsLoadingCvs(false);
+      }
     }
   }, [accessToken]);
 
@@ -169,8 +172,9 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       setScreeningQuestions([]);
       setQuestionsError(getErrorMessage(error, 'Unable to load screening questions.'));
     } finally {
-      if (requestId !== jobDetailRequestRef.current) return;
-      setIsLoadingQuestions(false);
+      if (requestId === jobDetailRequestRef.current) {
+        setIsLoadingQuestions(false);
+      }
     }
   }, [accessToken, jobId]);
 
@@ -250,6 +254,16 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     if (currentStep !== 2 || !shouldSkipScreeningStep) return;
     setCurrentStep(3);
   }, [currentStep, shouldSkipScreeningStep]);
+
+  useEffect(() => {
+    if (!isOpen || currentStep !== 3 || !hasGenerated) return;
+
+    const textarea = coverLetterTextareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight + 2}px`;
+  }, [coverLetter, currentStep, hasGenerated, isOpen]);
 
   const handleUploadClick = () => {
     if (isUploadingCv) return;
@@ -432,8 +446,9 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       if (requestId !== coverLetterRequestRef.current) return;
       setStepError(getErrorMessage(error, 'Unable to generate cover letter right now.'));
     } finally {
-      if (requestId !== coverLetterRequestRef.current) return;
-      setIsGenerating(false);
+      if (requestId === coverLetterRequestRef.current) {
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -711,14 +726,15 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       case 3:
         if (hasGenerated) {
           return (
-            <div className="p-8 space-y-6">
+            <div className="p-5 sm:p-8 space-y-6">
               <h3 className="text-[20px] font-bold text-[#101828] font-heading mb-4">Review and edit your cover letter</h3>
               {renderStepError()}
               <div className="relative group">
                 <textarea
+                  ref={coverLetterTextareaRef}
                   value={coverLetter}
                   onChange={(event) => setCoverLetter(event.target.value)}
-                  className="w-full min-h-[460px] p-8 rounded-xl border border-gray-200 bg-white text-[#344054] text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#FF6934]/5 focus:border-[#FF6934] transition-all scrollbar-hide shadow-sm font-body"
+                  className="w-full min-h-[320px] p-5 pb-10 sm:p-8 sm:pb-12 rounded-xl border border-gray-200 bg-white text-[#344054] text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#FF6934]/5 focus:border-[#FF6934] transition-colors shadow-sm font-body resize-none overflow-hidden"
                 />
                 <div className="absolute bottom-4 right-4 text-[12px] text-gray-400 font-medium">
                   {coverLetter.length} characters
@@ -841,15 +857,16 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
   if (!isOpen || !job) return null;
 
   return (
+    <ModalPortal>
     <div
-      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 md:p-6 transition-opacity"
+      className="fixed inset-0 bg-black/60 z-50 flex min-h-dvh items-center justify-center overflow-hidden overscroll-none p-3 sm:p-4 md:p-6 transition-opacity"
       onClick={onClose}
     >
       <div
-        className="bg-white border border-gray-200 rounded-xl overflow-hidden w-full max-w-[840px] shadow-2xl relative flex flex-col font-manrope transition-all duration-300"
+        className="bg-white border border-gray-200 rounded-xl overflow-hidden w-full max-w-[840px] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] shadow-2xl relative flex flex-col font-manrope transition-all duration-300"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="px-8 pt-8 pb-6 border-b border-gray-200">
+        <div className="px-5 pt-5 pb-4 sm:px-8 sm:pt-8 sm:pb-6 border-b border-gray-200 shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[24px] font-semibold text-[#111827] font-heading">Quick Apply</h2>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 bg-gray-50 hover:bg-gray-100 rounded-full cursor-pointer">
@@ -867,11 +884,11 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
           </div>
         </div>
 
-        <div className="overflow-y-auto scrollbar-hide max-h-[calc(90vh-200px)]">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide">
           {renderStep()}
         </div>
 
-        <div className="px-8 py-6 bg-white border-t border-gray-200 flex items-center justify-between">
+        <div className="px-5 py-4 sm:px-8 sm:py-6 bg-white border-t border-gray-200 flex items-center justify-between shrink-0">
           <button
             onClick={currentStep === 1 ? onClose : handleBack}
             className="text-[15px] font-medium text-[#475467] hover:text-[#101828] transition-colors cursor-pointer flex items-center gap-1"
@@ -894,5 +911,6 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

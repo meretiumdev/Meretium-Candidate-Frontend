@@ -1,5 +1,7 @@
 import { executeAuthorizedRequest, forceReauthIfNeeded } from './authSession';
 
+import { clearCandidateSettingsCache } from './settingsApi';
+
 const RAW_CANDIDATE_API_BASE_URL = import.meta.env.VITE_CANDIDATE_API_BASE_URL?.trim() || '';
 
 function isNgrokHost(hostname: string): boolean {
@@ -806,7 +808,9 @@ export async function updateCandidateProfile(
     throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `Profile update failed with status ${response.status}`);
   }
 
-  return normalizeProfileResponse(payload);
+  const normalizedResponse = normalizeProfileResponse(payload);
+  clearCandidateSettingsCache();
+  return normalizedResponse;
 }
 
 export async function generateCandidateProfileSummary(

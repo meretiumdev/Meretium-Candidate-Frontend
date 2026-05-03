@@ -205,9 +205,34 @@ export default function Settings() {
         return (
           <SecurityContent
             accountEmail={settingsData.account.email}
+            accountTwoFactorEnabled={settingsData.account.is_two_factor_enabled}
             activeSessions={settingsData.active_sessions}
             onSessionsRefresh={async () => {
               await loadSettings({ showLoading: false, forceRefresh: true });
+            }}
+            onTwoFactorEnabled={() => {
+              setSettingsData((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  account: {
+                    ...prev.account,
+                    is_two_factor_enabled: true,
+                  },
+                };
+              });
+            }}
+            onTwoFactorDisabled={() => {
+              setSettingsData((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  account: {
+                    ...prev.account,
+                    is_two_factor_enabled: false,
+                  },
+                };
+              });
             }}
           />
         );

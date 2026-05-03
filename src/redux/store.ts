@@ -92,6 +92,28 @@ function getRecordValue(input: unknown): Record<string, unknown> | null {
   return input as Record<string, unknown>;
 }
 
+function withTwoFactorFlag(user: unknown, enabled: boolean): Record<string, unknown> {
+  const twoFactorFlags = {
+    is_2fa_enabled: enabled,
+    is2faenabled: enabled,
+    is_two_factor_enabled: enabled,
+    two_factor_enabled: enabled,
+    twoFactorEnabled: enabled,
+  };
+  const userRecord = getRecordValue(user);
+  if (!userRecord) return twoFactorFlags;
+
+  const dataRecord = getRecordValue(userRecord.data);
+  const settingsRecord = getRecordValue(userRecord.settings);
+
+  return {
+    ...userRecord,
+    ...twoFactorFlags,
+    ...(dataRecord ? { data: { ...dataRecord, ...twoFactorFlags } } : {}),
+    ...(settingsRecord ? { settings: { ...settingsRecord, ...twoFactorFlags } } : {}),
+  };
+}
+
 function getNullableStringValue(input: unknown): string | null {
   const value = getStringValue(input);
   return value ?? null;
@@ -375,6 +397,11 @@ const authSlice = createSlice({
         localStorage.removeItem('profile');
       }
     },
+    setUserTwoFactorEnabled: (state, action: PayloadAction<boolean>) => {
+      const user = withTwoFactorFlag(state.user, action.payload);
+      state.user = user;
+      localStorage.setItem('user', JSON.stringify(user));
+    },
     logout: (state) => {
       state.user = null;
       state.profile = null;
@@ -393,7 +420,7 @@ const authSlice = createSlice({
   },
 });
 
-export const { login, refreshTokens, setProfile, logout } = authSlice.actions;
+export const { login, refreshTokens, setProfile, setUserTwoFactorEnabled, logout } = authSlice.actions;
 
 export const store = configureStore({
   reducer: {

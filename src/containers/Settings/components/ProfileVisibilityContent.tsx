@@ -59,8 +59,8 @@ function getVisibilityOptions() {
   return [
     {
       id: 'public' as CandidateProfileVisibility,
-      title: 'Open to all recruiters',
-      description: 'Your profile is visible to all recruiters',
+      title: 'Open to opportunities',
+      description: 'Your profile is visible to recruiters',
     },
     {
       id: 'matched' as CandidateProfileVisibility,

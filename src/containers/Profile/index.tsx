@@ -178,15 +178,14 @@ export default function Profile() {
         setErrorMessage(getErrorMessage(error));
       }
     } finally {
-      if (requestSeqRef.current !== requestSeq) return;
-      if (showPageLoading) {
+      if (requestSeqRef.current === requestSeq && showPageLoading) {
         setIsPageLoading(false);
       }
     }
   }, [accessToken, dispatch]);
 
   useEffect(() => {
-    void loadProfile({ showPageLoading: true });
+    void loadProfile({ showPageLoading: true, useProfileCache: false });
   }, [loadProfile]);
 
   const refreshProfileSilently = async () => {

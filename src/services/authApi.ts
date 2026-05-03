@@ -107,6 +107,11 @@ interface TwoFactorEnablePayload {
   otp: string;
 }
 
+interface TwoFactorDisablePayload {
+  email: string;
+  otp: string;
+}
+
 interface TwoFactorVerifyPayload {
   email: string;
   otp: string;
@@ -215,7 +220,7 @@ function getChangePasswordPath(): string {
   return `${pathPrefix}/change-password`;
 }
 
-function getTwoFactorPath(action: 'setup' | 'enable'): string {
+function getTwoFactorPath(action: 'setup' | 'enable' | 'disable'): string {
   const normalizedBase = AUTH_API_BASE_URL.toLowerCase();
   const pathPrefix = normalizedBase.endsWith('/auth') ? '' : '/auth';
   return `${pathPrefix}/2fa/${action}`;
@@ -477,6 +482,13 @@ export async function enableTwoFactorAuth(
   payload: TwoFactorEnablePayload
 ): Promise<ApiResponse<unknown>> {
   return postAuthorized<ApiResponse<unknown>>(getTwoFactorPath('enable'), accessToken, payload);
+}
+
+export async function disableTwoFactorAuth(
+  accessToken: string,
+  payload: TwoFactorDisablePayload
+): Promise<ApiResponse<unknown>> {
+  return postAuthorized<ApiResponse<unknown>>(getTwoFactorPath('disable'), accessToken, payload);
 }
 
 export async function verifyTwoFactorAuth(

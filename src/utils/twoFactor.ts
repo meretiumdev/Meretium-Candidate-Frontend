@@ -18,6 +18,7 @@ function readTwoFactorFlag(source: Record<string, unknown>): boolean | null {
   const keys = [
     'is_2fa_enabled',
     'is2faenabled',
+    'is_two_factor_enabled',
     'two_factor_enabled',
     'twoFactorEnabled',
   ];
