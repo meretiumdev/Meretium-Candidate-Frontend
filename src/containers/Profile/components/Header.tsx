@@ -24,7 +24,7 @@ interface ToastState {
 const VISIBILITY_OPTIONS: VisibilityOption[] = [
   {
     status: 'Open to opportunities',
-    label: 'Open to all recruiters',
+    label: 'Open to opportunities',
   },
   {
     status: 'Visible to matched recruiters',
@@ -370,12 +370,7 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                   >
                     <Edit3 size={16} /> Edit profile
                   </button>
-                  <button
-                    onClick={() => setShareOpen(true)}
-                    className="flex items-center justify-center gap-2 border border-[#E4E7EC] px-4 py-2.5 rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors bg-white cursor-pointer shadow-sm"
-                  >
-                    <Share2 size={16} /> Share
-                  </button>
+                 
                   <div className="relative">
                     <button
                       disabled={isSaving}
@@ -410,6 +405,12 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                       </>
                     )}
                   </div>
+                   <button
+                    onClick={() => setShareOpen(true)}
+                    className="flex items-center justify-center gap-2 border border-[#E4E7EC] px-4 py-2.5 rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors bg-white cursor-pointer shadow-sm"
+                  >
+                    <Share2 size={16} /> Share
+                  </button>
                 </div>
                 {saveError && !isHeadlineEditing && (
                   <p className="text-[13px] font-medium text-[#B42318]">{saveError}</p>

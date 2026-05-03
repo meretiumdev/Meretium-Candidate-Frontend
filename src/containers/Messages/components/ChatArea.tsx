@@ -303,14 +303,14 @@ export default function ChatArea({
 
   if (!conversation) {
     return (
-      <div className="flex-1 bg-white border border-gray-200 rounded-xl overflow-hidden hidden md:flex flex-col items-center justify-center h-full shadow-sm font-manrope">
-        <div className="flex flex-col items-center text-center p-8 max-w-[400px]">
-          <div className="size-20 bg-[#F9FAFB] rounded-full flex items-center justify-center text-gray-400 mb-8 shadow-inner border border-gray-50 ring-8 ring-[#F9FAFB]/50">
-            <MessageSquare size={32} strokeWidth={1.5} />
+      <div className="flex-1 bg-white border border-gray-100 rounded-[20px] overflow-hidden hidden md:flex flex-col items-center justify-center h-full shadow-sm font-manrope">
+        <div className="flex flex-col items-center text-center p-12 max-w-[420px]">
+          <div className="size-24 bg-[#F8FAFC] rounded-full flex items-center justify-center text-[#94A3B8] mb-8 shadow-inner border border-gray-50">
+            <MessageSquare size={42} strokeWidth={1.2} className="opacity-80" />
           </div>
-          <h2 className="text-[24px] font-bold text-[#111827] font-heading mb-3 leading-tight">Select a conversation to start messaging</h2>
-          <p className="text-[15px] font-medium text-[#6B7280] font-body leading-relaxed">
-            Choose a conversation from the list to view messages
+          <h2 className="text-[24px] font-bold text-[#101828] font-heading mb-3">No conversations yet</h2>
+          <p className="text-[16px] font-medium text-[#667085] font-body leading-relaxed">
+            Recruiters will contact you here.
           </p>
         </div>
       </div>
@@ -444,7 +444,10 @@ export default function ChatArea({
           )}
 
           {!isLoadingMessages && displayMessages.length === 0 && (
-            <p className="text-sm text-gray-500">No messages yet. Start the conversation.</p>
+            <div className="flex-1 flex flex-col items-center justify-center py-12 opacity-60">
+              <MessageSquare size={32} className="text-gray-300 mb-4" strokeWidth={1} />
+              <p className="text-[15px] font-medium text-gray-500">No messages yet. Start the conversation.</p>
+            </div>
           )}
 
           {!isLoadingMessages && displayMessages.map((message, index) => {
