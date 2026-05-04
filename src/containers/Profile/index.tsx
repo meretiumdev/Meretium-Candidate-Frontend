@@ -6,6 +6,8 @@ import StrengthCard from './components/StrengthCard';
 import AboutSection from './components/AboutSection';
 import ExperienceSection from './components/ExperienceSection';
 import SkillsSection from './components/SkillsSection';
+import ProjectsSection from './components/ProjectsSection';
+import EducationSection from './components/EducationSection';
 import CVSection from './components/CVSection';
 import JobPreferences from './components/JobPreferences';
 import SidebarStats from './components/SidebarStats';
@@ -52,6 +54,12 @@ const profileAiRequests = new Map<string, Promise<ProfileAiSnapshot>>();
 const profileAiVersions = new Map<string, number>();
 const profileDataCache = new Map<string, CandidateProfileResponse>();
 const profileDataRequests = new Map<string, Promise<CandidateProfileResponse>>();
+
+function hasAnySkills(skills: unknown): boolean {
+  if (Array.isArray(skills)) return skills.length > 0;
+  if (typeof skills !== 'object' || skills === null) return false;
+  return Object.values(skills).some((value) => Array.isArray(value) && value.length > 0);
+}
 
 function getProfileCacheKey(accessToken: string): string {
   return accessToken.trim();
@@ -208,6 +216,8 @@ export default function Profile() {
             <ProfileCardSkeleton heightClass="min-h-[320px]" />
             <ProfileCardSkeleton heightClass="min-h-[240px]" />
             <ProfileCardSkeleton heightClass="min-h-[260px]" />
+            <ProfileCardSkeleton heightClass="min-h-[220px]" />
+            <ProfileCardSkeleton heightClass="min-h-[260px]" />
             <ProfileCardSkeleton heightClass="min-h-[300px]" />
           </div>
           <div className="lg:col-span-4 space-y-8">
@@ -238,6 +248,8 @@ export default function Profile() {
 
   const experiences = profileData?.experiences || [];
   const skills = profileData?.skills || [];
+  const educations = profileData?.educations || [];
+  const projects = profileData?.projects || [];
   const hasCvUploaded = (profileData?.cvs || []).length > 0;
 
   return (
@@ -248,12 +260,14 @@ export default function Profile() {
           <StrengthCard
             profileStrength={profileData.profile.profile_strength}
             hasCvUploaded={hasCvUploaded}
-            hasSkills={skills.length > 0}
+            hasSkills={hasAnySkills(skills)}
             hasExperience={experiences.length > 0}
           />
           <AboutSection about={profileData.profile.about || ''} onProfileUpdated={refreshProfileSilently} />
           <ExperienceSection experiences={experiences} onExperienceAdded={refreshProfileSilently} />
           <SkillsSection skills={skills} onSkillAdded={refreshProfileSilently} />
+          <ProjectsSection projects={projects} onProjectUpdated={refreshProfileSilently} />
+          <EducationSection educations={educations} onEducationUpdated={refreshProfileSilently} />
           <CVSection cvs={profileData.cvs} onCvUploaded={() => { void refreshProfileSilently(); }} />
           <JobPreferences preferences={profileData.job_preferences} onUpdated={refreshProfileSilently} />
         </div>

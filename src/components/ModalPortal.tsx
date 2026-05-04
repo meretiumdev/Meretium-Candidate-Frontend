@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalPortalProps {
@@ -6,34 +7,18 @@ interface ModalPortalProps {
   lockScroll?: boolean;
 }
 
-let lockCount = 0;
-let previousBodyOverflow = '';
-
-function lockBodyScroll(): () => void {
-  if (typeof document === 'undefined') return () => {};
-
-  if (lockCount === 0) {
-    previousBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-  }
-
-  lockCount += 1;
-
-  return () => {
-    lockCount = Math.max(0, lockCount - 1);
-    if (lockCount === 0) {
-      document.body.style.overflow = previousBodyOverflow;
-    }
-  };
-}
-
 export default function ModalPortal({ children, lockScroll = true }: ModalPortalProps) {
   useEffect(() => {
-    if (!lockScroll) return undefined;
-    return lockBodyScroll();
+    if (!lockScroll || typeof document === 'undefined') return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
   }, [lockScroll]);
 
-  if (typeof document === 'undefined') return <>{children}</>;
-
+  if (typeof document === 'undefined') return null;
   return createPortal(children, document.body);
 }

@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../redux/store';
 import { createProfileSkill } from '../../../services/profileApi';
+import ModalPortal from '../../../components/ModalPortal';
 
 interface AddSkillModalProps {
   isOpen: boolean;
@@ -117,6 +118,7 @@ export default function AddSkillModal({ isOpen, onClose, onSkillAdded, onActionT
       )}
 
       {isOpen && (
+        <ModalPortal>
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-all"
           onClick={() => closeModal()}
@@ -205,6 +207,7 @@ export default function AddSkillModal({ isOpen, onClose, onSkillAdded, onActionT
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   );

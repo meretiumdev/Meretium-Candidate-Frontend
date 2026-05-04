@@ -156,10 +156,51 @@ export interface UpdateProfileExperiencePayload {
   achievements?: string[];
 }
 
+export interface CreateProfileEducationPayload {
+  institute: string;
+  program: string;
+  start_date: string;
+  end_date: string | null;
+  is_current: boolean;
+  description: string;
+}
+
+export interface UpdateProfileEducationPayload {
+  institute?: string;
+  program?: string;
+  start_date?: string;
+  end_date?: string | null;
+  is_current?: boolean;
+  description?: string;
+}
+
+export type ProfileProjectSkillCategory = 'TOOLS' | 'SOFT_SKILLS' | 'CORE';
+
+export interface ProfileProjectSkillPayload {
+  name: string;
+  category: ProfileProjectSkillCategory;
+}
+
+export interface CreateProfileProjectPayload {
+  title: string;
+  link: string;
+  description: string;
+  skills: ProfileProjectSkillPayload[];
+}
+
+export interface UpdateProfileProjectPayload {
+  title?: string;
+  link?: string;
+  description?: string;
+  skills?: ProfileProjectSkillPayload[];
+}
+
 export interface CandidateProfileResponse {
   profile: CandidateProfile;
   experiences: Array<Record<string, unknown>>;
-  skills: unknown[];
+  skills: unknown;
+  educations: Array<Record<string, unknown>>;
+  projects: Array<Record<string, unknown>>;
   job_preferences: CandidateJobPreferences | null;
   cvs?: Array<Record<string, unknown>>;
 }
@@ -318,7 +359,9 @@ function normalizeProfileResponse(payload: unknown): CandidateProfileResponse {
   const response: CandidateProfileResponse = {
     profile,
     experiences: asRecordArray(root.experiences),
-    skills: Array.isArray(root.skills) ? root.skills : [],
+    skills: root.skills ?? [],
+    educations: asRecordArray(root.educations),
+    projects: asRecordArray(root.projects),
     job_preferences,
   };
 
@@ -1366,6 +1409,285 @@ export async function deleteProfileExperience(accessToken: string, experienceId:
       getApiDetailMessage(responsePayload)
       || getApiMessage(responsePayload)
       || `Delete experience failed with status ${response.status}`
+    );
+  }
+}
+
+export async function createProfileEducation(
+  accessToken: string,
+  payload: CreateProfileEducationPayload
+): Promise<unknown> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/educations`, {
+      method: 'POST',
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
+      body: JSON.stringify(payload),
+    })
+  );
+
+  const raw = await response.text();
+  let responsePayload: unknown = null;
+  if (raw) {
+    try {
+      responsePayload = JSON.parse(raw);
+    } catch {
+      responsePayload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, responsePayload);
+    throw new Error(
+      getApiDetailMessage(responsePayload)
+      || getApiMessage(responsePayload)
+      || `Create education failed with status ${response.status}`
+    );
+  }
+
+  return responsePayload;
+}
+
+export async function updateProfileEducation(
+  accessToken: string,
+  educationId: string,
+  payload: UpdateProfileEducationPayload
+): Promise<unknown> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedEducationId = educationId.trim();
+  if (!trimmedEducationId) {
+    throw new Error('Education id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/educations/${encodeURIComponent(trimmedEducationId)}`, {
+      method: 'PATCH',
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
+      body: JSON.stringify(payload),
+    })
+  );
+
+  const raw = await response.text();
+  let responsePayload: unknown = null;
+  if (raw) {
+    try {
+      responsePayload = JSON.parse(raw);
+    } catch {
+      responsePayload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, responsePayload);
+    throw new Error(
+      getApiDetailMessage(responsePayload)
+      || getApiMessage(responsePayload)
+      || `Update education failed with status ${response.status}`
+    );
+  }
+
+  return responsePayload;
+}
+
+export async function deleteProfileEducation(accessToken: string, educationId: string): Promise<void> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedEducationId = educationId.trim();
+  if (!trimmedEducationId) {
+    throw new Error('Education id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/educations/${encodeURIComponent(trimmedEducationId)}`, {
+      method: 'DELETE',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let responsePayload: unknown = null;
+  if (raw) {
+    try {
+      responsePayload = JSON.parse(raw);
+    } catch {
+      responsePayload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, responsePayload);
+    throw new Error(
+      getApiDetailMessage(responsePayload)
+      || getApiMessage(responsePayload)
+      || `Delete education failed with status ${response.status}`
+    );
+  }
+}
+
+function buildProjectJsonPayload(payload: CreateProfileProjectPayload | UpdateProfileProjectPayload): Record<string, unknown> {
+  const jsonPayload: Record<string, unknown> = {};
+
+  if (payload.title !== undefined) jsonPayload.title = payload.title;
+  if (payload.link !== undefined) jsonPayload.link = payload.link;
+  if (payload.description !== undefined) jsonPayload.description = payload.description;
+  if (payload.skills !== undefined) jsonPayload.skills = payload.skills;
+
+  return jsonPayload;
+}
+
+export async function createProfileProject(
+  accessToken: string,
+  payload: CreateProfileProjectPayload
+): Promise<unknown> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/projects`, {
+      method: 'POST',
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
+      body: JSON.stringify(buildProjectJsonPayload(payload)),
+    })
+  );
+
+  const raw = await response.text();
+  let responsePayload: unknown = null;
+  if (raw) {
+    try {
+      responsePayload = JSON.parse(raw);
+    } catch {
+      responsePayload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, responsePayload);
+    throw new Error(
+      getApiDetailMessage(responsePayload)
+      || getApiMessage(responsePayload)
+      || `Create project failed with status ${response.status}`
+    );
+  }
+
+  return responsePayload;
+}
+
+export async function updateProfileProject(
+  accessToken: string,
+  projectId: string,
+  payload: UpdateProfileProjectPayload
+): Promise<unknown> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedProjectId = projectId.trim();
+  if (!trimmedProjectId) {
+    throw new Error('Project id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/projects/${encodeURIComponent(trimmedProjectId)}`, {
+      method: 'PATCH',
+      headers: getCandidateRequestHeaders(nextAccessToken, true),
+      body: JSON.stringify(buildProjectJsonPayload(payload)),
+    })
+  );
+
+  const raw = await response.text();
+  let responsePayload: unknown = null;
+  if (raw) {
+    try {
+      responsePayload = JSON.parse(raw);
+    } catch {
+      responsePayload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, responsePayload);
+    throw new Error(
+      getApiDetailMessage(responsePayload)
+      || getApiMessage(responsePayload)
+      || `Update project failed with status ${response.status}`
+    );
+  }
+
+  return responsePayload;
+}
+
+export async function deleteProfileProject(accessToken: string, projectId: string): Promise<void> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const trimmedProjectId = projectId.trim();
+  if (!trimmedProjectId) {
+    throw new Error('Project id is required.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/projects/${encodeURIComponent(trimmedProjectId)}`, {
+      method: 'DELETE',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let responsePayload: unknown = null;
+  if (raw) {
+    try {
+      responsePayload = JSON.parse(raw);
+    } catch {
+      responsePayload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, responsePayload);
+    throw new Error(
+      getApiDetailMessage(responsePayload)
+      || getApiMessage(responsePayload)
+      || `Delete project failed with status ${response.status}`
     );
   }
 }

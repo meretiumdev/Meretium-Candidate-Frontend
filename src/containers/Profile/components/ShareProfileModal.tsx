@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Link2, Mail, Lock } from 'lucide-react';
+import ModalPortal from '../../../components/ModalPortal';
 
 interface ShareProfileModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export default function ShareProfileModal({ isOpen, onClose, profileUrl }: Share
   };
 
   return (
+    <ModalPortal>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-all"
       onClick={onClose}
@@ -107,5 +109,6 @@ export default function ShareProfileModal({ isOpen, onClose, profileUrl }: Share
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../redux/store';
 import { uploadCandidateCv } from '../services/cvApi';
+import ModalPortal from './ModalPortal';
 
 interface UploadCVModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadSuccess?: () => void;
+  onUploadSuccess?: () => Promise<void> | void;
 }
 
 interface ToastState {
@@ -72,7 +73,7 @@ export default function UploadCVModal({
         message: 'CV uploaded successfully.',
         type: 'success',
       });
-      onUploadSuccess?.();
+      await onUploadSuccess?.();
       window.setTimeout(() => {
         onClose();
       }, 600);
@@ -104,6 +105,7 @@ export default function UploadCVModal({
       )}
 
       {isOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       {/* Backdrop */}
           <div
@@ -162,6 +164,7 @@ export default function UploadCVModal({
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   );

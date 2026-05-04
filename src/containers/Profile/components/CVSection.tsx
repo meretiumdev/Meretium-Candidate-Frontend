@@ -289,6 +289,7 @@ export default function CVSection({ cvs, onCvUploaded }: CVSectionProps) {
       </div>
 
       <RenameCVModal
+        key={renameTarget?.cvId || renameTarget?.id || 'rename-cv'}
         isOpen={!!renameTarget}
         onClose={() => {
           if (!renamingCvId) setRenameTarget(null);

@@ -6,7 +6,7 @@ import { deleteProfileSkill } from '../../../services/profileApi';
 import AddSkillModal from './AddSkillModal';
 
 interface SkillsSectionProps {
-  skills: unknown[];
+  skills: unknown;
   onSkillAdded?: () => Promise<void> | void;
 }
 
@@ -93,29 +93,27 @@ function normalizeProficiencyLevel(raw: number | null): number | null {
   return rounded;
 }
 
-function normalizeSkills(skills: unknown[]): SkillItem[] {
-  return skills.reduce<SkillItem[]>((acc, skill) => {
+function normalizeSkillEntry(skill: unknown, fallbackCategory = 'CORE'): SkillItem | null {
     if (typeof skill === 'string' && skill.trim().length > 0) {
-      acc.push({
+      return {
         id: skill.trim(),
         skillId: null,
         name: skill.trim(),
-        category: 'CORE',
+        category: normalizeCategoryLabel(fallbackCategory),
         hot: false,
         proficiencyLevel: null,
         progress: 70,
-      });
-      return acc;
+      };
     }
 
     const record = asRecord(skill);
-    if (!record) return acc;
+    if (!record) return null;
 
     const skillId = readSkillId(record);
     const name = readString(record, ['name', 'skill', 'title']);
-    if (!name) return acc;
+    if (!name) return null;
 
-    const category = normalizeCategoryLabel(readString(record, ['category', 'group', 'type']) || 'CORE');
+    const category = normalizeCategoryLabel(readString(record, ['category', 'group', 'type']) || fallbackCategory);
     const hot = readBoolean(record, ['hot', 'is_hot', 'featured']);
     const proficiencyLevel = normalizeProficiencyLevel(
       readNumber(record, ['proficiency_level', 'proficiencyLevel', 'level'])
@@ -124,7 +122,7 @@ function normalizeSkills(skills: unknown[]): SkillItem[] {
       readNumber(record, ['progress', 'proficiency', 'score']) ?? proficiencyLevel
     );
 
-    acc.push({
+    return {
       id: skillId || `${category}-${name}`,
       skillId,
       name,
@@ -132,9 +130,25 @@ function normalizeSkills(skills: unknown[]): SkillItem[] {
       hot,
       proficiencyLevel,
       progress,
-    });
-    return acc;
-  }, []);
+    };
+}
+
+function normalizeSkills(skills: unknown): SkillItem[] {
+  if (Array.isArray(skills)) {
+    return skills
+      .map((skill) => normalizeSkillEntry(skill))
+      .filter((skill): skill is SkillItem => skill !== null);
+  }
+
+  const record = asRecord(skills);
+  if (!record) return [];
+
+  return Object.entries(record).flatMap(([category, items]) => {
+    if (!Array.isArray(items)) return [];
+    return items
+      .map((skill) => normalizeSkillEntry(skill, category))
+      .filter((skill): skill is SkillItem => skill !== null);
+  });
 }
 
 export default function SkillsSection({ skills, onSkillAdded }: SkillsSectionProps) {

@@ -3,7 +3,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UploadCVModal from '../../../components/UploadCVModal';
 
-export default function StepsGrid() {
+interface StepsGridProps {
+  onCvUploaded?: () => Promise<boolean> | Promise<void> | boolean | void;
+}
+
+export default function StepsGrid({ onCvUploaded }: StepsGridProps) {
   const navigate = useNavigate();
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
@@ -76,7 +80,10 @@ export default function StepsGrid() {
       <UploadCVModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
-        onUploadSuccess={() => navigate('/dashboard')}
+        onUploadSuccess={async () => {
+          await onCvUploaded?.();
+          navigate('/dashboard');
+        }}
       />
     </>
   );

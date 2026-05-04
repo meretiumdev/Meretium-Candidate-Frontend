@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from './redux/store';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Onboarding from './containers/Onboarding';
 import Dashboard from './containers/Dashboard';
@@ -25,15 +25,24 @@ import { attachCandidateSocket, connectCandidateSocket, detachCandidateSocket } 
 
 interface AuthGuardProps {
   children: React.ReactNode;
+  onboardingGate: OnboardingGateState;
+  onRetryOnboardingGate: () => void;
+  allowWhenCvMissing?: boolean;
 }
 
-interface CvUploadGateState {
+interface OnboardingGateState {
   status: 'idle' | 'loading' | 'ready' | 'error';
   accessToken: string;
-  path: string;
-  shouldBlock: boolean;
+  canAccessApp: boolean;
   message: string | null;
 }
+
+const INITIAL_ONBOARDING_GATE_STATE: OnboardingGateState = {
+  status: 'idle',
+  accessToken: '',
+  canAccessApp: false,
+  message: null,
+};
 
 function getIsOnboarded(user: unknown): boolean | null {
   if (typeof user !== 'object' || user === null) return null;
@@ -57,120 +66,110 @@ function getUserId(user: unknown): string | null {
   return null;
 }
 
-function AuthGuard({ children }: AuthGuardProps) {
+function AuthGuard({
+  children,
+  onboardingGate,
+  onRetryOnboardingGate,
+  allowWhenCvMissing = false,
+}: AuthGuardProps) {
   const { accessToken } = useSelector((state: RootState) => state.auth);
-  if (!accessToken) return <Navigate to="/auth" replace />;
-  return <Layout><CvUploadAccessGuard>{children}</CvUploadAccessGuard></Layout>;
-}
-
-function OnboardingAccessGuard({ children }: AuthGuardProps) {
   const user = useSelector((state: RootState) => state.auth.user);
   const isOnboarded = getIsOnboarded(user);
 
-  if (isOnboarded === true) return <Navigate to="/dashboard" replace />;
+  if (!accessToken) return <Navigate to="/auth" replace />;
+
+  return (
+    <Layout>
+      <CvUploadAccessGuard
+        onboardingGate={onboardingGate}
+        isOnboarded={isOnboarded === true}
+        allowWhenCvMissing={allowWhenCvMissing}
+        onRetry={onRetryOnboardingGate}
+      >
+        {children}
+      </CvUploadAccessGuard>
+    </Layout>
+  );
+}
+
+function OnboardingAccessGuard({
+  children,
+  onboardingGate,
+  onRetryOnboardingGate,
+}: AuthGuardProps) {
+  const user = useSelector((state: RootState) => state.auth.user);
+  const isOnboarded = getIsOnboarded(user);
+
+  if (isOnboarded === true || onboardingGate.canAccessApp) return <Navigate to="/dashboard" replace />;
+
+  if (onboardingGate.status === 'idle') {
+    return <div className="min-h-[calc(100vh-76px)] bg-[#F9FAFB]" />;
+  }
+
+  if (onboardingGate.status === 'error') {
+    return <OnboardingGateError message={onboardingGate.message} onRetry={onRetryOnboardingGate} />;
+  }
+
   return <>{children}</>;
 }
 
-function getErrorMessage(error: unknown, fallback = 'Failed to check onboarding status. Please try again.'): string {
+function getErrorMessage(error: unknown, fallback = 'Failed to load onboarding status. Please try again.'): string {
   if (error instanceof Error && error.message.trim()) return error.message;
   return fallback;
 }
 
-function CvUploadAccessGuard({ children }: AuthGuardProps) {
-  const location = useLocation();
-  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
-  const user = useSelector((state: RootState) => state.auth.user);
-  const isOnboarded = getIsOnboarded(user);
-  const [retryKey, setRetryKey] = React.useState(0);
-  const [gateState, setGateState] = React.useState<CvUploadGateState>({
-    status: 'idle',
-    accessToken: '',
-    path: '',
-    shouldBlock: false,
-    message: null,
-  });
-
-  const trimmedAccessToken = accessToken?.trim() || '';
-  const currentPath = location.pathname;
-  const shouldCheckCvUpload = Boolean(trimmedAccessToken) && isOnboarded !== true && currentPath !== '/';
-
-  React.useEffect(() => {
-    if (!shouldCheckCvUpload) {
-      setGateState({
-        status: 'ready',
-        accessToken: trimmedAccessToken,
-        path: currentPath,
-        shouldBlock: false,
-        message: null,
-      });
-      return;
-    }
-
-    let isCancelled = false;
-    setGateState({
-      status: 'loading',
-      accessToken: trimmedAccessToken,
-      path: currentPath,
-      shouldBlock: false,
-      message: null,
-    });
-
-    void (async () => {
-      try {
-        const response = await getCandidateDashboard(trimmedAccessToken);
-        if (isCancelled) return;
-
-        setGateState({
-          status: 'ready',
-          accessToken: trimmedAccessToken,
-          path: currentPath,
-          shouldBlock: !response.onboarding.is_onboarding_complete && !response.onboarding.is_cv_uploaded,
-          message: null,
-        });
-      } catch (error: unknown) {
-        if (isCancelled) return;
-        setGateState({
-          status: 'error',
-          accessToken: trimmedAccessToken,
-          path: currentPath,
-          shouldBlock: true,
-          message: getErrorMessage(error),
-        });
-      }
-    })();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [currentPath, retryKey, shouldCheckCvUpload, trimmedAccessToken]);
-
-  if (!shouldCheckCvUpload) return <>{children}</>;
-
-  const hasCurrentGateState = gateState.accessToken === trimmedAccessToken && gateState.path === currentPath;
-  if (!hasCurrentGateState || gateState.status === 'idle' || gateState.status === 'loading') {
-    return (
-      <div className="min-h-[calc(100vh-76px)] bg-[#F9FAFB]" />
-    );
-  }
-
-  if (gateState.status === 'error') {
-    return (
-      <div className="min-h-[calc(100vh-76px)] flex items-center justify-center bg-[#F9FAFB] px-4">
-        <div className="w-full max-w-md bg-white border border-[#FDA29B] rounded-xl p-6 text-center">
-          <p className="text-[#B42318] text-[14px] font-medium mb-4">{gateState.message}</p>
-          <button
-            onClick={() => setRetryKey((value) => value + 1)}
-            className="bg-[#FF6934] text-white px-4 py-2 rounded-[8px] text-[14px] font-medium hover:opacity-90 transition-opacity"
-          >
-            Retry
-          </button>
-        </div>
+function OnboardingGateError({
+  message,
+  onRetry,
+}: {
+  message: string | null;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="min-h-[calc(100vh-76px)] flex items-center justify-center bg-[#F9FAFB] px-4">
+      <div className="w-full max-w-md bg-white border border-[#FDA29B] rounded-xl p-6 text-center">
+        <p className="text-[#B42318] text-[14px] font-medium mb-4">
+          {message || 'Failed to load onboarding status.'}
+        </p>
+        <button
+          onClick={onRetry}
+          className="bg-[#FF6934] text-white px-4 py-2 rounded-[8px] text-[14px] font-medium hover:opacity-90 transition-opacity"
+        >
+          Retry
+        </button>
       </div>
-    );
+    </div>
+  );
+}
+
+function CvUploadAccessGuard({
+  children,
+  onboardingGate,
+  isOnboarded,
+  allowWhenCvMissing,
+  onRetry,
+}: {
+  children: React.ReactNode;
+  onboardingGate: OnboardingGateState;
+  isOnboarded: boolean;
+  allowWhenCvMissing: boolean;
+  onRetry: () => void;
+}) {
+  if (allowWhenCvMissing || isOnboarded || onboardingGate.canAccessApp) return <>{children}</>;
+
+  if (onboardingGate.status === 'idle' || onboardingGate.status === 'loading') {
+    return <div className="min-h-[calc(100vh-76px)] bg-[#F9FAFB]" />;
   }
 
-  if (gateState.shouldBlock) return <Navigate to="/" replace />;
-  return <>{children}</>;
+  if (onboardingGate.status === 'error') {
+    return <OnboardingGateError message={onboardingGate.message} onRetry={onRetry} />;
+  }
+
+  return <Navigate to="/" replace />;
+}
+
+function canAccessAppFromDashboard(response: Awaited<ReturnType<typeof getCandidateDashboard>>): boolean {
+  return response.onboarding.is_onboarding_complete || response.onboarding.is_cv_uploaded;
 }
 
 function App() {
@@ -178,6 +177,49 @@ function App() {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const user = useSelector((state: RootState) => state.auth.user);
   const profile = useSelector((state: RootState) => state.auth.profile);
+  const [onboardingGate, setOnboardingGate] = React.useState<OnboardingGateState>(INITIAL_ONBOARDING_GATE_STATE);
+  const onboardingGateRequestRef = React.useRef(0);
+
+  const refreshOnboardingGate = React.useCallback(async () => {
+    const trimmedAccessToken = accessToken?.trim() || '';
+    onboardingGateRequestRef.current += 1;
+    const requestId = onboardingGateRequestRef.current;
+
+    if (!trimmedAccessToken) {
+      setOnboardingGate(INITIAL_ONBOARDING_GATE_STATE);
+      return false;
+    }
+
+    setOnboardingGate({
+      status: 'loading',
+      accessToken: trimmedAccessToken,
+      canAccessApp: false,
+      message: null,
+    });
+
+    try {
+      const response = await getCandidateDashboard(trimmedAccessToken);
+      if (requestId !== onboardingGateRequestRef.current) return false;
+
+      setOnboardingGate({
+        status: 'ready',
+        accessToken: trimmedAccessToken,
+        canAccessApp: canAccessAppFromDashboard(response),
+        message: null,
+      });
+      return true;
+    } catch (error: unknown) {
+      if (requestId !== onboardingGateRequestRef.current) return false;
+
+      setOnboardingGate({
+        status: 'error',
+        accessToken: trimmedAccessToken,
+        canAccessApp: false,
+        message: getErrorMessage(error),
+      });
+      return false;
+    }
+  }, [accessToken]);
 
   React.useEffect(() => {
     if (!accessToken?.trim()) {
@@ -203,6 +245,27 @@ function App() {
       isCancelled = true;
     };
   }, [accessToken, dispatch, profile]);
+
+  React.useEffect(() => {
+    const trimmedAccessToken = accessToken?.trim() || '';
+    const hasCurrentGateState = onboardingGate.accessToken === trimmedAccessToken && onboardingGate.status !== 'idle';
+
+    const timeoutId = window.setTimeout(() => {
+      if (!trimmedAccessToken) {
+        onboardingGateRequestRef.current += 1;
+        setOnboardingGate(INITIAL_ONBOARDING_GATE_STATE);
+        return;
+      }
+
+      if (!hasCurrentGateState) {
+        void refreshOnboardingGate();
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [accessToken, onboardingGate.accessToken, onboardingGate.status, refreshOnboardingGate]);
 
   React.useEffect(() => {
     const trimmedAccessToken = accessToken?.trim() || '';
@@ -242,6 +305,25 @@ function App() {
     };
   }, [accessToken, profile, user]);
 
+  const handleRetryOnboardingGate = React.useCallback(() => {
+    void refreshOnboardingGate();
+  }, [refreshOnboardingGate]);
+
+  const authGuardProps = {
+    onboardingGate,
+    onRetryOnboardingGate: handleRetryOnboardingGate,
+  };
+  const renderPrivateRoute = (children: React.ReactNode) => (
+    <AuthGuard {...authGuardProps}>{children}</AuthGuard>
+  );
+  const onboardingRoute = (
+    <AuthGuard {...authGuardProps} allowWhenCvMissing>
+      <OnboardingAccessGuard {...authGuardProps}>
+        <Onboarding onCvUploaded={refreshOnboardingGate} />
+      </OnboardingAccessGuard>
+    </AuthGuard>
+  );
+
   console.log("App Version: 1.0.1 - Deployment Triggered at " + new Date().toLocaleTimeString());
   return (
     <Router>
@@ -249,21 +331,21 @@ function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/forget-password" element={<ForgotPassword />} />
         <Route path="/verify-email-change" element={<VerifyEmailChange />} />
-        <Route path="/" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />
-        <Route path="/onboarding" element={<AuthGuard><OnboardingAccessGuard><Onboarding /></OnboardingAccessGuard></AuthGuard>} />
-        <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
-        <Route path="/explore-jobs" element={<AuthGuard><ExploreJobs /></AuthGuard>} />
-        <Route path="/jobs" element={<AuthGuard><JobsPage /></AuthGuard>} />
-        <Route path="/jobs/:id" element={<AuthGuard><JobDetail /></AuthGuard>} />
-        <Route path="/job/:id" element={<AuthGuard><JobDetail /></AuthGuard>} />
-        <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
-        <Route path="/job-detail" element={<AuthGuard><Navigate to="/jobs" replace /></AuthGuard>} />
-        <Route path="/applications" element={<AuthGuard><Applications /></AuthGuard>} />
-        <Route path="/saved" element={<AuthGuard><Saved /></AuthGuard>} />
-        <Route path="/messages" element={<AuthGuard><Messages /></AuthGuard>} />
-        <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
-        <Route path="/company/:id/jobs" element={<AuthGuard><CompanyJobs /></AuthGuard>} />
-        <Route path="/company/:id" element={<AuthGuard><CompanyProfile /></AuthGuard>} />
+        <Route path="/" element={onboardingRoute} />
+        <Route path="/onboarding" element={onboardingRoute} />
+        <Route path="/dashboard" element={renderPrivateRoute(<Dashboard />)} />
+        <Route path="/explore-jobs" element={renderPrivateRoute(<ExploreJobs />)} />
+        <Route path="/jobs" element={renderPrivateRoute(<JobsPage />)} />
+        <Route path="/jobs/:id" element={renderPrivateRoute(<JobDetail />)} />
+        <Route path="/job/:id" element={renderPrivateRoute(<JobDetail />)} />
+        <Route path="/profile" element={renderPrivateRoute(<Profile />)} />
+        <Route path="/job-detail" element={renderPrivateRoute(<Navigate to="/jobs" replace />)} />
+        <Route path="/applications" element={renderPrivateRoute(<Applications />)} />
+        <Route path="/saved" element={renderPrivateRoute(<Saved />)} />
+        <Route path="/messages" element={renderPrivateRoute(<Messages />)} />
+        <Route path="/settings" element={renderPrivateRoute(<Settings />)} />
+        <Route path="/company/:id/jobs" element={renderPrivateRoute(<CompanyJobs />)} />
+        <Route path="/company/:id" element={renderPrivateRoute(<CompanyProfile />)} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FileText, X } from 'lucide-react';
+import ModalPortal from '../../../components/ModalPortal';
 
 interface RenameCVModalProps {
   isOpen: boolean;
@@ -16,12 +17,7 @@ export default function RenameCVModal({
   onConfirm,
   saving = false,
 }: RenameCVModalProps) {
-  const [name, setName] = useState('');
-
-  useEffect(() => {
-    // Strip the .pdf extension to edit the raw name string
-    setName(cvName.replace(/\.pdf$/i, ''));
-  }, [cvName, isOpen]);
+  const [name, setName] = useState(() => cvName.replace(/\.pdf$/i, ''));
 
   if (!isOpen) return null;
 
@@ -32,6 +28,7 @@ export default function RenameCVModal({
   };
 
   return (
+    <ModalPortal>
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-all"
       onClick={() => {
@@ -91,5 +88,6 @@ export default function RenameCVModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

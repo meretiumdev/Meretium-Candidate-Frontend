@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../redux/store';
 import { createProfileExperience, updateProfileExperience } from '../../../services/profileApi';
+import ModalPortal from '../../../components/ModalPortal';
 
 interface Experience {
   id: string | number;
@@ -193,6 +194,7 @@ export default function AddExperienceModal({
       )}
 
       {isOpen && (
+        <ModalPortal>
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-all"
           onClick={() => closeModal()}
@@ -340,6 +342,7 @@ export default function AddExperienceModal({
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   );
