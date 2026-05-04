@@ -8,6 +8,7 @@ import Dashboard from './containers/Dashboard';
 import ExploreJobs from './containers/ExploreJobs';
 import JobsPage from './containers/Jobs';
 import Profile from './containers/Profile';
+import PublicView from './containers/Profile/PublicView';
 import JobDetail from './containers/JobDetail';
 import Applications from './containers/Applications';
 import Saved from './containers/Saved';
@@ -332,6 +333,8 @@ function App() {
         <Route path="/auth/forget-password" element={<ForgotPassword />} />
         <Route path="/verify-email-change" element={<VerifyEmailChange />} />
         <Route path="/" element={onboardingRoute} />
+                <Route path="/profile/public-view" element={<PublicView/>} />
+
         <Route path="/onboarding" element={onboardingRoute} />
         <Route path="/dashboard" element={renderPrivateRoute(<Dashboard />)} />
         <Route path="/explore-jobs" element={renderPrivateRoute(<ExploreJobs />)} />
