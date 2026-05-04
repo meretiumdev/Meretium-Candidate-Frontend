@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from './redux/store';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import Onboarding from './containers/Onboarding';
 import Dashboard from './containers/Dashboard';
@@ -19,11 +19,20 @@ import VerifyEmailChange from './containers/VerifyEmailChange';
 import CompanyProfile from './containers/CompanyProfile';
 import CompanyJobs from './containers/CompanyJobs';
 import { getCandidateProfile } from './services/profileApi';
+import { getCandidateDashboard } from './services/dashboardApi';
 import { setProfile } from './redux/store';
 import { attachCandidateSocket, connectCandidateSocket, detachCandidateSocket } from './utils/candidateSocketConnection';
 
 interface AuthGuardProps {
   children: React.ReactNode;
+}
+
+interface CvUploadGateState {
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  accessToken: string;
+  path: string;
+  shouldBlock: boolean;
+  message: string | null;
 }
 
 function getIsOnboarded(user: unknown): boolean | null {
@@ -51,7 +60,7 @@ function getUserId(user: unknown): string | null {
 function AuthGuard({ children }: AuthGuardProps) {
   const { accessToken } = useSelector((state: RootState) => state.auth);
   if (!accessToken) return <Navigate to="/auth" replace />;
-  return <Layout>{children}</Layout>;
+  return <Layout><CvUploadAccessGuard>{children}</CvUploadAccessGuard></Layout>;
 }
 
 function OnboardingAccessGuard({ children }: AuthGuardProps) {
@@ -59,6 +68,108 @@ function OnboardingAccessGuard({ children }: AuthGuardProps) {
   const isOnboarded = getIsOnboarded(user);
 
   if (isOnboarded === true) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
+function getErrorMessage(error: unknown, fallback = 'Failed to check onboarding status. Please try again.'): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return fallback;
+}
+
+function CvUploadAccessGuard({ children }: AuthGuardProps) {
+  const location = useLocation();
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const user = useSelector((state: RootState) => state.auth.user);
+  const isOnboarded = getIsOnboarded(user);
+  const [retryKey, setRetryKey] = React.useState(0);
+  const [gateState, setGateState] = React.useState<CvUploadGateState>({
+    status: 'idle',
+    accessToken: '',
+    path: '',
+    shouldBlock: false,
+    message: null,
+  });
+
+  const trimmedAccessToken = accessToken?.trim() || '';
+  const currentPath = location.pathname;
+  const shouldCheckCvUpload = Boolean(trimmedAccessToken) && isOnboarded !== true && currentPath !== '/';
+
+  React.useEffect(() => {
+    if (!shouldCheckCvUpload) {
+      setGateState({
+        status: 'ready',
+        accessToken: trimmedAccessToken,
+        path: currentPath,
+        shouldBlock: false,
+        message: null,
+      });
+      return;
+    }
+
+    let isCancelled = false;
+    setGateState({
+      status: 'loading',
+      accessToken: trimmedAccessToken,
+      path: currentPath,
+      shouldBlock: false,
+      message: null,
+    });
+
+    void (async () => {
+      try {
+        const response = await getCandidateDashboard(trimmedAccessToken);
+        if (isCancelled) return;
+
+        setGateState({
+          status: 'ready',
+          accessToken: trimmedAccessToken,
+          path: currentPath,
+          shouldBlock: !response.onboarding.is_onboarding_complete && !response.onboarding.is_cv_uploaded,
+          message: null,
+        });
+      } catch (error: unknown) {
+        if (isCancelled) return;
+        setGateState({
+          status: 'error',
+          accessToken: trimmedAccessToken,
+          path: currentPath,
+          shouldBlock: true,
+          message: getErrorMessage(error),
+        });
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentPath, retryKey, shouldCheckCvUpload, trimmedAccessToken]);
+
+  if (!shouldCheckCvUpload) return <>{children}</>;
+
+  const hasCurrentGateState = gateState.accessToken === trimmedAccessToken && gateState.path === currentPath;
+  if (!hasCurrentGateState || gateState.status === 'idle' || gateState.status === 'loading') {
+    return (
+      <div className="min-h-[calc(100vh-76px)] bg-[#F9FAFB]" />
+    );
+  }
+
+  if (gateState.status === 'error') {
+    return (
+      <div className="min-h-[calc(100vh-76px)] flex items-center justify-center bg-[#F9FAFB] px-4">
+        <div className="w-full max-w-md bg-white border border-[#FDA29B] rounded-xl p-6 text-center">
+          <p className="text-[#B42318] text-[14px] font-medium mb-4">{gateState.message}</p>
+          <button
+            onClick={() => setRetryKey((value) => value + 1)}
+            className="bg-[#FF6934] text-white px-4 py-2 rounded-[8px] text-[14px] font-medium hover:opacity-90 transition-opacity"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (gateState.shouldBlock) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 

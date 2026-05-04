@@ -76,6 +76,7 @@ function PasswordVisibilityIcon({ isVisible }: PasswordVisibilityIconProps) {
 const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_OAUTH_SCOPE = 'openid email profile';
 const AUTH_FLOW_STORAGE_KEY = 'meretium.auth.flow.v1';
+const AUTHENTICATED_LANDING_ROUTE = '/dashboard';
 const DEFAULT_COUNTRY_CODE = '+1';
 const OTP_RESEND_COOLDOWN_SECONDS = 30;
 
@@ -198,27 +199,6 @@ function getErrorMessage(error: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
-function getRecordValue(input: unknown): Record<string, unknown> | null {
-  if (typeof input !== 'object' || input === null) return null;
-  return input as Record<string, unknown>;
-}
-
-function getLandingRouteByIsOnboarded(input: unknown): string {
-  return input === true ? '/dashboard' : '/';
-}
-
-function getLandingRouteFromAuthResponse(payload: unknown): string {
-  const payloadObj = getRecordValue(payload);
-  const dataObj = getRecordValue(payloadObj?.data);
-  const isOnboarded = dataObj?.is_onboarded;
-  return getLandingRouteByIsOnboarded(isOnboarded);
-}
-
-function getLandingRouteFromUser(user: unknown): string {
-  const userObj = getRecordValue(user);
-  return getLandingRouteByIsOnboarded(userObj?.is_onboarded);
-}
-
 function getRedirectPathFromSearch(search: string): string | null {
   const params = new URLSearchParams(search);
   const redirect = params.get('redirect');
@@ -234,7 +214,7 @@ const Auth = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
-  const { accessToken, user } = useSelector((state: RootState) => state.auth);
+  const { accessToken } = useSelector((state: RootState) => state.auth);
   const redirectAfterAuth = getRedirectPathFromSearch(location.search);
   const [persistedFlow] = useState<PersistedAuthFlowState | null>(() => readPersistedAuthFlowState());
 
@@ -286,8 +266,8 @@ const Auth = () => {
   useEffect(() => {
     if (!accessToken) return;
     clearPersistedAuthFlowState();
-    navigate(redirectAfterAuth || getLandingRouteFromUser(user), { replace: true });
-  }, [accessToken, navigate, redirectAfterAuth, user]);
+    navigate(redirectAfterAuth || AUTHENTICATED_LANDING_ROUTE, { replace: true });
+  }, [accessToken, navigate, redirectAfterAuth]);
 
   useEffect(() => {
     const state: PersistedAuthFlowState = {
@@ -428,7 +408,7 @@ const Auth = () => {
 
     dispatch(login(response));
     clearPersistedAuthFlowState();
-    return getLandingRouteFromAuthResponse(response);
+    return AUTHENTICATED_LANDING_ROUTE;
   };
 
   const loginWithGoogleToken = async (token: string, totpCode = ''): Promise<string> => {
@@ -444,7 +424,7 @@ const Auth = () => {
     });
     dispatch(login(response));
     clearPersistedAuthFlowState();
-    return getLandingRouteFromAuthResponse(response);
+    return AUTHENTICATED_LANDING_ROUTE;
   };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
