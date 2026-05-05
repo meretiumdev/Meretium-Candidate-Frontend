@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FileText, X } from 'lucide-react';
 import ModalPortal from '../../../components/ModalPortal';
+import { getFileExtension, stripFileExtension } from '../../../utils/cvFileFormats';
 
 interface RenameCVModalProps {
   isOpen: boolean;
@@ -17,7 +18,8 @@ export default function RenameCVModal({
   onConfirm,
   saving = false,
 }: RenameCVModalProps) {
-  const [name, setName] = useState(() => cvName.replace(/\.pdf$/i, ''));
+  const [name, setName] = useState(() => stripFileExtension(cvName));
+  const extension = getFileExtension(cvName) || '.pdf';
 
   if (!isOpen) return null;
 
@@ -65,7 +67,7 @@ export default function RenameCVModal({
                 className="flex-1 w-full border border-gray-200 rounded-[8px] px-3.5 py-2.5 text-[14px] text-[#101828] outline-none focus:border-[#FF6934] transition-colors"
                 autoFocus
               />
-              <span className="text-[#98A2B3] text-[15px] font-medium shrink-0">.pdf</span>
+              <span className="text-[#98A2B3] text-[15px] font-medium shrink-0">{extension}</span>
            </div>
            <p className="text-[#667085] text-[13px] mt-2">Choose a descriptive name to easily identify this CV</p>
         </div>

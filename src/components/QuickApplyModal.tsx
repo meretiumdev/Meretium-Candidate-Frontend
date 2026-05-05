@@ -6,6 +6,11 @@ import { getCandidateJobDetail, type CandidateJobScreeningQuestion } from '../se
 import { getCandidateCvs, uploadCandidateCv, type CandidateCvItem } from '../services/cvApi';
 import { applyToCandidateJob, generateCandidateCoverLetter } from '../services/applicationsApi';
 import { formatJobTypeLabel } from '../utils/formatJobTypeLabel';
+import {
+  SUPPORTED_CV_ACCEPT,
+  SUPPORTED_CV_FORMAT_LABEL,
+  isSupportedCvFile,
+} from '../utils/cvFileFormats';
 import ModalPortal from './ModalPortal';
 
 export interface QuickApplyModalJob {
@@ -116,7 +121,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
 
   const selectedCvName = useMemo(() => {
     const selected = cvs.find((cv) => cv.id === selectedCV);
-    return selected?.name || 'CV.pdf';
+    return selected?.name || 'Selected CV';
   }, [cvs, selectedCV]);
 
   const clearErrors = () => {
@@ -275,6 +280,11 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     if (!file) return;
     if (!accessToken?.trim()) {
       setCvsError('You are not authenticated. Please log in again.');
+      event.target.value = '';
+      return;
+    }
+    if (!isSupportedCvFile(file)) {
+      setCvsError(`Unsupported CV format. Upload ${SUPPORTED_CV_FORMAT_LABEL}.`);
       event.target.value = '';
       return;
     }
@@ -620,7 +630,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.doc,.docx"
+                accept={SUPPORTED_CV_ACCEPT}
                 className="hidden"
                 onChange={(event) => { void handleFileChange(event); }}
               />

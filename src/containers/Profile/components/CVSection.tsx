@@ -3,6 +3,7 @@ import { FileText, Trash2, Edit3, UploadCloud, Star } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../redux/store';
 import { deleteCandidateCv, updateCandidateCv } from '../../../services/cvApi';
+import { getFileExtension } from '../../../utils/cvFileFormats';
 import RenameCVModal from './RenameCVModal';
 import DeleteCVModal from './DeleteCVModal';
 import UploadCVModal from '../../../components/UploadCVModal';
@@ -89,7 +90,7 @@ function buildRenamedFileName(inputName: string, originalName: string): string {
     return trimmed;
   }
 
-  const extension = originalName.match(/(\.[a-z0-9]+)$/i)?.[1] || '.pdf';
+  const extension = getFileExtension(originalName) || '.pdf';
   return `${trimmed}${extension}`;
 }
 

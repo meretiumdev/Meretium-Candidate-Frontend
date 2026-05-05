@@ -361,7 +361,7 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
     setIsCvDownloading(true);
     try {
       const cvUrl = await getCandidateCvDownloadUrl(accessToken, cvId);
-      const cvName = detail?.cv?.file_name?.trim() || 'cv.pdf';
+      const cvName = detail?.cv?.file_name?.trim() || 'CV';
       downloadFromPublicUrl(cvUrl, cvName);
     } catch {
       showToast('Unable to download CV right now.');

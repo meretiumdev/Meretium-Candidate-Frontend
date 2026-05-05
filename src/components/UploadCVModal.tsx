@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../redux/store';
 import { uploadCandidateCv } from '../services/cvApi';
+import {
+  SUPPORTED_CV_ACCEPT,
+  SUPPORTED_CV_FORMAT_LABEL,
+  isSupportedCvFile,
+} from '../utils/cvFileFormats';
 import ModalPortal from './ModalPortal';
 
 interface UploadCVModalProps {
@@ -61,6 +66,17 @@ export default function UploadCVModal({
     if (!file) return;
 
     setToast(null);
+
+    if (!isSupportedCvFile(file)) {
+      setToast({
+        id: Date.now(),
+        message: `Unsupported CV format. Upload ${SUPPORTED_CV_FORMAT_LABEL}.`,
+        type: 'error',
+      });
+      event.target.value = '';
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -119,7 +135,7 @@ export default function UploadCVModal({
             ref={fileInputRef}
             onChange={handleFileChange}
             className="hidden"
-            accept=".pdf,.doc,.docx"
+            accept={SUPPORTED_CV_ACCEPT}
           />
 
       {/* Modal Container */}
@@ -142,7 +158,7 @@ export default function UploadCVModal({
         {/* Content */}
             <h2 className="text-[24px] font-semibold text-[#101828] mb-4">Upload your CV to apply</h2>
             <p className="text-[14px] text-[#475467] leading-relaxed max-w-[400px] mb-10">
-              Select a CV to apply  and generate your AI match score.
+              Upload a {SUPPORTED_CV_FORMAT_LABEL} CV to apply and generate your AI match score.
             </p>
 
         {/* Buttons */}
