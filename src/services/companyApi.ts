@@ -196,10 +196,14 @@ function normalizeCompanyDetail(payload: unknown): CandidateCompanyDetail {
   const statsRaw = asRecord(companyRaw.stats) || asRecord(root.stats) || {};
   const socialRaw = asRecord(companyRaw.social_links) || asRecord(root.social_links) || {};
 
-  const website = asString(companyRaw.website_url) || asString(socialRaw.website);
+  const linkedinUrl = asString(socialRaw.linkedin) || asString(companyRaw.linkedin_url);
+  const twitterUrl = asString(socialRaw.twitter) || asString(companyRaw.twitter_url);
+  const website = asString(companyRaw.website_url)
+    || asString(socialRaw.website)
+    || asString(companyRaw.website);
   const socialLinks: CandidateCompanySocialLinks = {
-    linkedin: asString(socialRaw.linkedin) || asString(companyRaw.linkedin_url),
-    twitter: asString(socialRaw.twitter) || asString(companyRaw.twitter_url),
+    linkedin: linkedinUrl,
+    twitter: twitterUrl,
     website,
   };
 
@@ -235,6 +239,9 @@ function normalizeCompanyDetail(payload: unknown): CandidateCompanyDetail {
         || asString(companyRaw.last_active_at),
     },
     social_links: socialLinks,
+    linkedin_url: linkedinUrl,
+    twitter_url: twitterUrl,
+    website_url: website,
   };
 }
 
