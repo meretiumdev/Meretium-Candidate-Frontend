@@ -99,7 +99,15 @@ export interface CandidateJobScreeningQuestion {
   text: string;
   type: string;
   required: boolean;
-  options: string[] | null;
+  options: CandidateJobScreeningOption[] | null;
+  link_kind: string | null;
+  file_types: string[] | null;
+  max_file_size_mb: number | null;
+}
+
+export interface CandidateJobScreeningOption {
+  label: string;
+  value: string;
 }
 
 export interface CandidateJobMatchAnalysis {
@@ -222,16 +230,38 @@ function asStringArray(input: unknown): string[] {
     .filter((item) => item.length > 0);
 }
 
-function asOptionsArray(input: unknown): string[] | null {
+function asOptionsArray(input: unknown): CandidateJobScreeningOption[] | null {
   if (!Array.isArray(input)) return null;
 
   const options = input
     .map((item) => {
-      if (typeof item === 'string') return item.trim();
-      if (typeof item === 'number' && Number.isFinite(item)) return String(item);
-      return '';
+      if (typeof item === 'string') {
+        const value = item.trim();
+        if (!value) return null;
+        return { label: value, value };
+      }
+
+      if (typeof item === 'number' && Number.isFinite(item)) {
+        const value = String(item);
+        return { label: value, value };
+      }
+
+      const record = asRecord(item);
+      if (!record) return null;
+
+      const rawValue = record.value ?? record.id ?? record.key;
+      const rawLabel = record.label ?? record.text ?? record.name;
+      const value = typeof rawValue === 'number' && Number.isFinite(rawValue)
+        ? String(rawValue)
+        : asString(rawValue);
+      const label = typeof rawLabel === 'number' && Number.isFinite(rawLabel)
+        ? String(rawLabel)
+        : asString(rawLabel ?? value);
+      if (!value || !label) return null;
+
+      return { label, value };
     })
-    .filter((item) => item.length > 0);
+    .filter((item): item is CandidateJobScreeningOption => item !== null);
 
   return options.length > 0 ? options : null;
 }
@@ -274,12 +304,18 @@ function normalizeScreeningQuestion(raw: unknown): CandidateJobScreeningQuestion
 
   if (!id || !text) return null;
 
+  const parsedFileTypes = asStringArray(root.file_types);
+  const parsedMaxFileSizeMb = asNullableNumber(root.max_file_size_mb);
+
   return {
     id,
     text,
     type: asString(root.type) || 'short_text',
     required: asBoolean(root.required),
     options: asOptionsArray(root.options),
+    link_kind: asString(root.link_kind) || null,
+    file_types: parsedFileTypes.length > 0 ? parsedFileTypes : null,
+    max_file_size_mb: parsedMaxFileSizeMb && parsedMaxFileSizeMb > 0 ? parsedMaxFileSizeMb : null,
   };
 }
 

@@ -177,6 +177,12 @@ export interface CandidateApplyJobPayload {
   cv_id: string;
   cover_letter: string;
   screening_answers: CandidateApplicationScreeningAnswer[];
+  social_links: CandidateApplySocialLink[];
+}
+
+export interface CandidateApplySocialLink {
+  platform: string;
+  url: string | null;
 }
 
 export interface CandidateGeneratedCoverLetterResponse {
@@ -651,6 +657,13 @@ export async function applyToCandidateJob(
     }))
     .filter((item) => item.question_id.length > 0);
 
+  const socialLinks = payload.social_links
+    .map((item) => ({
+      platform: item.platform.trim(),
+      url: item.url && item.url.trim() ? item.url.trim() : null,
+    }))
+    .filter((item) => item.platform.length > 0);
+
   const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
     fetch(`${CANDIDATE_API_BASE_URL}/applications/apply/${encodeURIComponent(trimmedJobId)}`, {
       method: 'POST',
@@ -659,6 +672,7 @@ export async function applyToCandidateJob(
         cv_id: cvId,
         cover_letter: coverLetter,
         screening_answers: screeningAnswers,
+        social_links: socialLinks,
       }),
     })
   );

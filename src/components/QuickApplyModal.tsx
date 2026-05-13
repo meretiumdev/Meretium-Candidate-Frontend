@@ -1,10 +1,12 @@
-import { X, Building2, MapPin, Briefcase, FileText, Upload, ChevronLeft, Check, Loader2, Sparkles } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { X, Building2, MapPin, Briefcase, FileText, Upload, ChevronLeft, ChevronDown, ChevronRight, Check, Loader2, Sparkles, Globe, User, Link2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../redux/store';
 import { getCandidateJobDetail, type CandidateJobScreeningQuestion } from '../services/jobsApi';
 import { getCandidateCvs, uploadCandidateCv, type CandidateCvItem } from '../services/cvApi';
 import { applyToCandidateJob, generateCandidateCoverLetter } from '../services/applicationsApi';
+import githubIcon from '../assets/github.svg';
+import linkedinIcon from '../assets/linkedin.svg';
 import { formatJobTypeLabel } from '../utils/formatJobTypeLabel';
 import {
   SUPPORTED_CV_ACCEPT,
@@ -32,7 +34,42 @@ interface QuickApplyModalProps {
   onApplyError?: (message: string) => void;
 }
 
-type Step = 1 | 2 | 3 | 4;
+interface ToastState {
+  id: number;
+  message: string;
+  type: 'error' | 'success';
+}
+
+type Step = 1 | 2 | 3 | 4 | 5;
+
+type SocialPlatform = 'LinkedIn' | 'GitHub' | 'Portfolio';
+type ReviewSectionKey = 'cv' | 'screening' | 'profile' | 'cover';
+
+const SOCIAL_LINK_FIELDS: Array<{
+  platform: SocialPlatform;
+  placeholder: string;
+  iconBgClassName: string;
+  renderIcon: () => ReactElement;
+}> = [
+  {
+    platform: 'LinkedIn',
+    placeholder: 'https://linkedin.com/in/yourname',
+    iconBgClassName: 'bg-[#0A66C218]',
+    renderIcon: () => <img src={linkedinIcon} alt="" className="size-4" aria-hidden="true" />,
+  },
+  {
+    platform: 'GitHub',
+    placeholder: 'https://github.com/yourusername',
+    iconBgClassName: 'bg-[#24292F18]',
+    renderIcon: () => <img src={githubIcon} alt="" className="size-4" aria-hidden="true" />,
+  },
+  {
+    platform: 'Portfolio',
+    placeholder: 'https://yourportfolio.com',
+    iconBgClassName: 'bg-[#7C3AED18]',
+    renderIcon: () => <Globe size={16} className="text-[#7C3AED]" />,
+  },
+];
 
 const DEFAULT_COVER_LETTER = `Dear Hiring Manager,
 
@@ -76,6 +113,31 @@ function formatCvUpdatedLabel(value: string): string {
   return `Last updated ${totalDays} days ago`;
 }
 
+function getLinkPlaceholder(linkKind: string | null): string {
+  const normalized = (linkKind || '').trim().toLowerCase();
+  if (normalized === 'github') return 'https://github.com/your-username';
+  if (normalized === 'linkedin') return 'https://linkedin.com/in/your-profile';
+  if (normalized === 'portfolio') return 'https://your-portfolio.com';
+  return 'https://example.com';
+}
+
+function getFileUploadTitle(question: CandidateJobScreeningQuestion): string {
+  const fileTypeLabel = question.file_types?.[0] || 'File';
+  return `Upload ${fileTypeLabel}`;
+}
+
+function getSupportedFileText(question: CandidateJobScreeningQuestion): string {
+  const formatLabel = question.file_types && question.file_types.length > 0
+    ? question.file_types.join(', ')
+    : 'Any';
+
+  if (question.max_file_size_mb) {
+    return `Supported formats: ${formatLabel} (Max ${question.max_file_size_mb}MB)`;
+  }
+
+  return `Supported formats: ${formatLabel}`;
+}
+
 export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, onApplyError }: QuickApplyModalProps) {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const profile = useSelector((state: RootState) => state.auth.profile);
@@ -105,6 +167,12 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
 
   const [screeningQuestions, setScreeningQuestions] = useState<CandidateJobScreeningQuestion[]>([]);
   const [screeningAnswers, setScreeningAnswers] = useState<Record<string, string>>({});
+  const [screeningFiles, setScreeningFiles] = useState<Record<string, File | null>>({});
+  const [socialLinks, setSocialLinks] = useState<Record<SocialPlatform, string>>({
+    LinkedIn: '',
+    GitHub: '',
+    Portfolio: '',
+  });
   const [questionErrors, setQuestionErrors] = useState<Record<string, string>>({});
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [questionsError, setQuestionsError] = useState<string | null>(null);
@@ -114,19 +182,54 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
 
   const [stepError, setStepError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const shouldSkipScreeningStep = !isLoadingQuestions && !questionsError && screeningQuestions.length === 0;
-  const totalSteps = shouldSkipScreeningStep ? 3 : 4;
-  const visibleStep = shouldSkipScreeningStep && currentStep > 2 ? currentStep - 1 : currentStep;
+  const [reviewSectionOpen, setReviewSectionOpen] = useState<Record<ReviewSectionKey, boolean>>({
+    cv: true,
+    screening: true,
+    profile: true,
+    cover: true,
+  });
+  const totalSteps = 5;
+  const visibleStep = currentStep;
 
   const selectedCvName = useMemo(() => {
     const selected = cvs.find((cv) => cv.id === selectedCV);
     return selected?.name || 'Selected CV';
   }, [cvs, selectedCV]);
+  const selectedCvDetails = useMemo(
+    () => cvs.find((cv) => cv.id === selectedCV) || null,
+    [cvs, selectedCV]
+  );
+  const screeningCompletedCount = useMemo(
+    () => screeningQuestions.filter((question) => (screeningAnswers[question.id] || '').trim().length > 0).length,
+    [screeningAnswers, screeningQuestions]
+  );
+  const filledSocialLinks = useMemo(
+    () => SOCIAL_LINK_FIELDS
+      .map((field) => ({
+        platform: field.platform,
+        url: (socialLinks[field.platform] || '').trim(),
+      }))
+      .filter((item) => item.url.length > 0),
+    [socialLinks]
+  );
 
   const clearErrors = () => {
     setStepError(null);
     setSubmitError(null);
+  };
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => {
+      setToast(null);
+    }, 3500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const toggleReviewSection = (section: ReviewSectionKey) => {
+    setReviewSectionOpen((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
   const loadCvs = useCallback(async () => {
@@ -198,7 +301,19 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     setIsConfirmed(false);
     setIsGenerating(false);
     setHasGenerated(false);
+    setReviewSectionOpen({
+      cv: true,
+      screening: true,
+      profile: true,
+      cover: true,
+    });
     setScreeningAnswers({});
+    setScreeningFiles({});
+    setSocialLinks({
+      LinkedIn: '',
+      GitHub: '',
+      Portfolio: '',
+    });
     setQuestionErrors({});
     setScreeningQuestions(Array.isArray(job.questions) ? job.questions : []);
     setJobResponsibilities(Array.isArray(job.key_responsibilities) ? job.key_responsibilities : []);
@@ -256,12 +371,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
   };
 
   useEffect(() => {
-    if (currentStep !== 2 || !shouldSkipScreeningStep) return;
-    setCurrentStep(3);
-  }, [currentStep, shouldSkipScreeningStep]);
-
-  useEffect(() => {
-    if (!isOpen || currentStep !== 3 || !hasGenerated) return;
+    if (!isOpen || currentStep !== 4 || !hasGenerated) return;
 
     const textarea = coverLetterTextareaRef.current;
     if (!textarea) return;
@@ -305,13 +415,21 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
 
   const updateQuestionAnswer = (questionId: string, value: string) => {
     setScreeningAnswers((prev) => ({ ...prev, [questionId]: value }));
-    if (questionErrors[questionId]) {
-      setQuestionErrors((prev) => {
-        const next = { ...prev };
-        delete next[questionId];
-        return next;
-      });
-    }
+    setQuestionErrors((prev) => {
+      if (!prev[questionId]) return prev;
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+  };
+
+  const updateQuestionFile = (questionId: string, file: File | null) => {
+    setScreeningFiles((prev) => ({ ...prev, [questionId]: file }));
+    updateQuestionAnswer(questionId, file ? file.name : '');
+  };
+
+  const updateSocialLink = (platform: SocialPlatform, value: string) => {
+    setSocialLinks((prev) => ({ ...prev, [platform]: value }));
   };
 
   const validateStepOne = (): boolean => {
@@ -342,8 +460,33 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
         return;
       }
 
+      if (answer && normalizedType === 'multiple_choice' && question.options?.length) {
+        const hasMatch = question.options.some((option) => option.value === answer);
+        if (!hasMatch) {
+          nextErrors[question.id] = 'Please choose one of the provided options.';
+          return;
+        }
+      }
+
       if (answer && normalizedType === 'numeric' && !Number.isFinite(Number(answer))) {
         nextErrors[question.id] = 'Please enter a valid number.';
+        return;
+      }
+
+      if (normalizedType === 'file_upload') {
+        const selectedFile = screeningFiles[question.id];
+        if (question.required && !selectedFile) {
+          nextErrors[question.id] = 'Please upload a file.';
+          return;
+        }
+
+        if (
+          selectedFile
+          && question.max_file_size_mb
+          && selectedFile.size > question.max_file_size_mb * 1024 * 1024
+        ) {
+          nextErrors[question.id] = `File size must be ${question.max_file_size_mb} MB or less.`;
+        }
       }
     });
 
@@ -356,6 +499,10 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
   };
 
   const validateStepThree = (): boolean => {
+    return true;
+  };
+
+  const validateStepFour = (): boolean => {
     if (!hasGenerated) {
       setStepError('Please generate cover letter with AI first.');
       return false;
@@ -367,7 +514,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     return true;
   };
 
-  const validateStepFour = (): boolean => {
+  const validateStepFive = (): boolean => {
     if (!isConfirmed) {
       setStepError('Please confirm before submitting.');
       return false;
@@ -398,6 +545,14 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
             answer: (screeningAnswers[question.id] || '').trim(),
           }))
           .filter((item) => item.answer.length > 0),
+        social_links: SOCIAL_LINK_FIELDS.map((field) => {
+          const rawValue = socialLinks[field.platform] || '';
+          const url = rawValue.trim();
+          return {
+            platform: field.platform,
+            url: url || null,
+          };
+        }),
       });
       onClose();
       window.setTimeout(() => {
@@ -419,6 +574,11 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       }
 
       setSubmitError(message);
+      setToast({
+        id: Date.now(),
+        message,
+        type: 'error',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -467,10 +627,6 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
 
     if (currentStep === 1) {
       if (!validateStepOne()) return;
-      if (shouldSkipScreeningStep) {
-        setCurrentStep(3);
-        return;
-      }
       setCurrentStep(2);
       return;
     }
@@ -487,13 +643,19 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       return;
     }
 
-    if (!validateStepFour()) return;
+    if (currentStep === 4) {
+      if (!validateStepFour()) return;
+      setCurrentStep(5);
+      return;
+    }
+
+    if (!validateStepFive()) return;
     await handleSubmit();
   };
 
   const handleBack = () => {
     clearErrors();
-    if (currentStep === 3) {
+    if (currentStep === 4) {
       if (hasGenerated) {
         setHasGenerated(false);
         setIsGenerating(false);
@@ -505,10 +667,6 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
         return;
       }
     }
-    if (currentStep === 3 && shouldSkipScreeningStep) {
-      setCurrentStep(1);
-      return;
-    }
     if (currentStep > 1) {
       setCurrentStep((prev) => (prev - 1) as Step);
       return;
@@ -519,6 +677,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
   const renderQuestionInput = (question: CandidateJobScreeningQuestion) => {
     const value = screeningAnswers[question.id] || '';
     const normalizedType = question.type.toLowerCase();
+    const selectedFile = screeningFiles[question.id];
 
     if (normalizedType === 'yes_no') {
       return (
@@ -545,18 +704,66 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       );
     }
 
-    if (question.options && question.options.length > 0) {
+    if (normalizedType === 'multiple_choice' && question.options && question.options.length > 0) {
       return (
-        <select
+        <div className="space-y-2">
+          {question.options.map((option) => (
+            <button
+              key={`${question.id}-${option.value}`}
+              type="button"
+              onClick={() => updateQuestionAnswer(question.id, option.value)}
+              className={`w-full text-left px-4 py-3 rounded-xl border text-[15px] transition-colors ${
+                value === option.value
+                  ? 'bg-[#FFF4ED] border-[#FF6934] text-[#101828]'
+                  : 'bg-white border-gray-200 text-[#475467] hover:bg-gray-50'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    if (normalizedType === 'file_upload') {
+      return (
+        <div className="space-y-2">
+          <label
+            htmlFor={`screening-file-${question.id}`}
+            className="w-full min-h-[155px] px-6 py-6 rounded-xl border border-dashed border-[#BFC5CF] bg-[#F8F9FB] hover:bg-[#F2F4F7] cursor-pointer flex flex-col items-center justify-center text-center transition-colors"
+          >
+            <Upload size={36} className="text-[#98A2B3] mb-2" />
+            <div className="space-y-1">
+              <p className="text-[16px] font-medium text-[#344054] mt-3">
+                {selectedFile ? 'File Selected' : getFileUploadTitle(question)}
+              </p>
+              <p className="text-[15px] text-[#667085]">
+                {selectedFile ? selectedFile.name : 'Drag and drop or click to browse'}
+              </p>
+              <p className="text-[14px] text-[#98A2B3]">
+                {getSupportedFileText(question)}
+              </p>
+            </div>
+            <input
+              id={`screening-file-${question.id}`}
+              type="file"
+              className="hidden"
+              onChange={(event) => updateQuestionFile(question.id, event.target.files?.[0] || null)}
+            />
+          </label>
+        </div>
+      );
+    }
+
+    if (normalizedType === 'link') {
+      return (
+        <input
+          type="url"
           value={value}
           onChange={(event) => updateQuestionAnswer(question.id, event.target.value)}
-          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF6934]/10 focus:border-[#FF6934] text-[15px] shadow-sm"
-        >
-          <option value="">Select an option</option>
-          {question.options.map((option) => (
-            <option key={`${question.id}-${option}`} value={option}>{option}</option>
-          ))}
-        </select>
+          placeholder={getLinkPlaceholder(question.link_kind)}
+          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF6934]/10 focus:border-[#FF6934] text-[15px] placeholder:text-[#98A2B3] shadow-sm"
+        />
       );
     }
 
@@ -576,6 +783,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
         type={normalizedType === 'numeric' ? 'number' : 'text'}
         value={value}
         onChange={(event) => updateQuestionAnswer(question.id, event.target.value)}
+        placeholder={normalizedType === 'short_text' ? 'Type your answer...' : undefined}
         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF6934]/10 focus:border-[#FF6934] text-[15px] placeholder:text-[#98A2B3] shadow-sm"
       />
     );
@@ -734,6 +942,38 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
           </div>
         );
       case 3:
+        return (
+          <div className="p-8 space-y-6 min-h-[400px]">
+            <div>
+              <h3 className="text-[20px] font-bold text-[#101828] font-heading mb-2">Profile links</h3>
+              <p className="text-[14px] text-[#475467]">
+                Add links to help recruiters learn more about you. All fields are optional.
+              </p>
+            </div>
+            {renderStepError()}
+
+            <div className="space-y-4">
+              {SOCIAL_LINK_FIELDS.map((field) => (
+                <div key={field.platform} className="bg-[#F9FAFB] rounded-xl p-4 border border-[#EAECF0]">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`size-8 rounded-[10px] flex items-center justify-center ${field.iconBgClassName}`}>
+                      {field.renderIcon()}
+                    </div>
+                    <span className="text-[16px] font-medium text-[#1D2939]">{field.platform}</span>
+                  </div>
+                  <input
+                    type="url"
+                    value={socialLinks[field.platform]}
+                    onChange={(event) => updateSocialLink(field.platform, event.target.value)}
+                    placeholder={field.placeholder}
+                    className="w-full h-11 px-4 rounded-[10px] border border-[#D0D5DD] bg-white text-[15px] text-[#344054] placeholder:text-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-[#FF6934]/10 focus:border-[#FF6934]"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 4:
         if (hasGenerated) {
           return (
             <div className="p-5 sm:p-8 space-y-6">
@@ -814,44 +1054,219 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
             </button>
           </div>
         );
-      case 4:
+      case 5:
         return (
-          <div className="p-8 space-y-6">
-            <h3 className="text-[20px] font-bold text-[#101828] font-heading mb-4">Review your application</h3>
+          <div className="p-8 space-y-4">
+            <div>
+              <h3 className="text-[20px] font-bold text-[#101828] font-heading leading-tight">Review your application</h3>
+              <p className="text-[14px] text-[#475467] mt-1">Make sure everything looks good before submitting.</p>
+            </div>
             {renderStepError()}
             {submitError && <p className="text-[13px] text-[#B42318]">{submitError}</p>}
 
-            <div className="space-y-4">
-              <div className="bg-[#F9FAFB] rounded-xl p-5 border border-gray-200 shadow-sm">
-                <h4 className="text-[14px] font-semibold text-[#101828] mb-2">Selected CV</h4>
-                <div className="flex items-center gap-3 text-[14px] text-[#475467]">
-                  <FileText size={18} className="text-[#344054]" />
-                  {selectedCvName}
+            <div className="rounded-xl border border-[#E4E7EC] bg-[#F8F9FB] p-4 flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="size-9 rounded-xl border border-[#E4E7EC] bg-white flex items-center justify-center shrink-0 mt-0.5">
+                  <Briefcase size={17} className="text-[#667085]" />
+                </div>
+                <div>
+                  <p className="text-[18px] font-semibold text-[#101828] leading-tight">{job?.title || 'Untitled role'}</p>
+                  <p className="text-[14px] text-[#475467] leading-tight mt-1">{getCompanyName(job?.company)} - {job?.location || 'Location not provided'}</p>
                 </div>
               </div>
-
-              <div className="bg-[#F9FAFB] rounded-xl p-5 border border-gray-200 shadow-sm">
-                <h4 className="text-[14px] font-semibold text-[#101828] mb-1">Applying to</h4>
-                <div className="text-[15px] font-semibold text-gray-900">{job?.title || 'Untitled role'}</div>
-                <div className="text-[14px] text-[#475467]">{getCompanyName(job?.company)}</div>
-              </div>
-
-              <div className="bg-[#F9FAFB] rounded-xl p-5 border border-gray-200 shadow-sm">
-                <h4 className="text-[14px] font-semibold text-[#101828] mb-3">Cover letter</h4>
-                <p className="text-[14px] text-[#475467] leading-relaxed line-clamp-5 whitespace-pre-wrap">
-                  {coverLetter}
-                </p>
-              </div>
+              <span className="text-[14px] font-medium text-[#F04438] border border-[#FECACA] bg-[#FFF1F3] rounded-full px-3 py-1 whitespace-nowrap">
+                {jobTypeLabel || 'Full-time'}
+              </span>
             </div>
 
-            <div className="flex items-start gap-3 pt-4">
+            <div className="rounded-xl border border-[#E4E7EC] overflow-hidden">
+              <button
+                type="button"
+                onClick={() => toggleReviewSection('cv')}
+                className="w-full bg-[#F8F9FB] px-4 py-3 flex items-center justify-between text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="size-9 rounded-xl border border-[#E4E7EC] bg-white flex items-center justify-center">
+                    <FileText size={17} className="text-[#667085]" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[16px] font-semibold text-[#101828]">Selected CV</p>
+                    <span className="text-[12px] text-[#98A2B3] bg-[#EEF1F5] px-2 py-0.5 rounded-md">Step 1</span>
+                  </div>
+                </div>
+                {reviewSectionOpen.cv ? (
+                  <ChevronDown size={18} className="text-[#98A2B3]" />
+                ) : (
+                  <ChevronRight size={18} className="text-[#98A2B3]" />
+                )}
+              </button>
+              {reviewSectionOpen.cv && (
+                <div className="p-4 bg-white border-t border-[#E4E7EC]">
+                  <div className="rounded-xl border border-[#E4E7EC] px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <FileText size={17} className="text-[#667085]" />
+                      <span className="text-[15px] font-medium text-[#1D2939] break-all">{selectedCvName}</span>
+                    </div>
+                    {selectedCvDetails?.is_primary && (
+                      <span className="text-[12px] font-medium text-[#027A48] bg-[#D1FADF] rounded-full px-2.5 py-0.5 whitespace-nowrap">
+                        Recommended
+                      </span>
+                    )}
+                  </div>
+                  {selectedCvDetails?.uploaded_at && (
+                    <p className="text-[13px] text-[#98A2B3] mt-2">{formatCvUpdatedLabel(selectedCvDetails.uploaded_at)}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#E4E7EC] overflow-hidden">
+              <button
+                type="button"
+                onClick={() => toggleReviewSection('screening')}
+                className="w-full bg-[#F8F9FB] px-4 py-3 flex items-center justify-between text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="size-9 rounded-xl border border-[#E4E7EC] bg-white flex items-center justify-center">
+                    <User size={17} className="text-[#667085]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[16px] font-semibold text-[#101828]">Screening questions</p>
+                      <span className="text-[12px] text-[#98A2B3] bg-[#EEF1F5] px-2 py-0.5 rounded-md">Step 2</span>
+                    </div>
+                    <p className="text-[13px] text-[#98A2B3]">{screeningCompletedCount} of {screeningQuestions.length} completed</p>
+                  </div>
+                </div>
+                {reviewSectionOpen.screening ? (
+                  <ChevronDown size={18} className="text-[#98A2B3]" />
+                ) : (
+                  <ChevronRight size={18} className="text-[#98A2B3]" />
+                )}
+              </button>
+              {reviewSectionOpen.screening && (
+                <div className="p-4 bg-white border-t border-[#E4E7EC] space-y-3">
+                  {screeningQuestions.length === 0 ? (
+                    <p className="text-[15px] italic text-[#98A2B3]">No screening questions</p>
+                  ) : (
+                    screeningQuestions.map((question, index) => {
+                      const answer = (screeningAnswers[question.id] || '').trim();
+                      return (
+                        <div key={question.id} className="rounded-xl border border-[#E4E7EC] px-4 py-3">
+                          <p className="text-[12px] text-[#98A2B3]">Q{index + 1}</p>
+                          <p className="text-[15px] text-[#1D2939] mt-0.5">{question.text}</p>
+                          {answer ? (
+                            <p className="text-[14px] text-[#344054] mt-1 flex items-center gap-2">
+                              <span className="size-4 rounded-full border border-[#12B76A] flex items-center justify-center bg-[#ECFDF3]">
+                                <Check size={10} className="text-[#12B76A] stroke-[3]" />
+                              </span>
+                              {answer}
+                            </p>
+                          ) : (
+                            <p className="text-[14px] mt-1 text-[#98A2B3] italic">Not answered</p>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#E4E7EC] overflow-hidden">
+              <button
+                type="button"
+                onClick={() => toggleReviewSection('profile')}
+                className="w-full bg-[#F8F9FB] px-4 py-3 flex items-center justify-between text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="size-9 rounded-xl border border-[#E4E7EC] bg-white flex items-center justify-center">
+                    <Link2 size={17} className="text-[#667085]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[16px] font-semibold text-[#101828]">Profile links</p>
+                      <span className="text-[12px] text-[#98A2B3] bg-[#EEF1F5] px-2 py-0.5 rounded-md">Step 3</span>
+                    </div>
+                    <p className="text-[13px] text-[#98A2B3]">{filledSocialLinks.length} of 3 completed</p>
+                  </div>
+                </div>
+                {reviewSectionOpen.profile ? (
+                  <ChevronDown size={18} className="text-[#98A2B3]" />
+                ) : (
+                  <ChevronRight size={18} className="text-[#98A2B3]" />
+                )}
+              </button>
+              {reviewSectionOpen.profile && (
+                <div className="p-4 bg-white border-t border-[#E4E7EC]">
+                  {filledSocialLinks.length === 0 ? (
+                    <p className="text-[15px] italic text-[#98A2B3]">No links added</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {filledSocialLinks.map((item) => {
+                        const field = SOCIAL_LINK_FIELDS.find((socialField) => socialField.platform === item.platform);
+                        return (
+                          <div key={item.platform} className="rounded-xl border border-[#E4E7EC] px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {field && (
+                                <div className={`size-7 rounded-lg flex items-center justify-center ${field.iconBgClassName}`}>
+                                  {field.renderIcon()}
+                                </div>
+                              )}
+                              <p className="text-[14px] font-medium text-[#1D2939]">{item.platform}</p>
+                            </div>
+                            <p className="text-[14px] text-[#475467] break-all mt-1">{item.url}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#E4E7EC] overflow-hidden">
+              <button
+                type="button"
+                onClick={() => toggleReviewSection('cover')}
+                className="w-full bg-[#F8F9FB] px-4 py-3 flex items-center justify-between text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="size-9 rounded-xl bg-[#FFF4ED] flex items-center justify-center">
+                    <Sparkles size={17} className="text-[#FF6934]" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[16px] font-semibold text-[#101828]">Cover letter</p>
+                    <span className="text-[12px] text-[#98A2B3] bg-[#EEF1F5] px-2 py-0.5 rounded-md">Step 4</span>
+                  </div>
+                </div>
+                {reviewSectionOpen.cover ? (
+                  <ChevronDown size={18} className="text-[#98A2B3]" />
+                ) : (
+                  <ChevronRight size={18} className="text-[#98A2B3]" />
+                )}
+              </button>
+              {reviewSectionOpen.cover && (
+                <div className="p-4 bg-white border-t border-[#E4E7EC]">
+                  <div className="rounded-xl border border-[#E4E7EC] px-4 py-3">
+                    <p className="text-[14px] text-[#344054] leading-relaxed whitespace-pre-wrap">
+                      {coverLetter}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-start gap-3 px-0.5 pt-1 pb-1">
               <div
                 onClick={() => setIsConfirmed(!isConfirmed)}
-                className={`mt-1 size-5 rounded-[4px] border-1 flex items-center justify-center transition-all cursor-pointer shrink-0 ${isConfirmed ? 'bg-[#FF6934] border-[#FF6934]' : 'border-[#D0D5DD] hover:border-[#FF6934]'}`}
+                className={`mt-1 size-5 rounded-[5px] border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                  isConfirmed ? 'bg-[#FF6934] border-[#FF6934]' : 'border-[#D0D5DD] hover:border-[#FF6934]'
+                }`}
               >
-                {isConfirmed && <Check size={14} className="text-white stroke-[3.5]" />}
+                {isConfirmed && <Check size={13} className="text-white stroke-[3]" />}
               </div>
-              <p className="text-[14px] text-[#475467] leading-relaxed select-none">
+              <p className="text-[15px] text-[#344054] leading-relaxed select-none">
                 I confirm that the information provided is correct and I understand that {getCompanyName(job?.company)} will review my application.
               </p>
             </div>
@@ -862,12 +1277,24 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     }
   };
 
-  const isSubmitBlockedByConfirmation = currentStep === 4 && !isConfirmed;
+  const isSubmitBlockedByConfirmation = currentStep === 5 && !isConfirmed;
 
   if (!isOpen || !job) return null;
 
   return (
     <ModalPortal>
+    {toast && (
+      <div
+        key={toast.id}
+        className={`fixed top-4 right-4 z-[160] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+          toast.type === 'error'
+            ? 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+            : 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+        }`}
+      >
+        {toast.message}
+      </div>
+    )}
     <div
       className="fixed inset-0 bg-black/60 z-50 flex min-h-dvh items-center justify-center overflow-hidden overscroll-none p-3 sm:p-4 md:p-6 transition-opacity"
       onClick={onClose}
@@ -915,7 +1342,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
               className="bg-[#FF6934] text-white px-8 py-3 rounded-[10px] font-medium shadow-lg shadow-orange-100 hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-              {currentStep === 4 ? 'Submit Application' : 'Continue'}
+              {currentStep === 5 ? 'Submit Application' : 'Continue'}
             </button>
           )}
         </div>
