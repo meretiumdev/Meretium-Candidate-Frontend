@@ -7,9 +7,9 @@ interface SectionCardProps {
 
 export const SectionCard: React.FC<SectionCardProps> = ({ title, children }) => {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm font-manrope">
-      <h2 className="text-[18px] md:text-[20px] font-bold text-[#101828] mb-6">{title}</h2>
+    <section className="bg-white border border-[#E4E7EC] rounded-xl p-5 md:p-6 shadow-sm font-manrope">
+      <h2 className="text-[15px] md:text-[16px] font-semibold text-[#101828] mb-6">{title}</h2>
       {children}
-    </div>
+    </section>
   );
 };

@@ -1,7 +1,7 @@
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { RootState } from '../../redux/store';
 import { getCandidateCompanyDetail, type CandidateCompanyDetail } from '../../services/companyApi';
 import CompanyHero from '../CompanyProfile/components/CompanyHero';
@@ -12,10 +12,16 @@ function getErrorMessage(error: unknown): string {
   return 'Failed to load company details. Please try again.';
 }
 
+type CompanyNavigationState = {
+  backToJobPath?: string;
+};
+
 export default function CompanyJobs() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id = '' } = useParams();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const backToJobPath = (location.state as CompanyNavigationState | null)?.backToJobPath;
 
   const [company, setCompany] = useState<CandidateCompanyDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,7 +72,9 @@ export default function CompanyJobs() {
     <div className="max-w-full mx-auto px-2 sm:px-12 py-6 space-y-6 bg-[#F9FAFB] min-h-screen font-manrope">
       <button
         type="button"
-        onClick={() => navigate(`/company/${id || ''}`)}
+        onClick={() => navigate(`/company/${id || ''}`, {
+          state: backToJobPath ? { backToJobPath } : undefined,
+        })}
         className="flex items-center gap-2 text-[14px] font-medium text-[#475467] hover:text-[#101828] transition-colors cursor-pointer group"
       >
         <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />

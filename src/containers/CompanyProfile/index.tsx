@@ -1,7 +1,7 @@
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { RootState } from '../../redux/store';
 import {
   getCandidateCompanyDetail,
@@ -20,10 +20,16 @@ function getErrorMessage(error: unknown): string {
   return 'Failed to load company profile. Please try again.';
 }
 
+type CompanyNavigationState = {
+  backToJobPath?: string;
+};
+
 export default function CompanyProfile() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id = '' } = useParams();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const backToJobPath = (location.state as CompanyNavigationState | null)?.backToJobPath;
 
   const [company, setCompany] = useState<CandidateCompanyDetail | null>(null);
   const [openJobs, setOpenJobs] = useState<CandidateCompanyJobItem[]>([]);
@@ -88,14 +94,22 @@ export default function CompanyProfile() {
   const goToJobs = () => {
     const companyId = (company?.id || id).trim();
     if (!companyId) return;
-    navigate(`/company/${companyId}/jobs`);
+    navigate(`/company/${companyId}/jobs`, {
+      state: backToJobPath ? { backToJobPath } : undefined,
+    });
   };
 
   return (
     <div className="max-w-full mx-auto px-2 sm:px-12 py-6 space-y-6 bg-[#F9FAFB] min-h-screen font-manrope">
       <button
         type="button"
-        onClick={() => navigate(-1)}
+        onClick={() => {
+          if (backToJobPath) {
+            navigate(backToJobPath);
+            return;
+          }
+          navigate(-1);
+        }}
         className="flex items-center gap-2 text-[14px] font-medium text-[#475467] hover:text-[#101828] transition-colors cursor-pointer group"
       >
         <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />

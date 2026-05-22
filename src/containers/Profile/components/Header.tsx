@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MapPin, Share2, ChevronDown, Edit3, Calendar, CheckCircle2, Upload } from 'lucide-react';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../../redux/store';
-import { updateCandidateProfile, type CandidateProfile, type OpenToWorkStatus, type UpdateProfilePayload } from '../../../services/profileApi';
+import { MapPin, Share2, ChevronDown, Edit3, Calendar, CheckCircle2, Upload, Loader2 } from 'lucide-react';
+import { useDispatch, useSelector } from 'react-redux';
+import { setProfile, type AppDispatch, type RootState } from '../../../redux/store';
+import {
+  createCandidateProfileShare,
+  updateCandidateProfile,
+  type CandidateProfile,
+  type OpenToWorkStatus,
+  type UpdateProfilePayload,
+} from '../../../services/profileApi';
 import ShareProfileModal from './ShareProfileModal';
 
 interface HeaderProps {
@@ -65,6 +71,7 @@ function getVisibilityLabel(status: OpenToWorkStatus): string {
 }
 
 export default function Header({ profile, onProfileUpdated }: HeaderProps) {
+  const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [isEditing, setIsEditing] = useState(false);
   const [isHeadlineEditing, setIsHeadlineEditing] = useState(false);
@@ -78,6 +85,9 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
   const [expYears, setExpYears] = useState('');
   const [isOpenToWork, setIsOpenToWork] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isShareLoading, setIsShareLoading] = useState(false);
+  const [generatedShareSlug, setGeneratedShareSlug] = useState<string | null>(null);
+  const [generatedShareUrl, setGeneratedShareUrl] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -97,8 +107,18 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
   }, [profile, headlineFromProfile, locationFromProfile, expYearsFromProfile]);
 
   const initial = useMemo(() => getInitial(profile.full_name), [profile.full_name]);
-  const shareUrl = useMemo(() => getShareUrl(profile.share_slug), [profile.share_slug]);
+  const shareUrl = useMemo(
+    () => getShareUrl(profile.share_slug) || generatedShareUrl || getShareUrl(generatedShareSlug),
+    [generatedShareSlug, generatedShareUrl, profile.share_slug]
+  );
   const experienceLabel = useMemo(() => parseYearsToLabel(expYears), [expYears]);
+
+  useEffect(() => {
+    if (profile.share_slug) {
+      setGeneratedShareSlug(null);
+      setGeneratedShareUrl(null);
+    }
+  }, [profile.share_slug]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -250,6 +270,44 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
 
     if (!saved) {
       setOpportunityStatus(profile.open_to_work_status);
+    }
+  };
+
+  const handleShareClick = async () => {
+    if (isShareLoading) return;
+
+    if (profile.share_slug || generatedShareSlug || generatedShareUrl) {
+      setShareOpen(true);
+      return;
+    }
+
+    if (!accessToken) {
+      const message = 'You are not authenticated. Please log in again.';
+      setToast({ id: Date.now(), message, type: 'error' });
+      return;
+    }
+
+    setIsShareLoading(true);
+    setSaveError(null);
+    try {
+      const response = await createCandidateProfileShare(accessToken);
+      setGeneratedShareSlug(response.share_slug);
+      setGeneratedShareUrl(response.share_url);
+      if (response.share_slug) {
+        dispatch(setProfile({ ...profile, share_slug: response.share_slug }));
+      }
+      setShareOpen(true);
+
+      if (onProfileUpdated) {
+        void Promise.resolve(onProfileUpdated()).catch(() => undefined);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error && error.message.trim()
+        ? error.message
+        : 'Failed to create share link.';
+      setToast({ id: Date.now(), message, type: 'error' });
+    } finally {
+      setIsShareLoading(false);
     }
   };
 
@@ -406,10 +464,11 @@ export default function Header({ profile, onProfileUpdated }: HeaderProps) {
                     )}
                   </div>
                    <button
-                    onClick={() => setShareOpen(true)}
-                    className="flex items-center justify-center gap-2 border border-[#E4E7EC] px-4 py-2.5 rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors bg-white cursor-pointer shadow-sm"
+                    onClick={() => { void handleShareClick(); }}
+                    disabled={isShareLoading}
+                    className="flex items-center justify-center gap-2 border border-[#E4E7EC] px-4 py-2.5 rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors bg-white cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Share2 size={16} /> Share
+                    {isShareLoading ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />} Share
                   </button>
                 </div>
                 {saveError && !isHeadlineEditing && (

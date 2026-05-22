@@ -41,6 +41,23 @@ function getCandidateRequestHeaders(accessToken: string, includeJsonContentType 
   return headers;
 }
 
+function getCandidatePublicRequestHeaders(): HeadersInit {
+  const headers: Record<string, string> = {};
+
+  try {
+    if (/^https?:\/\//i.test(RAW_CANDIDATE_API_BASE_URL)) {
+      const parsed = new URL(RAW_CANDIDATE_API_BASE_URL);
+      if (isNgrokHost(parsed.hostname)) {
+        headers['ngrok-skip-browser-warning'] = 'true';
+      }
+    }
+  } catch {
+    // Ignore malformed URL
+  }
+
+  return headers;
+}
+
 export type OpenToWorkStatus =
   | 'Open to opportunities'
   | 'Visible to matched recruiters'
@@ -63,6 +80,7 @@ export interface CandidateProfile {
   allow_cv_download: boolean;
   show_last_active: boolean;
   last_shared_at: string | null;
+  resume_url: string | null;
 }
 
 export interface CandidateJobPreferences {
@@ -205,6 +223,15 @@ export interface CandidateProfileResponse {
   cvs?: Array<Record<string, unknown>>;
 }
 
+export interface CandidateProfileShareResponse {
+  share_slug: string | null;
+  share_url: string | null;
+}
+
+export interface PublicProfileResumeResponse {
+  download_url: string;
+}
+
 export interface CandidateProfileInsightRoleMatch {
   title: string;
   match_percentage: number;
@@ -331,7 +358,8 @@ function normalizeJobPreferences(raw: unknown): CandidateJobPreferences | null {
 
 function normalizeProfileResponse(payload: unknown): CandidateProfileResponse {
   const root = asRecord(payload) || {};
-  const profileRaw = asRecord(root.profile) || root;
+  const data = asRecord(root.data) || {};
+  const profileRaw = asRecord(root.profile) || asRecord(data.profile) || (data.id || data.full_name ? data : root);
   const isOpenToWork = asBoolean(profileRaw.is_open_to_work);
   const fallbackStatus: OpenToWorkStatus = isOpenToWork ? 'Open to opportunities' : 'Private';
 
@@ -352,25 +380,105 @@ function normalizeProfileResponse(payload: unknown): CandidateProfileResponse {
     allow_cv_download: asBoolean(profileRaw.allow_cv_download),
     show_last_active: asBoolean(profileRaw.show_last_active),
     last_shared_at: asNullableString(profileRaw.last_shared_at),
+    resume_url: asNullableString(profileRaw.resume_url ?? root.resume_url ?? data.resume_url),
   };
 
-  const job_preferences = normalizeJobPreferences(root.job_preferences);
+  const job_preferences = normalizeJobPreferences(root.job_preferences)
+    || normalizeJobPreferences(data.job_preferences);
 
   const response: CandidateProfileResponse = {
     profile,
-    experiences: asRecordArray(root.experiences),
-    skills: root.skills ?? [],
-    educations: asRecordArray(root.educations),
-    projects: asRecordArray(root.projects),
+    experiences: asRecordArray(root.experiences).length > 0 ? asRecordArray(root.experiences) : asRecordArray(data.experiences),
+    skills: root.skills ?? data.skills ?? [],
+    educations: asRecordArray(root.educations).length > 0 ? asRecordArray(root.educations) : asRecordArray(data.educations),
+    projects: asRecordArray(root.projects).length > 0 ? asRecordArray(root.projects) : asRecordArray(data.projects),
     job_preferences,
   };
 
-  const cvs = asRecordArray(root.cvs);
+  const cvs = asRecordArray(root.cvs).length > 0 ? asRecordArray(root.cvs) : asRecordArray(data.cvs);
   if (cvs.length > 0) {
     response.cvs = cvs;
   }
 
   return response;
+}
+
+function normalizeProfileShareResponse(payload: unknown): CandidateProfileShareResponse {
+  const root = asRecord(payload) || {};
+  const data = asRecord(root.data) || {};
+  const profile = asRecord(root.profile) || asRecord(data.profile) || {};
+  const shareUrl = asString(root.share_url)
+    || asString(root.profile_url)
+    || asString(root.url)
+    || asString(root.link)
+    || asString(data.share_url)
+    || asString(data.profile_url)
+    || asString(data.url)
+    || asString(data.link);
+  const shareSlug = asString(root.share_slug)
+    || asString(data.share_slug)
+    || asString(profile.share_slug);
+
+  const resolvedShareSlug = shareSlug || extractShareSlugFromUrl(shareUrl);
+
+  if (!resolvedShareSlug && !shareUrl) {
+    throw new Error('Share link response did not include a share link.');
+  }
+
+  return {
+    share_slug: resolvedShareSlug,
+    share_url: shareUrl || null,
+  };
+}
+
+function extractShareSlugFromUrl(input: string): string | null {
+  if (!input) return null;
+
+  try {
+    const parsed = new URL(input, 'https://meretium.ai');
+    const segments = parsed.pathname.split('/').map((segment) => segment.trim()).filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveCandidateUrl(input: string): string {
+  if (/^https?:\/\//i.test(input)) return input;
+
+  try {
+    return new URL(input, `${CANDIDATE_API_BASE_URL}/`).toString();
+  } catch {
+    return input;
+  }
+}
+
+function normalizePublicProfileResumeResponse(payload: unknown): PublicProfileResumeResponse {
+  if (typeof payload === 'string') {
+    const downloadUrl = payload.trim();
+    if (downloadUrl) return { download_url: resolveCandidateUrl(downloadUrl) };
+  }
+
+  const root = asRecord(payload) || {};
+  const data = asRecord(root.data) || {};
+  const downloadUrl = asString(root.download_url)
+    || asString(root.url)
+    || asString(root.file_url)
+    || asString(root.cv_url)
+    || asString(root.resume_url)
+    || asString(root.link)
+    || asString(data.download_url)
+    || asString(data.url)
+    || asString(data.file_url)
+    || asString(data.cv_url)
+    || asString(data.resume_url)
+    || asString(data.link);
+
+  if (!downloadUrl) {
+    throw new Error('Resume download response did not include a downloadable link.');
+  }
+
+  return { download_url: resolveCandidateUrl(downloadUrl) };
 }
 
 function getApiMessage(payload: unknown): string | null {
@@ -811,6 +919,70 @@ export async function getCandidateProfile(accessToken: string): Promise<Candidat
   return normalizeProfileResponse(payload);
 }
 
+export async function getPublicCandidateProfile(shareSlug: string): Promise<CandidateProfileResponse> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedShareSlug = shareSlug.trim();
+  if (!trimmedShareSlug) {
+    throw new Error('Profile link is missing.');
+  }
+
+  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile/public/${encodeURIComponent(trimmedShareSlug)}`, {
+    method: 'GET',
+    headers: getCandidatePublicRequestHeaders(),
+  });
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `Public profile fetch failed with status ${response.status}`);
+  }
+
+  return normalizeProfileResponse(payload);
+}
+
+export async function getPublicCandidateProfileResume(shareSlug: string): Promise<PublicProfileResumeResponse> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedShareSlug = shareSlug.trim();
+  if (!trimmedShareSlug) {
+    throw new Error('Profile link is missing.');
+  }
+
+  const response = await fetch(`${CANDIDATE_API_BASE_URL}/profile/public/${encodeURIComponent(trimmedShareSlug)}/resume`, {
+    method: 'GET',
+    headers: getCandidatePublicRequestHeaders(),
+  });
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `Resume download failed with status ${response.status}`);
+  }
+
+  return normalizePublicProfileResumeResponse(payload);
+}
+
 export async function updateCandidateProfile(
   accessToken: string,
   updates: UpdateProfilePayload
@@ -854,6 +1026,41 @@ export async function updateCandidateProfile(
   const normalizedResponse = normalizeProfileResponse(payload);
   clearCandidateSettingsCache();
   return normalizedResponse;
+}
+
+export async function createCandidateProfileShare(accessToken: string): Promise<CandidateProfileShareResponse> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/profile/share`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `Profile share failed with status ${response.status}`);
+  }
+
+  return normalizeProfileShareResponse(payload);
 }
 
 export async function generateCandidateProfileSummary(
