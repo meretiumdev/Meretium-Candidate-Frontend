@@ -119,6 +119,7 @@ export interface UpdateProfilePayload {
   allow_cv_download?: boolean;
   show_last_active?: boolean;
   quick_apply_default_cv?: boolean;
+  portfolio_link?: string;
 }
 
 interface GenerateSummaryResponseShape {

@@ -237,7 +237,15 @@ export default function Settings() {
           />
         );
       case 'Integrations':
-        return <IntegrationsContent />;
+        return (
+          <IntegrationsContent
+            settings={settingsData.integrations}
+            accountEmail={settingsData.account.email}
+            onSettingsRefresh={async () => {
+              await loadSettings({ showLoading: false, forceRefresh: true });
+            }}
+          />
+        );
       case 'Help & Support':
         return <HelpSupportContent />;
       case 'Danger Zone':

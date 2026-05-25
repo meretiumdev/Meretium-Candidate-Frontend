@@ -1,4 +1,9 @@
-import { ExternalLink, Check, Loader2 } from 'lucide-react';
+import React from 'react';
+import { useSelector } from 'react-redux';
+import { ExternalLink, Check } from 'lucide-react';
+import type { RootState } from '../../../redux/store';
+import type { CandidateSettingsIntegrations } from '../../../services/settingsApi';
+import AddPortfolioModal from './AddPortfolioModal';
 
 const GoogleIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -15,71 +20,135 @@ const LinkedinIcon = () => (
   </svg>
 );
 
-export default function IntegrationsContent() {
+interface IntegrationsContentProps {
+  settings: CandidateSettingsIntegrations;
+  accountEmail?: string;
+  onSettingsRefresh?: () => Promise<void> | void;
+}
+
+export default function IntegrationsContent({ settings, accountEmail = '', onSettingsRefresh }: IntegrationsContentProps) {
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const [isPortfolioModalOpen, setIsPortfolioModalOpen] = React.useState(false);
+  const [toast, setToast] = React.useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
+  const portfolioLink = settings.portfolio_link?.trim() || '';
+  const isGoogleConnected = settings.google.connected;
+  const resolvedAccountEmail = accountEmail.trim();
+
+  React.useEffect(() => {
+    if (!toast) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setToast(null);
+    }, 3500);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
+
   return (
-        <div className="flex-1 font-manrope animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <>
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-[160] max-w-[360px] px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium border ${
+            toast.type === 'success'
+              ? 'bg-[#ECFDF3] border-[#ABEFC6] text-[#027A48]'
+              : 'bg-[#FEF3F2] border-[#FDA29B] text-[#B42318]'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
 
-      <div className="mb-8 px-1">
-        <h1 className="text-xl md:text-[32px] font-semibold text-[#101828] mb-1">Integrations</h1>
-        <p className="text-[#475467] text-[14px]">Connect third-party services to enhance your profile</p>
-      </div>
+      <div className="flex-1 font-manrope animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-      <div className="space-y-6">
-        {/* Google Integration */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-sm transition-all duration-300">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-[10px] border border-gray-200 flex items-center justify-center p-2 shadow-sm">
-              <GoogleIcon />
+        <div className="mb-8 px-1">
+          <h1 className="text-xl md:text-[32px] font-semibold text-[#101828] mb-1">Integrations</h1>
+          <p className="text-[#475467] text-[14px]">Connect third-party services to enhance your profile</p>
+        </div>
+
+        <div className="space-y-6">
+          {/* Google Integration */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-sm transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-[10px] border border-gray-200 flex items-center justify-center p-2 shadow-sm">
+                <GoogleIcon />
+              </div>
+              <div>
+                <h3 className="text-[16px] font-semibold text-[#101828]">Google</h3>
+                <p className="text-[14px] text-[#667085]">
+                  {isGoogleConnected
+                    ? `Connected as ${resolvedAccountEmail || 'your account'}`
+                    : 'Google is not connected'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-[16px] font-semibold text-[#101828]">Google</h3>
-              <p className="text-[14px] text-[#667085]">Connected as sarah@gmail.com</p>
+            <div className="flex items-center gap-4">
+              <div
+                className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 border ${
+                  isGoogleConnected
+                    ? 'bg-[#D1FADF] border-[#ABEFC6]'
+                    : 'bg-[#F2F4F7] border-[#EAECF0]'
+                }`}
+              >
+                {isGoogleConnected && <Check size={14} className="text-[#027A48]" />}
+                <span className={`text-[12px] font-medium ${isGoogleConnected ? 'text-[#027A48]' : 'text-[#667085]'}`}>
+                  {isGoogleConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="px-3 py-1.5 bg-[#ECFDF3] border border-[#ABEFC6] rounded-full flex items-center gap-1.5">
-              <Check size={14} className="text-[#027A48]" />
-              <span className="text-[#027A48] text-[12px] font-medium">Connected</span>
+
+          {/* LinkedIn Integration */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-sm transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-[10px] bg-[#0077B5] flex items-center justify-center p-2 overflow-hidden shadow-sm">
+                <LinkedinIcon />
+              </div>
+              <div>
+                <h3 className="text-[16px] font-semibold text-[#101828]">LinkedIn</h3>
+                <p className="text-[14px] text-[#667085]">Import your profile from LinkedIn</p>
+              </div>
             </div>
-            <button className="text-[14px] font-medium text-[#475467] hover:text-[#101828] transition-colors cursor-pointer">
-              Disconnect
+            <button className="px-4 py-2.5 bg-white border border-gray-200 shadow-sm rounded-[10px] text-[14px] font-medium text-[#344054] cursor-not-allowed opacity-70">
+              Connect
+            </button>
+          </div>
+
+          {/* Portfolio Integration */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-sm transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-[10px] bg-[#FFF1EC] flex items-center justify-center border border-[#FF693410]">
+                <ExternalLink className="text-[#FF6934]" size={24} />
+              </div>
+              <div>
+                <h3 className="text-[16px] font-semibold text-[#101828]">Portfolio</h3>
+                <p className="text-[14px] text-[#667085]">
+                  {portfolioLink || 'Link your portfolio or personal website'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsPortfolioModalOpen(true)}
+              className="px-6 py-2.5 border border-gray-200 shadow-sm rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              {portfolioLink ? 'Edit link' : 'Add link'}
             </button>
           </div>
         </div>
-
-        {/* LinkedIn Integration */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-sm transition-all duration-300">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-[10px] bg-[#0077B5] flex items-center justify-center p-2 overflow-hidden shadow-sm">
-              <LinkedinIcon />
-            </div>
-            <div>
-              <h3 className="text-[16px] font-semibold text-[#101828]">LinkedIn</h3>
-              <p className="text-[14px] text-[#667085]">Import your profile from LinkedIn</p>
-            </div>
-          </div>
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 shadow-sm rounded-[10px] text-[14px] font-medium text-[#344054] cursor-not-allowed opacity-70">
-            <Loader2 size={16} className="animate-spin text-[#667085]" />
-            Connecting...
-          </button>
-        </div>
-
-        {/* Portfolio Integration */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-sm transition-all duration-300">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-[10px] bg-[#FFF1EC] flex items-center justify-center border border-[#FF693410]">
-              <ExternalLink className="text-[#FF6934]" size={24} />
-            </div>
-            <div>
-              <h3 className="text-[16px] font-semibold text-[#101828]">Portfolio</h3>
-              <p className="text-[14px] text-[#667085]">Link your portfolio or personal website</p>
-            </div>
-          </div>
-          <button className="px-6 py-2.5 border border-gray-200 shadow-sm rounded-[10px] text-[14px] font-medium text-[#344054] hover:bg-gray-50 transition-colors cursor-pointer">
-            Add link
-          </button>
-        </div>
       </div>
-    </div>
+
+      <AddPortfolioModal
+        isOpen={isPortfolioModalOpen}
+        accessToken={accessToken}
+        initialPortfolioUrl={portfolioLink}
+        onClose={() => setIsPortfolioModalOpen(false)}
+        onSuccess={async (message) => {
+          setToast({ id: Date.now(), message, type: 'success' });
+          if (onSettingsRefresh) {
+            await onSettingsRefresh();
+          }
+        }}
+        onError={(message) => {
+          setToast({ id: Date.now(), message, type: 'error' });
+        }}
+      />
+    </>
   );
 }

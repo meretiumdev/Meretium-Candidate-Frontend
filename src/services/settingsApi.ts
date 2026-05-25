@@ -180,6 +180,15 @@ export interface CandidateSettingsAiPreferences {
   allow_ai_cv_analysis: boolean;
 }
 
+export interface CandidateSettingsGoogleIntegration {
+  connected: boolean;
+}
+
+export interface CandidateSettingsIntegrations {
+  portfolio_link: string | null;
+  google: CandidateSettingsGoogleIntegration;
+}
+
 export interface CandidateSettingsActiveSession {
   id: string;
   device_name: string;
@@ -195,6 +204,7 @@ export interface CandidateSettingsResponse {
   cv_and_data_management: CandidateSettingsCvAndDataManagement;
   notification_settings: CandidateSettingsNotificationSettings;
   ai_preferences: CandidateSettingsAiPreferences;
+  integrations: CandidateSettingsIntegrations;
   active_sessions: CandidateSettingsActiveSession[];
 }
 
@@ -353,6 +363,8 @@ function normalizeSettingsResponse(payload: unknown): CandidateSettingsResponse 
   const cvAndDataRaw = asRecord(root.cv_and_data_management) || {};
   const notificationsRaw = asRecord(root.notification_settings) || {};
   const aiPreferencesRaw = asRecord(root.ai_preferences) || {};
+  const integrationsRaw = asRecord(root.integrations) || {};
+  const googleIntegrationRaw = asRecord(integrationsRaw.google) || {};
   const activeSessionsRaw = Array.isArray(root.active_sessions) ? root.active_sessions : [];
 
   return {
@@ -406,6 +418,12 @@ function normalizeSettingsResponse(payload: unknown): CandidateSettingsResponse 
       auto_generate_cover_letters: asBoolean(aiPreferencesRaw.auto_generate_cover_letters, true),
       show_ai_match_to_recruiters: asBoolean(aiPreferencesRaw.show_ai_match_to_recruiters, true),
       allow_ai_cv_analysis: asBoolean(aiPreferencesRaw.allow_ai_cv_analysis, true),
+    },
+    integrations: {
+      portfolio_link: asNullableString(integrationsRaw.portfolio_link),
+      google: {
+        connected: asBoolean(googleIntegrationRaw.connected, false),
+      },
     },
     active_sessions: activeSessionsRaw
       .map((session) => normalizeActiveSession(session))
