@@ -860,7 +860,7 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
       </div>
 
       {interviewActionModalOpen && (
-        <div className="fixed inset-0 z-[140] bg-black/45 flex items-center justify-center p-4" onClick={() => {
+        <div className="fixed inset-0 z-[220] bg-black/45 flex items-center justify-center p-4" onClick={() => {
           if (!isInterviewActionSubmitting) setInterviewActionModalOpen(false);
         }}>
           <div
@@ -927,7 +927,7 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
       )}
 
       {showInterviewConfirmedModal && (
-        <div className="fixed inset-0 z-[141] bg-black/45 flex items-center justify-center p-4" onClick={() => setShowInterviewConfirmedModal(false)}>
+        <div className="fixed inset-0 z-[221] bg-black/45 flex items-center justify-center p-4" onClick={() => setShowInterviewConfirmedModal(false)}>
           <div
             className="w-full max-w-[360px] bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 text-center"
             onClick={(event) => event.stopPropagation()}
@@ -949,7 +949,7 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
       )}
 
       {showRescheduleModal && (
-        <div className="fixed inset-0 z-[140] bg-black/45 flex items-center justify-center p-4" onClick={() => {
+        <div className="fixed inset-0 z-[220] bg-black/45 flex items-center justify-center p-4" onClick={() => {
           if (!isInterviewActionSubmitting) setShowRescheduleModal(false);
         }}>
           <div
@@ -1044,7 +1044,7 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
       )}
 
       {offerActionModal && (
-        <div className="fixed inset-0 z-[140] bg-black/45 flex items-center justify-center p-4" onClick={() => {
+        <div className="fixed inset-0 z-[220] bg-black/45 flex items-center justify-center p-4" onClick={() => {
           if (!isOfferActionSubmitting) setOfferActionModal(null);
         }}>
           <div
@@ -1124,7 +1124,7 @@ export default function ApplicationDetailModal({ isOpen, onClose, app, accessTok
       )}
 
       {toast && (
-        <div className="fixed top-24 right-6 z-[130] bg-[#101828] text-white text-[13px] font-medium px-4 py-2.5 rounded-lg shadow-lg">
+        <div className="fixed top-24 right-6 z-[210] bg-[#101828] text-white text-[13px] font-medium px-4 py-2.5 rounded-lg shadow-lg">
           {toast.message}
         </div>
       )}

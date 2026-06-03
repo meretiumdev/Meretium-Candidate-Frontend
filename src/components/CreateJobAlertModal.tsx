@@ -81,7 +81,7 @@ export default function CreateJobAlertModal({ isOpen, onClose, onCreated }: Crea
 
   return (
     <div 
-      className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/50 z-[150] flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div 

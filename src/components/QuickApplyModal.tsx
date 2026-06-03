@@ -1296,7 +1296,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       </div>
     )}
     <div
-      className="fixed inset-0 bg-black/60 z-50 flex min-h-dvh items-center justify-center overflow-hidden overscroll-none p-3 sm:p-4 md:p-6 transition-opacity"
+      className="fixed inset-0 bg-black/60 z-[150] flex min-h-dvh items-center justify-center overflow-hidden overscroll-none p-3 sm:p-4 md:p-6 transition-opacity"
       onClick={onClose}
     >
       <div
