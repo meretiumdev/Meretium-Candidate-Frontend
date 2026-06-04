@@ -120,7 +120,11 @@ async function loadProfileDataSnapshot(accessToken: string, useCache: boolean): 
   return request;
 }
 
-export default function Profile() {
+interface ProfileProps {
+  onCvUpdated?: () => Promise<boolean> | Promise<void> | boolean | void;
+}
+
+export default function Profile({ onCvUpdated }: ProfileProps) {
   const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [profileData, setProfileData] = useState<CandidateProfileResponse | null>(null);
@@ -268,7 +272,13 @@ export default function Profile() {
           <SkillsSection skills={skills} onSkillAdded={refreshProfileSilently} />
           <ProjectsSection projects={projects} onProjectUpdated={refreshProfileSilently} />
           <EducationSection educations={educations} onEducationUpdated={refreshProfileSilently} />
-          <CVSection cvs={profileData.cvs} onCvUploaded={() => { void refreshProfileSilently(); }} />
+          <CVSection
+            cvs={profileData.cvs}
+            onCvUploaded={async () => {
+              await refreshProfileSilently();
+              await onCvUpdated?.();
+            }}
+          />
           <JobPreferences preferences={profileData.job_preferences} onUpdated={refreshProfileSilently} />
         </div>
 

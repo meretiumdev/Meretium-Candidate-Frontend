@@ -36,6 +36,7 @@ const Toggle = ({ label, subtextText, checked, onChange, disabled = false }: Tog
 interface CvDataContentProps {
   settings: CandidateSettingsCvAndDataManagement;
   onSettingsRefresh?: () => Promise<void> | void;
+  onCvUpdated?: () => Promise<boolean> | Promise<void> | boolean | void;
 }
 
 interface ToastState {
@@ -67,7 +68,7 @@ function triggerBrowserDownload(fileUrl: string, fileName?: string | null): void
   anchor.remove();
 }
 
-export default function CvDataContent({ settings, onSettingsRefresh }: CvDataContentProps) {
+export default function CvDataContent({ settings, onSettingsRefresh, onCvUpdated }: CvDataContentProps) {
   const dispatch = useDispatch<AppDispatch>();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [useDefaultQuickApply, setUseDefaultQuickApply] = React.useState(settings.quick_apply_default_cv);
@@ -277,6 +278,7 @@ export default function CvDataContent({ settings, onSettingsRefresh }: CvDataCon
         await onSettingsRefresh();
       }
       await loadCvs();
+      await onCvUpdated?.();
     } catch (error: unknown) {
       setToast({
         id: Date.now(),

@@ -45,12 +45,6 @@ const INITIAL_ONBOARDING_GATE_STATE: OnboardingGateState = {
   message: null,
 };
 
-function getIsOnboarded(user: unknown): boolean | null {
-  if (typeof user !== 'object' || user === null) return null;
-  const value = (user as { is_onboarded?: unknown }).is_onboarded;
-  return typeof value === 'boolean' ? value : null;
-}
-
 function getUserId(user: unknown): string | null {
   if (typeof user !== 'object' || user === null) return null;
 
@@ -74,8 +68,6 @@ function AuthGuard({
   allowWhenCvMissing = false,
 }: AuthGuardProps) {
   const { accessToken } = useSelector((state: RootState) => state.auth);
-  const user = useSelector((state: RootState) => state.auth.user);
-  const isOnboarded = getIsOnboarded(user);
 
   if (!accessToken) return <Navigate to="/auth" replace />;
 
@@ -83,7 +75,6 @@ function AuthGuard({
     <Layout>
       <CvUploadAccessGuard
         onboardingGate={onboardingGate}
-        isOnboarded={isOnboarded === true}
         allowWhenCvMissing={allowWhenCvMissing}
         onRetry={onRetryOnboardingGate}
       >
@@ -98,10 +89,7 @@ function OnboardingAccessGuard({
   onboardingGate,
   onRetryOnboardingGate,
 }: AuthGuardProps) {
-  const user = useSelector((state: RootState) => state.auth.user);
-  const isOnboarded = getIsOnboarded(user);
-
-  if (isOnboarded === true || onboardingGate.canAccessApp) return <Navigate to="/dashboard" replace />;
+  if (onboardingGate.canAccessApp) return <Navigate to="/dashboard" replace />;
 
   if (onboardingGate.status === 'idle') {
     return <div className="min-h-[calc(100vh-76px)] bg-[#F9FAFB]" />;
@@ -146,17 +134,15 @@ function OnboardingGateError({
 function CvUploadAccessGuard({
   children,
   onboardingGate,
-  isOnboarded,
   allowWhenCvMissing,
   onRetry,
 }: {
   children: React.ReactNode;
   onboardingGate: OnboardingGateState;
-  isOnboarded: boolean;
   allowWhenCvMissing: boolean;
   onRetry: () => void;
 }) {
-  if (allowWhenCvMissing || isOnboarded || onboardingGate.canAccessApp) return <>{children}</>;
+  if (allowWhenCvMissing || onboardingGate.canAccessApp) return <>{children}</>;
 
   if (onboardingGate.status === 'idle' || onboardingGate.status === 'loading') {
     return <div className="min-h-[calc(100vh-76px)] bg-[#F9FAFB]" />;
@@ -170,7 +156,7 @@ function CvUploadAccessGuard({
 }
 
 function canAccessAppFromDashboard(response: Awaited<ReturnType<typeof getCandidateDashboard>>): boolean {
-  return response.onboarding.is_onboarding_complete || response.onboarding.is_cv_uploaded;
+  return response.onboarding.is_cv_uploaded;
 }
 
 function App() {
@@ -342,12 +328,12 @@ function App() {
         <Route path="/jobs" element={renderPrivateRoute(<JobsPage />)} />
         <Route path="/jobs/:id" element={renderPrivateRoute(<JobDetail />)} />
         <Route path="/job/:id" element={renderPrivateRoute(<JobDetail />)} />
-        <Route path="/profile" element={renderPrivateRoute(<Profile />)} />
+        <Route path="/profile" element={renderPrivateRoute(<Profile onCvUpdated={refreshOnboardingGate} />)} />
         <Route path="/job-detail" element={renderPrivateRoute(<Navigate to="/jobs" replace />)} />
         <Route path="/applications" element={renderPrivateRoute(<Applications />)} />
         <Route path="/saved" element={renderPrivateRoute(<Saved />)} />
         <Route path="/messages" element={renderPrivateRoute(<Messages />)} />
-        <Route path="/settings" element={renderPrivateRoute(<Settings />)} />
+        <Route path="/settings" element={renderPrivateRoute(<Settings onCvUpdated={refreshOnboardingGate} />)} />
         <Route path="/company/:id/jobs" element={renderPrivateRoute(<CompanyJobs />)} />
         <Route path="/company/:id" element={renderPrivateRoute(<CompanyProfile />)} />
         <Route path="*" element={<Navigate to="/" />} />

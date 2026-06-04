@@ -31,7 +31,11 @@ function getErrorMessage(error: unknown): string {
   return 'Failed to load settings. Please try again.';
 }
 
-export default function Settings() {
+interface SettingsProps {
+  onCvUpdated?: () => Promise<boolean> | Promise<void> | boolean | void;
+}
+
+export default function Settings({ onCvUpdated }: SettingsProps) {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [activeTab, setActiveTab] = React.useState(() => {
     if (typeof window === 'undefined') return 'Account';
@@ -163,6 +167,7 @@ export default function Settings() {
             onSettingsRefresh={async () => {
               await loadSettings({ showLoading: false, forceRefresh: true });
             }}
+            onCvUpdated={onCvUpdated}
           />
         );
       case 'Notifications':
