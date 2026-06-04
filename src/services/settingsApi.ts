@@ -218,6 +218,11 @@ interface GetCandidateSettingsOptions {
   forceRefresh?: boolean;
 }
 
+interface UploadCandidateAvatarParams {
+  accessToken: string;
+  file: File;
+}
+
 interface CandidateDataExportBlobResult {
   type: 'blob';
   blob: Blob;
@@ -736,4 +741,54 @@ export async function updateCandidateAiPreferences(
   payload: Partial<CandidateSettingsAiPreferences>
 ): Promise<string | null> {
   return patchCandidateSettings(accessToken, getCandidateSettingsPatchPath('ai-preferences'), payload);
+}
+
+export async function uploadCandidateAvatar({
+  accessToken,
+  file,
+}: UploadCandidateAvatarParams): Promise<string | null> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const endpointPath = getCandidateScopedPath('profile/avatar');
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}${endpointPath}`, {
+      method: 'POST',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+      body: formData,
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(
+      getApiDetailMessage(payload)
+      || getApiMessage(payload)
+      || (typeof payload === 'string' ? payload.trim() : '')
+      || `Avatar upload failed with status ${response.status}`
+    );
+  }
+
+  clearCandidateSettingsCache();
+
+  return getApiSuccessMessage(payload);
 }

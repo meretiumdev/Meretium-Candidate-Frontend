@@ -167,6 +167,16 @@ export interface CandidateConversationDetail extends CandidateConversationSummar
   candidate_id: string;
 }
 
+export interface CandidateMessageAttachment {
+  filename: string;
+  content_type: string;
+  data: string;
+  url?: string;
+  view_url?: string;
+  size_bytes?: number;
+  file?: File;
+}
+
 export interface CandidateConversationMessage {
   id: string;
   conversation_id: string;
@@ -174,6 +184,7 @@ export interface CandidateConversationMessage {
   sender_role: string;
   message_type: string;
   content: string;
+  attachments: CandidateMessageAttachment[];
   event_metadata: Record<string, unknown> | null;
   is_read: boolean;
   created_at: string;
@@ -216,10 +227,68 @@ function normalizeConversationDetail(input: unknown): CandidateConversationDetai
   };
 }
 
+function normalizeMessageAttachments(input: unknown): CandidateMessageAttachment[] {
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .map((item) => {
+      const raw = getRecordValue(item) || {};
+      const filename = getStringValue(raw.filename) || getStringValue(raw.file_name) || getStringValue(raw.name);
+      const contentType = (
+        getStringValue(raw.content_type)
+        || getStringValue(raw.mime_type)
+        || getStringValue(raw.type)
+      );
+      const data = getStringValue(raw.data) || getStringValue(raw.base64) || getStringValue(raw.content);
+      const url = getStringValue(raw.url) || getStringValue(raw.file_url) || getStringValue(raw.download_url);
+      const viewUrl = getStringValue(raw.view_url) || getStringValue(raw.preview_url);
+      const sizeBytes = getNumberValue(raw.size_bytes) || getNumberValue(raw.file_size) || getNumberValue(raw.size);
+
+      if (!filename && !url && !viewUrl) return null;
+
+      return {
+        filename: filename || 'Attachment',
+        content_type: contentType || 'application/octet-stream',
+        data,
+        ...(url ? { url } : {}),
+        ...(viewUrl ? { view_url: viewUrl } : {}),
+        ...(sizeBytes > 0 ? { size_bytes: sizeBytes } : {}),
+      };
+    })
+    .filter((item): item is CandidateMessageAttachment => item !== null);
+}
+
+function buildFileFromAttachment(attachment: CandidateMessageAttachment, index: number): File | null {
+  if (attachment.file instanceof File) return attachment.file;
+
+  const base64 = attachment.data.trim();
+  if (!base64) return null;
+
+  try {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    return new File(
+      [bytes],
+      attachment.filename.trim() || `attachment-${index + 1}`,
+      { type: attachment.content_type.trim() || 'application/octet-stream' }
+    );
+  } catch {
+    return null;
+  }
+}
+
 function normalizeConversationMessage(input: unknown): CandidateConversationMessage {
   const raw = getRecordValue(input) || {};
   const eventMetadataRaw = getRecordValue(raw.event_metadata);
   const isReadRaw = raw.is_read;
+  const directAttachments = normalizeMessageAttachments(raw.attachments);
+  const normalizedAttachments = directAttachments.length > 0
+    ? directAttachments
+    : normalizeMessageAttachments(eventMetadataRaw?.attachments);
 
   return {
     id: getStringValue(raw.id),
@@ -228,6 +297,7 @@ function normalizeConversationMessage(input: unknown): CandidateConversationMess
     sender_role: getStringValue(raw.sender_role),
     message_type: getStringValue(raw.message_type),
     content: getStringValue(raw.content),
+    attachments: normalizedAttachments,
     event_metadata: eventMetadataRaw,
     is_read: typeof isReadRaw === 'boolean' ? isReadRaw : false,
     created_at: getStringValue(raw.created_at),
@@ -343,7 +413,7 @@ export async function getCandidateConversationMessages(
 export async function sendCandidateConversationMessage(
   accessToken: string,
   conversationId: string,
-  payload: { content: string }
+  payload: { content?: string; attachments?: CandidateMessageAttachment[] }
 ): Promise<CandidateConversationMessage> {
   if (!CANDIDATE_API_BASE_URL) {
     throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
@@ -359,28 +429,65 @@ export async function sendCandidateConversationMessage(
     throw new Error('Conversation id is required.');
   }
 
-  const trimmedContent = payload.content.trim();
-  if (!trimmedContent) {
-    throw new Error('Message content is required.');
+  const trimmedContent = payload.content?.trim() || '';
+  const normalizedAttachments = Array.isArray(payload.attachments)
+    ? payload.attachments
+      .map((attachment) => ({
+        filename: attachment.filename.trim(),
+        content_type: attachment.content_type.trim(),
+        data: attachment.data.trim(),
+        ...(attachment.url ? { url: attachment.url } : {}),
+        ...(attachment.view_url ? { view_url: attachment.view_url } : {}),
+        ...(attachment.size_bytes ? { size_bytes: attachment.size_bytes } : {}),
+        ...(attachment.file instanceof File ? { file: attachment.file } : {}),
+      }))
+      .filter((attachment) => attachment.filename && attachment.content_type && (attachment.file instanceof File || attachment.data))
+    : [];
+  if (!trimmedContent && normalizedAttachments.length === 0) {
+    throw new Error('Message content or at least one attachment is required.');
   }
 
-  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
-    fetch(
-      `${CANDIDATE_API_BASE_URL}/messaging/conversations/${encodeURIComponent(trimmedConversationId)}/messages`,
-      {
-        method: 'POST',
-        headers: getCandidateRequestHeaders(nextAccessToken, true),
-        body: JSON.stringify({ content: trimmedContent }),
+  const response = normalizedAttachments.length > 0
+    ? await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) => {
+      const formData = new FormData();
+      if (trimmedContent) {
+        formData.append('content', trimmedContent);
       }
-    )
-  );
+
+      normalizedAttachments.forEach((attachment, index) => {
+        const file = buildFileFromAttachment(attachment, index);
+        if (!file) return;
+        formData.append('attachments', file, attachment.filename.trim() || file.name);
+      });
+
+      return fetch(
+        `${CANDIDATE_API_BASE_URL}/messaging/conversations/${encodeURIComponent(trimmedConversationId)}/messages`,
+        {
+          method: 'POST',
+          headers: getCandidateRequestHeaders(nextAccessToken),
+          body: formData,
+        }
+      );
+    })
+    : await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+      fetch(
+        `${CANDIDATE_API_BASE_URL}/messaging/conversations/${encodeURIComponent(trimmedConversationId)}/messages`,
+        {
+          method: 'POST',
+          headers: getCandidateRequestHeaders(nextAccessToken, true),
+          body: JSON.stringify({
+            content: trimmedContent,
+          }),
+        }
+      )
+    );
 
   const raw = await response.text();
   const responsePayload = parseResponsePayload(raw);
   assertApiSuccess(response, raw, responsePayload, 'Send message');
 
   const normalizedMessage = normalizeConversationMessage(normalizeSentMessagePayload(responsePayload));
-  if (!normalizedMessage.id || !normalizedMessage.content) {
+  if (!normalizedMessage.id || (!normalizedMessage.content && normalizedMessage.attachments.length === 0)) {
     return {
       id: `temp-${Date.now()}`,
       conversation_id: trimmedConversationId,
@@ -388,7 +495,8 @@ export async function sendCandidateConversationMessage(
       sender_role: 'candidate',
       message_type: 'chat',
       content: trimmedContent,
-      event_metadata: null,
+      attachments: normalizedAttachments,
+      event_metadata: normalizedAttachments.length > 0 ? { attachments: normalizedAttachments } : null,
       is_read: true,
       created_at: new Date().toISOString(),
     };

@@ -1,8 +1,29 @@
 import React from 'react';
-import { MessageSquare, ExternalLink, Paperclip, Send, ChevronLeft, CheckCircle, Calendar, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  MessageSquare,
+  ExternalLink,
+  Paperclip,
+  Send,
+  ChevronLeft,
+  CheckCircle,
+  Calendar,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  X,
+  FileText,
+  FileArchive,
+  FileImage,
+  Download,
+  Eye,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ChatMenu from './ChatMenu';
-import type { CandidateConversationMessage, CandidateConversationSummary } from '../../../services/messagingApi';
+import type {
+  CandidateConversationMessage,
+  CandidateConversationSummary,
+  CandidateMessageAttachment,
+} from '../../../services/messagingApi';
 import type { CandidateApplicationDetail } from '../../../services/applicationsApi';
 
 interface ChatAreaProps {
@@ -22,10 +43,247 @@ interface ChatAreaProps {
   unseenNewMessagesCount?: number;
   isSendingMessage: boolean;
   error: string | null;
-  onSendMessage: (content: string) => Promise<void>;
+  onSendMessage: (payload: { content?: string; attachments?: CandidateMessageAttachment[] }) => Promise<void>;
   onBottomStateChange?: (isAtBottom: boolean) => void;
   onLoadOlderMessages?: () => Promise<void> | void;
   onBack?: () => void;
+}
+
+interface ToastState {
+  id: number;
+  message: string;
+  type: 'error' | 'success';
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const [, base64 = ''] = result.split(',', 2);
+      if (!base64) {
+        reject(new Error(`Failed to read ${file.name}.`));
+        return;
+      }
+      resolve(base64);
+    };
+
+    reader.onerror = () => {
+      reject(new Error(`Failed to read ${file.name}.`));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function buildAttachmentHref(attachment: CandidateMessageAttachment): string | null {
+  const url = attachment.url?.trim() || '';
+  if (url) return url;
+
+  const base64 = attachment.data.trim();
+  if (!base64) return null;
+
+  const contentType = attachment.content_type.trim() || 'application/octet-stream';
+  return `data:${contentType};base64,${base64}`;
+}
+
+function getAttachmentViewHref(attachment: CandidateMessageAttachment): string | null {
+  const viewUrl = attachment.view_url?.trim() || '';
+  if (viewUrl) return viewUrl;
+  return buildAttachmentHref(attachment);
+}
+
+function formatAttachmentSize(sizeBytes?: number): string {
+  if (!sizeBytes || sizeBytes <= 0 || !Number.isFinite(sizeBytes)) return '';
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = sizeBytes;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const displayValue = value >= 10 || unitIndex === 0 ? Math.round(value) : Number(value.toFixed(1));
+  return `${displayValue} ${units[unitIndex]}`;
+}
+
+function getAttachmentTypeLabel(contentType: string): string {
+  const normalizedType = contentType.trim().toLowerCase();
+  if (!normalizedType) return 'File';
+  if (normalizedType.startsWith('image/')) return 'Image';
+  if (normalizedType.includes('pdf')) return 'PDF';
+  if (normalizedType.includes('zip') || normalizedType.includes('archive') || normalizedType.includes('compressed')) return 'Archive';
+  if (normalizedType.startsWith('text/') || normalizedType.includes('document') || normalizedType.includes('sheet')) return 'Document';
+  return normalizedType.split('/')[1]?.toUpperCase() || 'File';
+}
+
+function isImageAttachment(attachment: CandidateMessageAttachment): boolean {
+  return attachment.content_type.trim().toLowerCase().startsWith('image/');
+}
+
+function getAttachmentIcon(attachment: CandidateMessageAttachment): React.ReactNode {
+  if (isImageAttachment(attachment)) {
+    return <FileImage size={18} className="text-[#175CD3]" />;
+  }
+
+  const normalizedType = attachment.content_type.trim().toLowerCase();
+  if (normalizedType.includes('zip') || normalizedType.includes('archive') || normalizedType.includes('compressed')) {
+    return <FileArchive size={18} className="text-[#B54708]" />;
+  }
+
+  return <FileText size={18} className="text-[#344054]" />;
+}
+
+function AttachmentCard({
+  attachment,
+  compact = false,
+  onRemove,
+}: {
+  attachment: CandidateMessageAttachment;
+  compact?: boolean;
+  onRemove?: () => void;
+}) {
+  const downloadHref = buildAttachmentHref(attachment);
+  const viewHref = getAttachmentViewHref(attachment);
+  const attachmentLabel = attachment.filename || 'Attachment';
+  const attachmentMeta = [getAttachmentTypeLabel(attachment.content_type), formatAttachmentSize(attachment.size_bytes)]
+    .filter(Boolean)
+    .join(' . ');
+  const canPreviewInline = isImageAttachment(attachment) && !!viewHref;
+  const showLargePreview = canPreviewInline && !compact;
+  const showCompactThumbnail = canPreviewInline && compact;
+
+  return (
+    <div className={`rounded-[16px] border border-black/5 bg-white/80 ${compact ? 'p-3' : 'p-3.5'} shadow-sm`}>
+      {showLargePreview && (
+        <a
+          href={viewHref}
+          target="_blank"
+          rel="noreferrer"
+          className="mb-3 block overflow-hidden rounded-[12px] border border-black/5 bg-[#F8FAFC]"
+        >
+          <img
+            src={viewHref}
+            alt={attachmentLabel}
+            className="max-h-56 w-full object-cover"
+          />
+        </a>
+      )}
+      <div className="flex items-start gap-3">
+        {showCompactThumbnail ? (
+          <a
+            href={viewHref}
+            target="_blank"
+            rel="noreferrer"
+            className="block size-16 shrink-0 overflow-hidden rounded-[12px] border border-black/5 bg-[#F8FAFC]"
+          >
+            <img
+              src={viewHref}
+              alt={attachmentLabel}
+              className="size-full object-cover"
+            />
+          </a>
+        ) : (
+          <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-[#F2F4F7]">
+            {getAttachmentIcon(attachment)}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold text-[#101828]">{attachmentLabel}</div>
+          {attachmentMeta && (
+            <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[#667085]">
+              {attachmentMeta}
+            </div>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {viewHref && (
+              <a
+                href={viewHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#D0D5DD] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#344054] transition-colors hover:bg-[#F9FAFB]"
+              >
+                <Eye size={13} />
+                View
+              </a>
+            )}
+            {downloadHref && (
+              <a
+                href={downloadHref}
+                download={attachment.filename || undefined}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#FDB08F] bg-[#FFF6F2] px-3 py-1.5 text-[12px] font-semibold text-[#C2410C] transition-colors hover:bg-[#FFE7DB]"
+              >
+                <Download size={13} />
+                Download
+              </a>
+            )}
+          </div>
+        </div>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="rounded-full p-1 text-[#98A2B3] transition-colors hover:bg-[#F2F4F7] hover:text-[#475467]"
+            aria-label={`Remove ${attachmentLabel}`}
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ComposerAttachmentPreview({
+  attachment,
+  onRemove,
+}: {
+  attachment: CandidateMessageAttachment;
+  onRemove: () => void;
+}) {
+  const previewHref = getAttachmentViewHref(attachment);
+  const attachmentLabel = attachment.filename || 'Attachment';
+  const attachmentMeta = [formatAttachmentSize(attachment.size_bytes), 'Attached']
+    .filter(Boolean)
+    .join('  ');
+  const showImageThumbnail = isImageAttachment(attachment) && !!previewHref;
+
+  return (
+    <div className="flex min-w-0 items-center gap-3 border-b border-[#F2F4F7] bg-white px-3 py-3 last:border-b-0">
+      {showImageThumbnail ? (
+        <div className="size-11 shrink-0 overflow-hidden rounded-full border border-black/5 bg-[#F8FAFC]">
+          <img
+            src={previewHref}
+            alt={attachmentLabel}
+            className="size-full object-cover"
+          />
+        </div>
+      ) : (
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-[12px] bg-[#F2F4F7]">
+          {getAttachmentIcon(attachment)}
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[14px] font-medium text-[#101828]">{attachmentLabel}</div>
+        {attachmentMeta && (
+          <div className="mt-0.5 truncate text-[12px] text-[#667085]">
+            {attachmentMeta}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded-full p-1.5 text-[#667085] transition-colors hover:bg-[#F2F4F7] hover:text-[#344054]"
+        aria-label={`Remove ${attachmentLabel}`}
+      >
+        <X size={18} />
+      </button>
+    </div>
+  );
 }
 
 function formatMessageTime(timestamp: string): string {
@@ -122,9 +380,13 @@ export default function ChatArea({
 }: ChatAreaProps) {
   const navigate = useNavigate();
   const [draftMessage, setDraftMessage] = React.useState('');
+  const [selectedAttachments, setSelectedAttachments] = React.useState<CandidateMessageAttachment[]>([]);
+  const [toast, setToast] = React.useState<ToastState | null>(null);
+  const [isPreparingAttachments, setIsPreparingAttachments] = React.useState(false);
   const [isStatusCardExpanded, setIsStatusCardExpanded] = React.useState(false);
   const messagesContainerRef = React.useRef<HTMLDivElement | null>(null);
   const statusActionCardRef = React.useRef<HTMLDivElement | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const conversationId = conversation?.id || '';
   const pendingOlderMessagesRestoreRef = React.useRef<{
     conversationId: string;
@@ -210,7 +472,34 @@ export default function ChatArea({
     pendingOlderMessagesRestoreRef.current = null;
     isAtLatestRef.current = true;
     setIsStatusCardExpanded(false);
+    setDraftMessage('');
+    setSelectedAttachments([]);
+    setToast(null);
+    setIsPreparingAttachments(false);
   }, [conversationId]);
+
+  React.useEffect(() => {
+    if (!toast) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setToast(null);
+    }, 3500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [toast]);
+
+  React.useEffect(() => {
+    const message = error?.trim() || '';
+    if (!message) return;
+
+    setToast({
+      id: Date.now(),
+      message,
+      type: 'error',
+    });
+  }, [error]);
 
   React.useEffect(() => {
     reportBottomState();
@@ -356,16 +645,61 @@ export default function ChatArea({
 
   const handleSubmit = async () => {
     const trimmedDraft = draftMessage.trim();
-    if (!trimmedDraft || isSendingMessage) return;
+    if ((!trimmedDraft && selectedAttachments.length === 0) || isSendingMessage || isPreparingAttachments) return;
 
     try {
       shouldAnchorToSentMessageRef.current = true;
-      await onSendMessage(trimmedDraft);
+      await onSendMessage({
+        content: trimmedDraft,
+        attachments: selectedAttachments,
+      });
       setDraftMessage('');
+      setSelectedAttachments([]);
+      setToast(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch {
       shouldAnchorToSentMessageRef.current = false;
       // Error is surfaced through parent state.
     }
+  };
+
+  const handleAttachmentSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    setToast(null);
+    setIsPreparingAttachments(true);
+
+    try {
+      const encodedAttachments = await Promise.all(files.map(async (file) => ({
+        filename: file.name,
+        content_type: file.type || 'application/octet-stream',
+        data: await readFileAsBase64(file),
+        size_bytes: file.size,
+        file,
+      })));
+
+      setSelectedAttachments((current) => [...current, ...encodedAttachments]);
+    } catch (attachmentReadError) {
+      const message = attachmentReadError instanceof Error && attachmentReadError.message.trim()
+        ? attachmentReadError.message
+        : 'Failed to prepare attachments.';
+      setToast({
+        id: Date.now(),
+        message,
+        type: 'error',
+      });
+    } finally {
+      setIsPreparingAttachments(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setSelectedAttachments((current) => current.filter((_, attachmentIndex) => attachmentIndex !== index));
+    setToast(null);
   };
 
   return (
@@ -416,17 +750,11 @@ export default function ChatArea({
         />
       </div>
 
-      {error && (
-        <div className="mx-4 md:mx-6 mt-3 px-4 py-3 rounded-[10px] bg-[#FEF3F2] border border-[#FDA29B] text-[#B42318] text-sm">
-          {error}
-        </div>
-      )}
-
       <div
         key={conversation.id}
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-[96px] overflow-y-auto px-4 pt-3 pb-2 lg:px-6 lg:pt-4 xl:px-10 xl:pt-8 xl:pb-4 2xl:px-12 scrollbar-hide bg-white/50"
+        className="flex-1 min-h-0 md:min-h-[96px] overflow-y-auto px-4 pt-3 pb-2 lg:px-6 lg:pt-4 xl:px-10 xl:pt-8 xl:pb-4 2xl:px-12 scrollbar-hide bg-white/50"
       >
         {isLoadingOlderMessages && (
           <div className="sticky top-0 z-10 flex justify-center pb-2">
@@ -478,7 +806,21 @@ export default function ChatArea({
                       : 'bg-gray-50 text-gray-800 rounded-tl-none border border-gray-100'
                   }`}
                   >
-                    {message.content}
+                    {message.attachments.length > 0 && (
+                      <div className="space-y-2.5">
+                        {message.attachments.map((attachment, attachmentIndex) => (
+                          <AttachmentCard
+                            key={`${message.id}-attachment-${attachmentIndex}`}
+                            attachment={attachment}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {message.content && (
+                      <div className={message.attachments.length > 0 ? 'mt-3' : ''}>
+                        {message.content}
+                      </div>
+                    )}
                   </div>
                   <span className={`block text-[11px] mt-1.5 text-gray-400 font-medium ${candidateMessage ? 'text-right mr-1' : 'ml-1'}`}>
                     {formatMessageTime(message.created_at)}
@@ -500,6 +842,21 @@ export default function ChatArea({
           >
             {unseenNewMessagesCount} new {unseenNewMessagesCount === 1 ? 'message' : 'messages'} - Jump to latest
           </button>
+        </div>
+      )}
+
+      {toast && (
+        <div className="pointer-events-none absolute left-3 right-3 top-[88px] z-30 sm:left-4 sm:right-4 md:left-auto md:right-6 md:top-[132px]">
+          <div
+            key={toast.id}
+            className={`pointer-events-auto rounded-[12px] border px-4 py-3 text-[13px] font-medium shadow-lg backdrop-blur-sm ${
+              toast.type === 'error'
+                ? 'border-[#FDA29B] bg-[#FEF3F2]/95 text-[#B42318]'
+                : 'border-[#ABEFC6] bg-[#ECFDF3]/95 text-[#067647]'
+            }`}
+          >
+            {toast.message}
+          </div>
         </div>
       )}
 
@@ -630,9 +987,52 @@ export default function ChatArea({
         </div>
       )}
 
-      <div className="shrink-0 p-3.5 lg:px-5 lg:py-3.5 xl:px-8 xl:py-6 border-t border-gray-100 bg-white">
-        <div className="flex items-center gap-3 xl:gap-4 bg-[#F9FAFB] border border-gray-100 rounded-[12px] xl:rounded-[14px] px-4 xl:px-6 py-2 xl:py-3 shadow-inner focus-within:ring-2 focus-within:ring-[#FF6934]/20 transition-all">
-          <Paperclip size={20} className="text-gray-400" />
+      <div className="relative shrink-0 p-2.5 sm:p-3.5 lg:px-5 lg:py-3.5 xl:px-8 xl:py-6 border-t border-gray-100 bg-white">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={(event) => { void handleAttachmentSelect(event); }}
+          className="hidden"
+        />
+        {selectedAttachments.length > 0 && (
+          <div className="absolute bottom-full left-2.5 right-2.5 z-20 mb-2 overflow-hidden rounded-[16px] border border-[#E4E7EC] bg-white shadow-lg sm:left-3.5 sm:right-3.5 lg:left-5 lg:right-5 xl:left-8 xl:right-8">
+            <div className="flex items-center justify-between gap-2 border-b border-[#F2F4F7] px-3 py-2.5">
+              <div className="text-[12px] font-semibold text-[#344054]">
+                {selectedAttachments.length} {selectedAttachments.length === 1 ? 'attachment selected' : 'attachments selected'}
+              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isSendingMessage || isPreparingAttachments}
+                className="inline-flex items-center gap-1 rounded-full border border-[#D0D5DD] bg-white px-2.5 py-1 text-[11px] font-medium text-[#344054] transition-colors hover:bg-[#F9FAFB] disabled:opacity-60"
+              >
+                <Paperclip size={13} />
+                <span className="hidden sm:inline">Add more</span>
+                <span className="sm:hidden">Add</span>
+              </button>
+            </div>
+            <div className="max-h-[176px] overflow-y-auto scrollbar-hide">
+              {selectedAttachments.map((attachment, index) => (
+                <ComposerAttachmentPreview
+                  key={`${attachment.filename}-${index}`}
+                  attachment={attachment}
+                  onRemove={() => handleRemoveAttachment(index)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-2.5 xl:gap-4 bg-[#F9FAFB] border border-gray-100 rounded-[12px] xl:rounded-[14px] px-3 sm:px-4 xl:px-6 py-2 xl:py-3 shadow-inner focus-within:ring-2 focus-within:ring-[#FF6934]/20 transition-all">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isSendingMessage || isPreparingAttachments}
+            className="text-gray-400 transition-colors hover:text-[#FF6934] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            aria-label="Add attachments"
+          >
+            <Paperclip size={20} />
+          </button>
           <input
             type="text"
             value={draftMessage}
@@ -643,13 +1043,13 @@ export default function ChatArea({
                 void handleSubmit();
               }
             }}
-            placeholder={isSendingMessage ? 'Sending...' : 'Write a message...'}
-            disabled={isSendingMessage}
+            placeholder={isSendingMessage ? 'Sending...' : (isPreparingAttachments ? 'Preparing attachments...' : 'Write a message...')}
+            disabled={isSendingMessage || isPreparingAttachments}
             className="flex-1 border-none focus:outline-none text-[15px] placeholder:text-gray-400 bg-transparent disabled:opacity-60"
           />
           <button
             onClick={() => { void handleSubmit(); }}
-            disabled={isSendingMessage || !draftMessage.trim()}
+            disabled={isSendingMessage || isPreparingAttachments || (!draftMessage.trim() && selectedAttachments.length === 0)}
             className="size-9 xl:size-10 bg-[#FF6934]/10 text-[#FF6934] rounded-xl flex items-center justify-center hover:bg-[#FF6934] hover:text-white transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Send size={18} fill="currentColor" strokeWidth={0} />

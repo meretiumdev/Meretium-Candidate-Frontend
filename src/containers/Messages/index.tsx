@@ -7,6 +7,7 @@ import {
   getCandidateConversations,
   getCandidateConversationMessages,
   sendCandidateConversationMessage,
+  type CandidateMessageAttachment,
   type CandidateConversationMessage,
   type CandidateConversationSummary,
 } from '../../services/messagingApi';
@@ -56,6 +57,45 @@ function getStringValue(input: unknown): string {
   return input.trim();
 }
 
+function normalizeMessageAttachments(input: unknown): CandidateMessageAttachment[] {
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .map((item) => {
+      const raw = getRecordValue(item) || {};
+      const filename = getStringValue(raw.filename) || getStringValue(raw.file_name) || getStringValue(raw.name);
+      const contentType = (
+        getStringValue(raw.content_type)
+        || getStringValue(raw.mime_type)
+        || getStringValue(raw.type)
+      );
+      const data = getStringValue(raw.data) || getStringValue(raw.base64) || getStringValue(raw.content);
+      const url = getStringValue(raw.url) || getStringValue(raw.file_url) || getStringValue(raw.download_url);
+      const viewUrl = getStringValue(raw.view_url) || getStringValue(raw.preview_url);
+      const sizeBytes = Number(raw.size_bytes) || Number(raw.file_size) || Number(raw.size) || 0;
+
+      if (!filename && !url && !viewUrl) return null;
+
+      return {
+        filename: filename || 'Attachment',
+        content_type: contentType || 'application/octet-stream',
+        data,
+        ...(url ? { url } : {}),
+        ...(viewUrl ? { view_url: viewUrl } : {}),
+        ...(Number.isFinite(sizeBytes) && sizeBytes > 0 ? { size_bytes: sizeBytes } : {}),
+      };
+    })
+    .filter((item): item is CandidateMessageAttachment => item !== null);
+}
+
+function getMessagePreview(content: string, attachments: CandidateMessageAttachment[]): string {
+  const trimmedContent = content.trim();
+  if (trimmedContent) return trimmedContent;
+  if (attachments.length === 1) return attachments[0].filename || 'Sent an attachment';
+  if (attachments.length > 1) return `${attachments.length} attachments`;
+  return '';
+}
+
 function sortConversationsByUpdated(conversations: CandidateConversationSummary[]): CandidateConversationSummary[] {
   return [...conversations].sort((a, b) => {
     const aTime = Date.parse(a.updated_at);
@@ -96,7 +136,20 @@ function normalizeIncomingSocketMessage(payload: unknown): CandidateConversation
     || getStringValue(messageSource.conversation_id)
   );
   const content = getStringValue(messageSource.content);
-  if (!conversationId || !content) return null;
+  const directAttachments = normalizeMessageAttachments(messageSource.attachments);
+  const sourceAttachments = normalizeMessageAttachments(source.attachments);
+  const messageEventMetadata = getRecordValue(messageSource.event_metadata);
+  const sourceEventMetadata = getRecordValue(source.event_metadata);
+  const messageEventAttachments = normalizeMessageAttachments(messageEventMetadata?.attachments);
+  const sourceEventAttachments = normalizeMessageAttachments(sourceEventMetadata?.attachments);
+  const normalizedAttachments = directAttachments.length > 0
+    ? directAttachments
+    : sourceAttachments.length > 0
+      ? sourceAttachments
+      : messageEventAttachments.length > 0
+        ? messageEventAttachments
+        : sourceEventAttachments;
+  if (!conversationId || (!content && normalizedAttachments.length === 0)) return null;
 
   const createdAt = getStringValue(messageSource.created_at) || new Date().toISOString();
 
@@ -107,6 +160,7 @@ function normalizeIncomingSocketMessage(payload: unknown): CandidateConversation
     sender_role: getStringValue(messageSource.sender_role) || 'recruiter',
     message_type: getStringValue(messageSource.message_type) || 'chat',
     content,
+    attachments: normalizedAttachments,
     event_metadata: getRecordValue(messageSource.event_metadata) || getRecordValue(source.event_metadata),
     is_read: typeof messageSource.is_read === 'boolean' ? messageSource.is_read : false,
     created_at: createdAt,
@@ -184,7 +238,7 @@ function buildConversationFromSocketPayload(
     recruiter_name_snapshot: getStringValue(conversationRecord.recruiter_name_snapshot) || 'Recruiter',
     created_at: getStringValue(conversationRecord.created_at) || createdAt,
     updated_at: createdAt,
-    last_message: incomingMessage.content,
+    last_message: getMessagePreview(incomingMessage.content, incomingMessage.attachments),
     unread_count: unreadCount,
   };
 }
@@ -643,12 +697,29 @@ export default function Messages() {
     setView('list');
   };
 
-  const handleSendMessage = async (content: string) => {
-    const trimmedContent = content.trim();
-    if (!trimmedAccessToken || !selectedConversationId || !trimmedContent) return;
+  const handleSendMessage = async (
+    payload: { content?: string; attachments?: CandidateMessageAttachment[] }
+  ) => {
+    const trimmedContent = payload.content?.trim() || '';
+    const normalizedAttachments = Array.isArray(payload.attachments)
+      ? payload.attachments
+        .map((attachment) => ({
+          filename: attachment.filename.trim(),
+          content_type: attachment.content_type.trim(),
+          data: attachment.data.trim(),
+          ...(attachment.url ? { url: attachment.url } : {}),
+          ...(attachment.view_url ? { view_url: attachment.view_url } : {}),
+          ...(attachment.size_bytes ? { size_bytes: attachment.size_bytes } : {}),
+          ...(attachment.file instanceof File ? { file: attachment.file } : {}),
+        }))
+        .filter((attachment) => attachment.filename && attachment.content_type && (attachment.file instanceof File || attachment.data))
+      : [];
+    if (!trimmedAccessToken || !selectedConversationId) return;
+    if (!trimmedContent && normalizedAttachments.length === 0) return;
 
     setIsSendingMessage(true);
     setMessagesError(null);
+    const messagePreview = getMessagePreview(trimmedContent, normalizedAttachments);
 
     const updateConversationPreview = (updatedAt: string) => {
       setConversations((prev) => {
@@ -656,7 +727,7 @@ export default function Messages() {
           conversation.id === selectedConversationId
             ? {
               ...conversation,
-              last_message: trimmedContent,
+              last_message: messagePreview,
               updated_at: updatedAt,
             }
             : conversation
@@ -667,16 +738,11 @@ export default function Messages() {
     };
 
     try {
-      sendCandidateSocketMessage({
-        type: 'message',
-        conversation_id: selectedConversationId,
-        content: trimmedContent,
-      });
-      updateConversationPreview(new Date().toISOString());
-    } catch {
-      try {
+      // Attachments are persisted through the HTTP endpoint; the socket path is kept for text-only sends.
+      if (normalizedAttachments.length > 0) {
         const sentMessage = await sendCandidateConversationMessage(trimmedAccessToken, selectedConversationId, {
           content: trimmedContent,
+          attachments: normalizedAttachments,
         });
 
         updateConversationPreview(sentMessage.created_at || new Date().toISOString());
@@ -692,10 +758,37 @@ export default function Messages() {
         if (didInsertSentMessage) {
           setMessagesTotal((prev) => (prev > 0 ? prev + 1 : prev));
         }
-      } catch (apiError) {
-        setMessagesError(getErrorMessage(apiError));
-        throw apiError;
+      } else {
+        try {
+          sendCandidateSocketMessage({
+            type: 'message',
+            conversation_id: selectedConversationId,
+            content: trimmedContent,
+          });
+          updateConversationPreview(new Date().toISOString());
+        } catch {
+          const sentMessage = await sendCandidateConversationMessage(trimmedAccessToken, selectedConversationId, {
+            content: trimmedContent,
+          });
+
+          updateConversationPreview(sentMessage.created_at || new Date().toISOString());
+          let didInsertSentMessage = false;
+          setMessages((prev) => {
+            if (hasMessageId(prev, sentMessage.id)) return prev;
+            didInsertSentMessage = true;
+            if (isMessagesDescending(prev)) {
+              return [sentMessage, ...prev];
+            }
+            return [...prev, sentMessage];
+          });
+          if (didInsertSentMessage) {
+            setMessagesTotal((prev) => (prev > 0 ? prev + 1 : prev));
+          }
+        }
       }
+    } catch (sendError) {
+      setMessagesError(getErrorMessage(sendError));
+      throw sendError;
     } finally {
       setIsSendingMessage(false);
     }

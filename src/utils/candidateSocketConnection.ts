@@ -157,7 +157,12 @@ function sendSocketPayload(payload: unknown): void {
 export interface CandidateSocketOutgoingMessagePayload {
   type: 'message';
   conversation_id: string;
-  content: string;
+  content?: string;
+  attachments?: Array<{
+    filename: string;
+    content_type: string;
+    data: string;
+  }>;
 }
 
 export interface CandidateSocketMarkReadPayload {
@@ -180,15 +185,25 @@ export function sendCandidateSocketMessage(payload: CandidateSocketOutgoingMessa
     throw new Error('Conversation id is required.');
   }
 
-  const trimmedContent = payload.content.trim();
-  if (!trimmedContent) {
-    throw new Error('Message content is required.');
+  const trimmedContent = payload.content?.trim() || '';
+  const normalizedAttachments = Array.isArray(payload.attachments)
+    ? payload.attachments
+      .map((attachment) => ({
+        filename: attachment.filename.trim(),
+        content_type: attachment.content_type.trim(),
+        data: attachment.data.trim(),
+      }))
+      .filter((attachment) => attachment.filename && attachment.content_type && attachment.data)
+    : [];
+  if (!trimmedContent && normalizedAttachments.length === 0) {
+    throw new Error('Message content or at least one attachment is required.');
   }
 
   sendSocketPayload({
     type: 'message',
     conversation_id: trimmedConversationId,
     content: trimmedContent,
+    ...(normalizedAttachments.length > 0 ? { attachments: normalizedAttachments } : {}),
   });
 }
 

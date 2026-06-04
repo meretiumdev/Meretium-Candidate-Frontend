@@ -136,6 +136,9 @@ export default function Settings() {
             onPhoneChanged={async () => {
               await loadSettings({ showLoading: false, forceRefresh: true });
             }}
+            onSettingsRefresh={async () => {
+              await loadSettings({ showLoading: false, forceRefresh: true });
+            }}
           />
         );
       case 'Profile & Visibility':
