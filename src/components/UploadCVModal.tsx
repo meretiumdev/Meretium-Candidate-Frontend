@@ -13,7 +13,7 @@ import ModalPortal from './ModalPortal';
 interface UploadCVModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadSuccess?: () => Promise<void> | void;
+  onUploadSuccess?: () => Promise<boolean> | Promise<void> | boolean | void;
 }
 
 interface ToastState {
@@ -89,10 +89,13 @@ export default function UploadCVModal({
         message: 'CV uploaded successfully.',
         type: 'success',
       });
-      await onUploadSuccess?.();
-      window.setTimeout(() => {
-        onClose();
-      }, 600);
+      onClose();
+      void Promise.resolve(onUploadSuccess?.()).catch((error: unknown) => {
+        const message = error instanceof Error && error.message.trim()
+          ? error.message
+          : 'Failed to refresh onboarding state after CV upload.';
+        console.error(message);
+      });
     } catch (error: unknown) {
       setToast({
         id: Date.now(),
