@@ -278,6 +278,8 @@ export default function Profile() {
             strengths={profileInsights.strengths}
             areasToImprove={profileInsights.areas_to_improve}
             topRoleMatches={profileInsights.top_role_matches}
+            profilePerformance={profileData.profile_performance}
+            performanceInsights={profileData.performance_insights}
             onProfileUpdated={refreshProfileSilently}
           />
         </div>

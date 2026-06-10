@@ -221,6 +221,8 @@ export interface CandidateProfileResponse {
   educations: Array<Record<string, unknown>>;
   projects: Array<Record<string, unknown>>;
   job_preferences: CandidateJobPreferences | null;
+  profile_performance: CandidateProfilePerformance;
+  performance_insights: CandidateProfilePerformanceInsights;
   cvs?: Array<Record<string, unknown>>;
 }
 
@@ -236,6 +238,27 @@ export interface PublicProfileResumeResponse {
 export interface CandidateProfileInsightRoleMatch {
   title: string;
   match_percentage: number;
+}
+
+export interface CandidateProfilePerformance {
+  profile_views: number;
+  search_appearances_30d: number;
+  last_viewed_at: string | null;
+}
+
+export interface CandidateProfilePerformanceInsights {
+  application_response_pct: number | null;
+  application_response_change_points: number | null;
+  application_response_trend: string | null;
+  interview_conversion_pct: number | null;
+  interview_conversion_change_points: number | null;
+  interview_conversion_trend: string | null;
+  avg_days_to_hear_back: number | null;
+  avg_days_to_hear_back_change_pct: number | null;
+  avg_days_to_hear_back_trend: string | null;
+  profile_views_30d: number | null;
+  profile_views_30d_change_pct: number | null;
+  profile_views_30d_trend: string | null;
 }
 
 export interface CandidateProfileInsights {
@@ -296,6 +319,11 @@ function asStringArray(input: unknown): string[] {
 
 function asNullableString(input: unknown): string | null {
   const value = asString(input);
+  return value.length > 0 ? value : null;
+}
+
+function asNullableTrend(input: unknown): string | null {
+  const value = asString(input).toLowerCase();
   return value.length > 0 ? value : null;
 }
 
@@ -361,6 +389,8 @@ function normalizeProfileResponse(payload: unknown): CandidateProfileResponse {
   const root = asRecord(payload) || {};
   const data = asRecord(root.data) || {};
   const profileRaw = asRecord(root.profile) || asRecord(data.profile) || (data.id || data.full_name ? data : root);
+  const profilePerformanceRaw = asRecord(root.profile_performance) || asRecord(data.profile_performance) || {};
+  const performanceInsightsRaw = asRecord(root.performance_insights) || asRecord(data.performance_insights) || {};
   const isOpenToWork = asBoolean(profileRaw.is_open_to_work);
   const fallbackStatus: OpenToWorkStatus = isOpenToWork ? 'Open to opportunities' : 'Private';
 
@@ -387,6 +417,27 @@ function normalizeProfileResponse(payload: unknown): CandidateProfileResponse {
   const job_preferences = normalizeJobPreferences(root.job_preferences)
     || normalizeJobPreferences(data.job_preferences);
 
+  const profile_performance: CandidateProfilePerformance = {
+    profile_views: asNumber(profilePerformanceRaw.profile_views),
+    search_appearances_30d: asNumber(profilePerformanceRaw.search_appearances_30d),
+    last_viewed_at: asNullableString(profilePerformanceRaw.last_viewed_at),
+  };
+
+  const performance_insights: CandidateProfilePerformanceInsights = {
+    application_response_pct: asNullableNumber(performanceInsightsRaw.application_response_pct),
+    application_response_change_points: asNullableNumber(performanceInsightsRaw.application_response_change_points),
+    application_response_trend: asNullableTrend(performanceInsightsRaw.application_response_trend),
+    interview_conversion_pct: asNullableNumber(performanceInsightsRaw.interview_conversion_pct),
+    interview_conversion_change_points: asNullableNumber(performanceInsightsRaw.interview_conversion_change_points),
+    interview_conversion_trend: asNullableTrend(performanceInsightsRaw.interview_conversion_trend),
+    avg_days_to_hear_back: asNullableNumber(performanceInsightsRaw.avg_days_to_hear_back),
+    avg_days_to_hear_back_change_pct: asNullableNumber(performanceInsightsRaw.avg_days_to_hear_back_change_pct),
+    avg_days_to_hear_back_trend: asNullableTrend(performanceInsightsRaw.avg_days_to_hear_back_trend),
+    profile_views_30d: asNullableNumber(performanceInsightsRaw.profile_views_30d),
+    profile_views_30d_change_pct: asNullableNumber(performanceInsightsRaw.profile_views_30d_change_pct),
+    profile_views_30d_trend: asNullableTrend(performanceInsightsRaw.profile_views_30d_trend),
+  };
+
   const response: CandidateProfileResponse = {
     profile,
     experiences: asRecordArray(root.experiences).length > 0 ? asRecordArray(root.experiences) : asRecordArray(data.experiences),
@@ -394,6 +445,8 @@ function normalizeProfileResponse(payload: unknown): CandidateProfileResponse {
     educations: asRecordArray(root.educations).length > 0 ? asRecordArray(root.educations) : asRecordArray(data.educations),
     projects: asRecordArray(root.projects).length > 0 ? asRecordArray(root.projects) : asRecordArray(data.projects),
     job_preferences,
+    profile_performance,
+    performance_insights,
   };
 
   const cvs = asRecordArray(root.cvs).length > 0 ? asRecordArray(root.cvs) : asRecordArray(data.cvs);
