@@ -73,6 +73,7 @@ export interface CandidateDashboardRecommendationJob {
   min_salary: number | null;
   max_salary: number | null;
   currency: string;
+  salary_period: string;
   required_skills: string[];
   posted_at: string;
   description: string;
@@ -223,6 +224,7 @@ function normalizeRecommendationJob(raw: unknown): CandidateDashboardRecommendat
     min_salary: asNullableNumber(root.min_salary),
     max_salary: asNullableNumber(root.max_salary),
     currency: asString(root.currency),
+    salary_period: asString(root.salary_period),
     required_skills: asStringArray(root.required_skills),
     posted_at: asString(root.posted_at),
     description: asString(root.description),

@@ -13,6 +13,7 @@ import {
 import type { RootState } from '../../../redux/store';
 import type { JobsFilters } from '../types';
 import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
+import { formatSalaryLabel } from '../../../utils/formatSalaryLabel';
 
 interface JobListItem {
   id: string;
@@ -151,34 +152,6 @@ function isReloadNavigation(): boolean {
   return legacyPerformance.navigation?.type === 1;
 }
 
-function formatCurrencyAmount(value: number, currencyCode: string): string {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currencyCode || 'USD',
-      maximumFractionDigits: 0,
-    }).format(value);
-  } catch {
-    return `${value}`;
-  }
-}
-
-function formatSalary(minSalary: number | null, maxSalary: number | null, currencyCode: string): string {
-  if (minSalary !== null && maxSalary !== null) {
-    return `${formatCurrencyAmount(minSalary, currencyCode)} - ${formatCurrencyAmount(maxSalary, currencyCode)}`;
-  }
-
-  if (minSalary !== null) {
-    return `${formatCurrencyAmount(minSalary, currencyCode)}+`;
-  }
-
-  if (maxSalary !== null) {
-    return `Up to ${formatCurrencyAmount(maxSalary, currencyCode)}`;
-  }
-
-  return 'Competitive salary';
-}
-
 function formatPostedLabel(postedAt: string): string {
   if (!postedAt) return 'Recently posted';
 
@@ -223,7 +196,7 @@ function toJobListItem(job: CandidateJobsApiJob, absoluteIndex: number): JobList
     title,
     company: companyName,
     location: job.location || 'Remote',
-    salary: formatSalary(job.min_salary, job.max_salary, job.currency),
+    salary: formatSalaryLabel(job.min_salary, job.max_salary, job.currency, { salaryPeriod: job.salary_period }),
     type: formatJobTypeLabel(job.job_type),
     key_responsibilities: job.key_responsibilities,
     verified: job.company.is_verified,

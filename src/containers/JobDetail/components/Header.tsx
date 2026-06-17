@@ -1,33 +1,11 @@
 import { CheckCircle, MapPin, Briefcase, Clock, Building2, DollarSign } from 'lucide-react';
 import type { CandidateJobDetailResponse } from '../../../services/jobsApi';
 import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
+import { formatSalaryLabel } from '../../../utils/formatSalaryLabel';
 import { formatWorkModeLabel } from '../../../utils/formatWorkModeLabel';
 
 interface HeaderProps {
   job?: CandidateJobDetailResponse | null;
-}
-
-function formatSalary(minSalary: number | null, maxSalary: number | null, currency: string): string {
-  if (minSalary === null && maxSalary === null) return '';
-
-  const formatAmount = (value: number) => {
-    try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency,
-        maximumFractionDigits: 0,
-      }).format(value);
-    } catch {
-      return `${value}`;
-    }
-  };
-
-  if (minSalary !== null && maxSalary !== null) {
-    return `${formatAmount(minSalary)} - ${formatAmount(maxSalary)}`;
-  }
-  if (minSalary !== null) return formatAmount(minSalary);
-  if (maxSalary !== null) return formatAmount(maxSalary);
-  return '';
 }
 
 export default function Header({ job }: HeaderProps) {
@@ -37,7 +15,12 @@ export default function Header({ job }: HeaderProps) {
   const location = job?.location || '';
   const jobType = formatJobTypeLabel(job?.job_type || '', '');
   const workMode = formatWorkModeLabel(job?.work_mode || '', '');
-  const salary = formatSalary(job?.min_salary ?? null, job?.max_salary ?? null, job?.currency || '');
+  const salary = formatSalaryLabel(job?.min_salary ?? null, job?.max_salary ?? null, job?.currency || '', {
+    emptyLabel: '',
+    maxOnlyPrefix: '',
+    minOnlySuffix: '',
+    salaryPeriod: job?.salary_period,
+  });
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 md:p-8 shadow-sm font-manrope transition-all duration-300">

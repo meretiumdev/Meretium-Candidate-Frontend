@@ -285,7 +285,7 @@ export default function NotificationsModal({ isOpen, onClose, onUnreadCountChang
   if (!isOpen) return null;
 
   return (
-    <ModalPortal lockScroll={false}>
+    <ModalPortal>
     <div
       onClick={onClose}
       className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16"

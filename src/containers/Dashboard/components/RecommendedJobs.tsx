@@ -10,6 +10,7 @@ import {
 } from '../../../services/dashboardApi';
 import { deleteCandidateSavedJob, saveCandidateJob } from '../../../services/jobsApi';
 import { formatJobTypeLabel } from '../../../utils/formatJobTypeLabel';
+import { formatSalaryLabel } from '../../../utils/formatSalaryLabel';
 
 interface RecommendedJobsProps {
   onQuickApply?: (job: QuickApplyModalJob) => void;
@@ -36,31 +37,6 @@ const PAGE_SIZE = 10;
 const FALLBACK_MATCHES = [92, 88, 85, 90, 83, 80];
 const FALLBACK_TAGS = ['React', 'TypeScript', 'Problem solving'];
 const FALLBACK_REASON = 'Your profile signals strong alignment with the role requirements.';
-
-function formatCurrencyAmount(value: number, currencyCode: string): string {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currencyCode || 'USD',
-      maximumFractionDigits: 0,
-    }).format(value);
-  } catch {
-    return `${value}`;
-  }
-}
-
-function formatSalary(minSalary: number | null, maxSalary: number | null, currencyCode: string): string {
-  if (minSalary !== null && maxSalary !== null) {
-    return `${formatCurrencyAmount(minSalary, currencyCode)} - ${formatCurrencyAmount(maxSalary, currencyCode)}`;
-  }
-  if (minSalary !== null) {
-    return `${formatCurrencyAmount(minSalary, currencyCode)}+`;
-  }
-  if (maxSalary !== null) {
-    return `Up to ${formatCurrencyAmount(maxSalary, currencyCode)}`;
-  }
-  return 'Competitive salary';
-}
 
 function formatPostedLabel(postedAt: string): string {
   if (!postedAt) return 'Recently posted';
@@ -106,7 +82,7 @@ function toRecommendedJobCardItem(job: CandidateDashboardRecommendationJob, abso
     title,
     company,
     location: job.location || 'Remote',
-    salary: formatSalary(job.min_salary, job.max_salary, job.currency),
+    salary: formatSalaryLabel(job.min_salary, job.max_salary, job.currency, { salaryPeriod: job.salary_period }),
     type: formatJobTypeLabel(job.job_type, 'Full-time'),
     verified: job.company.is_verified,
     tags,
