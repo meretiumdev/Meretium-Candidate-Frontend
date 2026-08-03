@@ -174,7 +174,9 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     Portfolio: '',
   });
   const [questionErrors, setQuestionErrors] = useState<Record<string, string>>({});
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  // Starts true (and is re-armed on close) so the step counter renders as a skeleton
+  // from the very first frame instead of flashing a total that may change after the fetch.
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
   const [questionsError, setQuestionsError] = useState<string | null>(null);
 
   const [jobResponsibilities, setJobResponsibilities] = useState<string[]>([]);
@@ -190,8 +192,11 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     profile: true,
     cover: true,
   });
-  const totalSteps = 5;
-  const visibleStep = currentStep;
+  const shouldSkipScreeningStep = !isLoadingQuestions && !questionsError && screeningQuestions.length === 0;
+  const totalSteps = shouldSkipScreeningStep ? 4 : 5;
+  const visibleStep = shouldSkipScreeningStep && currentStep > 2 ? currentStep - 1 : currentStep;
+  const profileStepLabel = shouldSkipScreeningStep ? 'Step 2' : 'Step 3';
+  const coverStepLabel = shouldSkipScreeningStep ? 'Step 3' : 'Step 4';
 
   const selectedCvName = useMemo(() => {
     const selected = cvs.find((cv) => cv.id === selectedCV);
@@ -291,6 +296,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       cvsRequestRef.current += 1;
       jobDetailRequestRef.current += 1;
       coverLetterRequestRef.current += 1;
+      setIsLoadingQuestions(true);
       return;
     }
 
@@ -369,6 +375,13 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
     setSelectedCV(cvId);
     setHasUserSelectedCv(true);
   };
+
+  useEffect(() => {
+    // If the user reached the screening step while questions were still loading
+    // and the job turns out to have none, move them straight to profile links.
+    if (!isOpen || currentStep !== 2 || !shouldSkipScreeningStep) return;
+    setCurrentStep(3);
+  }, [isOpen, currentStep, shouldSkipScreeningStep]);
 
   useEffect(() => {
     if (!isOpen || currentStep !== 4 || !hasGenerated) return;
@@ -627,7 +640,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
 
     if (currentStep === 1) {
       if (!validateStepOne()) return;
-      setCurrentStep(2);
+      setCurrentStep(shouldSkipScreeningStep ? 3 : 2);
       return;
     }
 
@@ -668,7 +681,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
       }
     }
     if (currentStep > 1) {
-      setCurrentStep((prev) => (prev - 1) as Step);
+      setCurrentStep((prev) => (prev === 3 && shouldSkipScreeningStep ? 1 : (prev - 1) as Step));
       return;
     }
     onClose();
@@ -1120,6 +1133,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
               )}
             </div>
 
+            {!shouldSkipScreeningStep && (
             <div className="rounded-xl border border-[#E4E7EC] overflow-hidden">
               <button
                 type="button"
@@ -1172,6 +1186,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
                 </div>
               )}
             </div>
+            )}
 
             <div className="rounded-xl border border-[#E4E7EC] overflow-hidden">
               <button
@@ -1186,7 +1201,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-[16px] font-semibold text-[#101828]">Profile links</p>
-                      <span className="text-[12px] text-[#98A2B3] bg-[#EEF1F5] px-2 py-0.5 rounded-md">Step 3</span>
+                      <span className="text-[12px] text-[#98A2B3] bg-[#EEF1F5] px-2 py-0.5 rounded-md">{profileStepLabel}</span>
                     </div>
                     <p className="text-[13px] text-[#98A2B3]">{filledSocialLinks.length} of 3 completed</p>
                   </div>
@@ -1237,7 +1252,7 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="text-[16px] font-semibold text-[#101828]">Cover letter</p>
-                    <span className="text-[12px] text-[#98A2B3] bg-[#EEF1F5] px-2 py-0.5 rounded-md">Step 4</span>
+                    <span className="text-[12px] text-[#98A2B3] bg-[#EEF1F5] px-2 py-0.5 rounded-md">{coverStepLabel}</span>
                   </div>
                 </div>
                 {reviewSectionOpen.cover ? (
@@ -1311,13 +1326,22 @@ export default function QuickApplyModal({ isOpen, onClose, job, onApplySuccess, 
             </button>
           </div>
           <div className="flex flex-col gap-2">
-            <span className="text-[14px] font-regular text-gray-500 font-body">Step {visibleStep} of {totalSteps}</span>
-            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[#FF6934] rounded-full transition-all duration-300"
-                style={{ width: `${(visibleStep / totalSteps) * 100}%` }}
-              ></div>
-            </div>
+            {isLoadingQuestions ? (
+              <>
+                <div className="h-5 w-24 bg-gray-100 rounded-md animate-pulse" aria-hidden="true"></div>
+                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden animate-pulse"></div>
+              </>
+            ) : (
+              <>
+                <span className="text-[14px] font-regular text-gray-500 font-body">Step {visibleStep} of {totalSteps}</span>
+                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#FF6934] rounded-full transition-all duration-300"
+                    style={{ width: `${(visibleStep / totalSteps) * 100}%` }}
+                  ></div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

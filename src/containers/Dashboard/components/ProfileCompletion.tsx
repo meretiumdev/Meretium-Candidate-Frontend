@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sparkles, ChevronDown, CheckCircle2, Circle, Check } from 'lucide-react';
 
 interface ProfileCompletionProps {
@@ -20,22 +21,36 @@ function getTopBand(strength: number): string {
   return 'Top 80%';
 }
 
-function StepItem({ done, label }: { done: boolean; label: string }) {
-  if (done) {
+function StepItem({ done, label, onClick }: { done: boolean; label: string; onClick?: () => void }) {
+  const content = done ? (
+    <>
+      <CheckCircle2 className="text-[#12B76A] size-6" />
+      <span className="text-sm font-semibold text-[#027A48]">{label}</span>
+    </>
+  ) : (
+    <>
+      <Circle className="text-gray-300 group-hover:text-[#FF6934] transition-colors size-6" />
+      <span className="text-sm font-semibold text-gray-600 group-hover:text-gray-900 transition-colors">{label}</span>
+    </>
+  );
+
+  const baseClassName = done
+    ? 'flex items-center gap-3 bg-[#D1FADF] p-4 rounded-[10px] shadow-sm'
+    : 'flex items-center gap-3 bg-[#F9FAFB] p-4 rounded-[10px] hover:bg-white hover:border-gray-200 transition-all shadow-sm group';
+
+  if (onClick) {
     return (
-      <div className="flex items-center gap-3 bg-[#D1FADF] p-4 rounded-[10px] shadow-sm">
-        <CheckCircle2 className="text-[#12B76A] size-6" />
-        <span className="text-sm font-semibold text-[#027A48]">{label}</span>
-      </div>
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${baseClassName} w-full text-left cursor-pointer ${done ? 'hover:bg-[#BEF3D2] transition-colors' : ''}`}
+      >
+        {content}
+      </button>
     );
   }
 
-  return (
-    <div className="flex items-center gap-3 bg-[#F9FAFB] p-4 rounded-[10px] hover:bg-white hover:border-gray-200 transition-all cursor-pointer shadow-sm group">
-      <Circle className="text-gray-300 group-hover:text-[#FF6934] transition-colors size-6" />
-      <span className="text-sm font-semibold text-gray-600 group-hover:text-gray-900 transition-colors">{label}</span>
-    </div>
-  );
+  return <div className={`${baseClassName} ${done ? '' : 'cursor-pointer'}`}>{content}</div>;
 }
 
 export default function ProfileCompletion({
@@ -44,6 +59,7 @@ export default function ProfileCompletion({
   isSkillsAdded = false,
   isExperienceAdded = false,
 }: ProfileCompletionProps) {
+  const navigate = useNavigate();
   const steps = [isCvUploaded, isSkillsAdded, isExperienceAdded];
   const completedCount = steps.filter(Boolean).length;
   const strength = clampPercentage(profileStrength);
@@ -123,9 +139,9 @@ export default function ProfileCompletion({
         </div>
 
         <div className="space-y-2">
-          <StepItem done={isCvUploaded} label="Upload CV" />
-          <StepItem done={isSkillsAdded} label="Add skills" />
-          <StepItem done={isExperienceAdded} label="Add experience" />
+          <StepItem done={isCvUploaded} label="Upload CV" onClick={() => navigate('/profile#cv')} />
+          <StepItem done={isSkillsAdded} label="Add skills" onClick={() => navigate('/profile#skills')} />
+          <StepItem done={isExperienceAdded} label="Add experience" onClick={() => navigate('/profile#experience')} />
         </div>
       </div>
     </div>

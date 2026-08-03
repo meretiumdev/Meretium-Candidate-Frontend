@@ -112,6 +112,8 @@ export default function JobPreferences({ preferences, onUpdated }: JobPreference
   const [editingField, setEditingField] = useState<EditableField>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [relocationOverride, setRelocationOverride] = useState<boolean | null>(null);
+  const relocationOn = relocationOverride ?? preferences?.open_to_relocation ?? false;
 
   const [rolesDraft, setRolesDraft] = useState('');
   const [locationsDraft, setLocationsDraft] = useState('');
@@ -278,8 +280,11 @@ export default function JobPreferences({ preferences, onUpdated }: JobPreference
   };
 
   const handleRelocationToggle = async () => {
-    const nextValue = !(preferences?.open_to_relocation ?? false);
+    const nextValue = !relocationOn;
+    setRelocationOverride(nextValue);
     await submitUpdate({ open_to_relocation: nextValue });
+    // On success the refreshed preferences carry the new value; on failure this reverts the toggle.
+    setRelocationOverride(null);
   };
 
   return (
@@ -432,9 +437,9 @@ export default function JobPreferences({ preferences, onUpdated }: JobPreference
             type="button"
             onClick={() => { void handleRelocationToggle(); }}
             disabled={saving}
-            className={`w-11 h-6 rounded-full relative transition-all ${preferences?.open_to_relocation ? 'bg-[#FF6934]' : 'bg-[#D0D5DD]'} disabled:opacity-60`}
+            className={`w-11 h-6 rounded-full relative transition-all ${relocationOn ? 'bg-primary-orange' : 'bg-[#D0D5DD]'} disabled:opacity-60`}
           >
-            <div className={`absolute top-0.5 size-5 bg-white rounded-full shadow-sm transition-all ${preferences?.open_to_relocation ? 'right-0.5' : 'left-0.5'}`}></div>
+            <div className={`absolute top-0.5 size-5 bg-white rounded-full shadow-sm transition-all ${relocationOn ? 'right-0.5' : 'left-0.5'}`}></div>
           </button>
         </div>
       </div>

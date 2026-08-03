@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from '../../redux/store';
 import Header from './components/Header';
@@ -122,6 +123,7 @@ async function loadProfileDataSnapshot(accessToken: string, useCache: boolean): 
 
 export default function Profile() {
   const dispatch = useDispatch<AppDispatch>();
+  const location = useLocation();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [profileData, setProfileData] = useState<CandidateProfileResponse | null>(null);
   const [profileSummary, setProfileSummary] = useState('');
@@ -133,6 +135,20 @@ export default function Profile() {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const requestSeqRef = useRef(0);
+  const scrolledSectionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!profileData) return;
+    const sectionId = location.hash.slice(1);
+    if (!sectionId) return;
+    // One scroll per navigation entry — silent profile refreshes must not re-trigger it.
+    const scrollKey = `${location.key}:${sectionId}`;
+    if (scrolledSectionRef.current === scrollKey) return;
+    scrolledSectionRef.current = scrollKey;
+    window.setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }, [profileData, location.key, location.hash]);
 
   const loadProfile = useCallback(async ({
     showPageLoading = true,
@@ -264,11 +280,17 @@ export default function Profile() {
             hasExperience={experiences.length > 0}
           />
           <AboutSection about={profileData.profile.about || ''} onProfileUpdated={refreshProfileSilently} />
-          <ExperienceSection experiences={experiences} onExperienceAdded={refreshProfileSilently} />
-          <SkillsSection skills={skills} onSkillAdded={refreshProfileSilently} />
+          <div id="experience" className="scroll-mt-6">
+            <ExperienceSection experiences={experiences} onExperienceAdded={refreshProfileSilently} />
+          </div>
+          <div id="skills" className="scroll-mt-6">
+            <SkillsSection skills={skills} onSkillAdded={refreshProfileSilently} />
+          </div>
           <ProjectsSection projects={projects} onProjectUpdated={refreshProfileSilently} />
           <EducationSection educations={educations} onEducationUpdated={refreshProfileSilently} />
-          <CVSection cvs={profileData.cvs} onCvUploaded={() => { void refreshProfileSilently(); }} />
+          <div id="cv" className="scroll-mt-6">
+            <CVSection cvs={profileData.cvs} onCvUploaded={() => { void refreshProfileSilently(); }} />
+          </div>
           <JobPreferences preferences={profileData.job_preferences} onUpdated={refreshProfileSilently} />
         </div>
 
