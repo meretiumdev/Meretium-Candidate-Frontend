@@ -1,20 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Header from './components/Header';
-import Tabs from './components/Tabs';
+import Tabs, { type JobsTab } from './components/Tabs';
 import FiltersSidebar from './components/FiltersSidebar';
 import JobList from './components/JobList';
+import ExternalJobList from './components/ExternalJobList';
 import RecommendedJobs from '../Dashboard/components/RecommendedJobs';
 import QuickApplyModal from '../../components/QuickApplyModal';
 import type { QuickApplyModalJob } from '../../components/QuickApplyModal';
 import CreateJobAlertModal from '../../components/CreateJobAlertModal';
 import { DEFAULT_JOBS_FILTERS, type JobsFilters } from './types';
 
+const TAB_QUERY_PARAM = 'tab';
+
+function parseJobsTab(value: string | null): JobsTab {
+  if (value === 'recommended' || value === 'more-jobs') return value;
+  return 'all';
+}
+
 export default function JobsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'recommended'>('all');
+  // The active tab lives in the URL (?tab=...) so it survives refresh and back/forward.
+  const activeTab = parseJobsTab(searchParams.get(TAB_QUERY_PARAM));
+  const setActiveTab = useCallback((tab: JobsTab) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === 'all') next.delete(TAB_QUERY_PARAM);
+      else next.set(TAB_QUERY_PARAM, tab);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const [filters, setFilters] = useState<JobsFilters>(DEFAULT_JOBS_FILTERS);
   const [allJobsCount, setAllJobsCount] = useState(0);
+  const [externalJobsCount, setExternalJobsCount] = useState<number | null>(null);
   const [selectedJob, setSelectedJob] = useState<QuickApplyModalJob | null>(null);
   const [isQuickApplyOpen, setIsQuickApplyOpen] = useState(false);
   const [applyToast, setApplyToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
@@ -79,7 +99,7 @@ export default function JobsPage() {
   }, [applyToast]);
 
   useEffect(() => {
-    if (activeTab !== 'recommended') return;
+    if (activeTab === 'all') return;
     setIsMobileFiltersOpen(false);
   }, [activeTab]);
 
@@ -104,6 +124,7 @@ export default function JobsPage() {
       <Header onCreateAlert={() => setIsAlertModalOpen(true)} />
       <Tabs
         allJobsCount={allJobsCount}
+        externalJobsCount={externalJobsCount}
         activeTab={activeTab}
         onTabChange={setActiveTab}
       />
@@ -124,8 +145,10 @@ export default function JobsPage() {
             />
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'recommended' ? (
         <RecommendedJobs onQuickApply={handleQuickApply} />
+      ) : (
+        <ExternalJobList onJobsCountChange={setExternalJobsCount} />
       )}
 
       {isMobileFiltersOpen && activeTab === 'all' && (

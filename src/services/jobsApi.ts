@@ -37,7 +37,10 @@ export interface CandidateJobsApiJob {
   description: string;
   key_responsibilities: string[];
   match_percentage: number | null;
+  matched_skills: string[];
   is_saved: boolean;
+  source_name: string;
+  external_url: string;
 }
 
 export interface CandidateJobsListResponse {
@@ -405,7 +408,10 @@ function normalizeJob(raw: unknown): CandidateJobsApiJob | null {
     description: asString(root.description),
     key_responsibilities: asStringArray(root.key_responsibilities),
     match_percentage: asNullableNumber(root.match_percentage),
+    matched_skills: asStringArray(root.matched_skills),
     is_saved: asBoolean(root.is_saved),
+    source_name: asString(root.source_name),
+    external_url: asString(root.external_url),
   };
 }
 
@@ -466,7 +472,10 @@ function normalizeJobDetailResponse(payload: unknown): CandidateJobDetailRespons
     posted_at: base?.posted_at || '',
     description: base?.description || '',
     match_percentage: base?.match_percentage ?? null,
+    matched_skills: base?.matched_skills || [],
     is_saved: base?.is_saved ?? false,
+    source_name: base?.source_name || "",
+    external_url: base?.external_url || "",
     department: asString(root.department),
     work_mode: asString(root.work_mode),
     experience_level: asString(root.experience_level),
@@ -815,6 +824,60 @@ export async function getCandidateJobs(
   if (!response.ok) {
     forceReauthIfNeeded(response.status, payload);
     throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `Jobs fetch failed with status ${response.status}`);
+  }
+
+  return normalizeJobsResponse(payload);
+}
+
+export interface GetCandidateExternalRecommendationsParams {
+  /** Page size — jobs returned per call (1–100, default 20). */
+  top_n?: number;
+  /** Offset into the ranked list, for infinite scroll. */
+  skip?: number;
+}
+
+export async function getCandidateExternalRecommendations(
+  accessToken: string,
+  params: GetCandidateExternalRecommendationsParams = {}
+): Promise<CandidateJobsListResponse> {
+  if (!CANDIDATE_API_BASE_URL) {
+    throw new Error('Missing VITE_CANDIDATE_API_BASE_URL in environment variables.');
+  }
+
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error('You are not authenticated. Please log in again.');
+  }
+
+  const rawTopN = Number(params.top_n);
+  const rawSkip = Number(params.skip);
+  const topN = Number.isFinite(rawTopN) ? Math.min(100, Math.max(1, Math.trunc(rawTopN))) : 20;
+  const skip = Number.isFinite(rawSkip) ? Math.max(0, Math.trunc(rawSkip)) : 0;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('top_n', String(topN));
+  queryParams.set('skip', String(skip));
+
+  const response = await executeAuthorizedRequest(trimmedAccessToken, (nextAccessToken) =>
+    fetch(`${CANDIDATE_API_BASE_URL}/recommendations/external?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: getCandidateRequestHeaders(nextAccessToken),
+    })
+  );
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    forceReauthIfNeeded(response.status, payload);
+    throw new Error(getApiDetailMessage(payload) || getApiMessage(payload) || `External recommendations fetch failed with status ${response.status}`);
   }
 
   return normalizeJobsResponse(payload);
